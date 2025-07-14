@@ -1,0 +1,16 @@
+{
+  "name": "voidwatch",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "minify": "tailwindcss -i ./web/src/voidwatch.css -o ./web/static/voidwatch.min.css --minify",
+    "watch": "tailwindcss -i ./web/src/voidwatch.css -o ./web/static/voidwatch.min.css --watch --minify"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "tailwindcss": "^4.1.10"
+  }
+}

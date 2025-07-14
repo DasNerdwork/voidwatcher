@@ -1,0 +1,33 @@
+# Custom
+test.py
+test2.py
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Build output
+/bin/
+/build/
+/dist/
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.swp
+
+# Test output
+coverage.out
+*.prof
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Dirs
+vendor/
+node_modules/
