@@ -5869,3 +5869,5 @@ LINE 2: ... probability, procChance, productCategory, range, rank, rari...
 [14.07.2025 18:33:14] [sync_api.py - INFO]: 🧹 Insgesamt gelöscht: 961 aus item_stats_48h und 0 aus item_stats_90d.
 [14.07.2025 18:33:14] [sync_api.py - INFO]: ✅ Laufzeit: 33.22 Minuten
 [14.07.2025 18:33:14] [sync_api.py - INFO]: ---------------------------------------------------------------------------
+[14.07.2025 19:00:02] [sync_api.py - INFO]: Starte Abfrage aller Items von https://api.warframestat.us/items
+[14.07.2025 19:00:08] [sync_api.py - INFO]: Gefundene Items insgesamt: 15702

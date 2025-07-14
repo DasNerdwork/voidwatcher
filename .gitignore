@@ -31,3 +31,4 @@ Thumbs.db
 # Dirs
 vendor/
 node_modules/
+log/
