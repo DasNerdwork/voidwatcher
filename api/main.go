@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"strconv"
-
 	"voidwatch/db"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +26,15 @@ type PageData struct {
 }
 
 func main() {
+	// Optional: write logs to file
+	logFile, err := os.OpenFile("/hdd1/warframe/voidwatch/log/main.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatal("Logfile konnte nicht erstellt werden:", err)
+	}
+	log.SetOutput(logFile)
+
 	// DB initialisieren
+	log.Println("VoidWatcher gestartet")
 	db.InitDB()
 	defer db.Close()
 
@@ -72,7 +80,7 @@ func main() {
 		lastUpdated, err := db.GetLastUpdated()
 		if err != nil {
 			log.Printf("Fehler beim Abrufen von last_updated: %v", err)
-			lastUpdated = "unbekannt"
+			lastUpdated = ""
 		}
 
 		pageData := PageData{

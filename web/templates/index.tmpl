@@ -69,10 +69,10 @@
           {{range .Data}}
           <tr class="hover:bg-gray-700 transition text-center">
             <td class="px-6 py-3 border-t border-gray-700">{{.Name}}</td>
-            <td class="px-6 py-3 border-t border-gray-700">{{.DateTime.Format "2006-01-02 15:04"}}</td>
+            <td class="px-6 py-3 border-t border-gray-700">{{.DateTime.Format "02.01.2006"}}</td>
             <td class="px-6 py-3 border-t border-gray-700">{{printf "%.2f" .AvgPrice}}</td>
-            <td class="px-6 py-3 border-t border-gray-700">{{printf "%.2f" .MinPrice}}</td>
-            <td class="px-6 py-3 border-t border-gray-700">{{printf "%.2f" .MaxPrice}}</td>
+            <td class="px-6 py-3 border-t border-gray-700">{{printf "%.0f" .MinPrice}}</td>
+            <td class="px-6 py-3 border-t border-gray-700">{{printf "%.0f" .MaxPrice}}</td>
             <td class="px-6 py-3 border-t border-gray-700">{{.Volume}}</td>
           </tr>
           {{else}}

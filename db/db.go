@@ -58,12 +58,13 @@ func GetLastUpdated() (string, error) {
 		return "", err
 	}
 
-	parsed, err := time.Parse(time.RFC3339, raw)
+	parsed, err := time.Parse("2006-01-02T15:04:05.999999", raw)
 	if err != nil {
+		log.Printf("⚠️ Fehler beim Parsen von Datum: %v\nraw = %s", err, raw)
 		return raw, nil // fallback: raw string
 	}
 
-	// Format: "17.07.2025 14:05"
+	// Format to: "17.07.2025 14:05"
 	return parsed.Format("02.01.2006 15:04"), nil
 }
 
