@@ -1,6 +1,7 @@
 # Custom
 test.py
 test2.py
+.env
 
 # Binaries
 *.exe
