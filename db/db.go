@@ -4,7 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 
 	_ "github.com/lib/pq"
 )
@@ -23,8 +26,19 @@ var db *sql.DB
 
 // Datenbankverbindung initialisieren
 func InitDB() {
-	connStr := "host=localhost port=***REMOVED*** user=voidwatcher password=***REMOVED*** dbname=voidwatch sslmode=disable"
-	var err error
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("⚠️  Konnte .env Datei nicht laden (optional): %v", err)
+	}
+	host := os.Getenv("VW_HOST")
+	port := os.Getenv("VW_PORT")
+	user := os.Getenv("VW_USER")
+	password := os.Getenv("VW_PASSWORD")
+	dbname := os.Getenv("VW_NAME")
+	connStr := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname,
+	)
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Fehler beim Öffnen der Datenbankverbindung: %v", err)
@@ -33,8 +47,24 @@ func InitDB() {
 	if err = db.Ping(); err != nil {
 		log.Fatalf("Fehler beim Verbinden mit der Datenbank: %v", err)
 	}
-
 	fmt.Println("✅ Datenbankverbindung erfolgreich hergestellt.")
+}
+
+// GetLastUpdated liest das letzte Update-Datum aus der metadata-Tabelle
+func GetLastUpdated() (string, error) {
+	var raw string
+	err := db.QueryRow(`SELECT value FROM metadata WHERE key = 'last_updated'`).Scan(&raw)
+	if err != nil {
+		return "", err
+	}
+
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return raw, nil // fallback: raw string
+	}
+
+	// Format: "17.07.2025 14:05"
+	return parsed.Format("02.01.2006 15:04"), nil
 }
 
 // Top Performer nach avg_price (24h oder 48h)

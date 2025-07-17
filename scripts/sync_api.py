@@ -6,6 +6,7 @@ from psycopg2 import sql
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
 import os
 import time
 from datetime import datetime
@@ -36,12 +37,13 @@ logging.basicConfig(
 )
 
 # --- Konfiguration ---
+load_dotenv()
 DB_CONFIG = {
-    'dbname': 'REDACTED',
-    'user': 'REDACTED',
-    'password': 'REDACTED',
-    'host': 'REDACTED',
-    'port': 1234
+    'dbname': os.getenv('VW_NAME'),
+    'user': os.getenv('VW_USER'),
+    'password': os.getenv('VW_PASSWORD'),
+    'host': os.getenv('VW_HOST'),
+    'port': int(os.getenv('VW_PORT'))
 }
 
 MARKET_API_URL = "https://api.warframe.market/v1/items"
@@ -297,6 +299,18 @@ def fetch_statistics_and_store(conn):
 
     logging.info(f"✔️ API Sync abgeschlossen: verfügbar={available}, neu={inserted}, übersprungen={skipped}, fehlgeschlagen={failed}")
 
+def update_last_updated_timestamp(conn):
+    with conn.cursor() as cur:
+        now = datetime.utcnow().isoformat()
+        cur.execute("""
+            INSERT INTO metadata (key, value)
+            VALUES ('last_updated', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """, (now,))
+        conn.commit()
+        logging.info(f"📌 last_updated gesetzt auf {now}")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Voidwatch Datenimport-Script")
     parser.add_argument("--dry-run", action="store_true", help="Nur Statistiken holen, keine neuen Items laden")
@@ -340,6 +354,10 @@ def main(dry_run=False):
         deleted_48h = delete_old_48h_entries(conn)
         deleted_90d = delete_old_90d_entries(conn)
         logging.info(f"🧹 Insgesamt gelöscht: {deleted_48h} aus item_stats_48h und {deleted_90d} aus item_stats_90d.")
+        try:
+            update_last_updated_timestamp(conn)
+        except Exception as e:
+            logging.error(f"Fehler beim Aktualisieren des last_updated Timestamps: {e}")
     except Exception as e:
         logging.error(f"Allgemeiner Fehler im Hauptablauf: {e}")
     finally:

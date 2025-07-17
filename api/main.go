@@ -22,6 +22,7 @@ type PageData struct {
 	TopPerformer TableData
 	TopSeller    TableData
 	TopTraded    TableData
+	LastUpdated  string
 }
 
 func main() {
@@ -68,9 +69,16 @@ func main() {
 			return
 		}
 
+		lastUpdated, err := db.GetLastUpdated()
+		if err != nil {
+			log.Printf("Fehler beim Abrufen von last_updated: %v", err)
+			lastUpdated = "unbekannt"
+		}
+
 		pageData := PageData{
-			Hours:  hours,
-			SortBy: sortBy,
+			Hours:       hours,
+			SortBy:      sortBy,
+			LastUpdated: lastUpdated,
 			TopPerformer: TableData{
 				Title: "Best Performing",
 				Data:  topPerformers,
