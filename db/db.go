@@ -82,15 +82,16 @@ func GetTopPerformers(hours int, limit int) ([]DisplayItem, error) {
 
 	query := fmt.Sprintf(`
 		SELECT
-			url_name,
-			MAX(datetime) as datetime,
-			AVG(avg_price) as avg_price,
-			MIN(min_price) as min_price,
-			MAX(max_price) as max_price,
-			SUM(volume) as volume
-		FROM %s
+			i.item_name as item_name,
+			MAX(s.datetime) as datetime,
+			AVG(s.avg_price) as avg_price,
+			MIN(s.min_price) as min_price,
+			MAX(s.max_price) as max_price,
+			SUM(s.volume) as volume
+		FROM %s s
+		JOIN items i ON i.url_name = s.url_name
 		WHERE datetime >= NOW() - INTERVAL '%d hour'
-		GROUP BY url_name
+		GROUP BY item_name
 		ORDER BY avg_price DESC
 		LIMIT $1
 	`, table, hours)
@@ -145,15 +146,16 @@ func GetTopSellers(hours int, limit int) ([]DisplayItem, error) {
 
 	query := fmt.Sprintf(`
 		SELECT
-			url_name,
-			MAX(datetime) as datetime,
-			AVG(avg_price) as avg_price,
-			MIN(min_price) as min_price,
-			MAX(max_price) as max_price,
-			SUM(volume) as volume
-		FROM %s
+			i.item_name as item_name,
+			MAX(s.datetime) as datetime,
+			AVG(s.avg_price) as avg_price,
+			MIN(s.min_price) as min_price,
+			MAX(s.max_price) as max_price,
+			SUM(s.volume) as volume
+		FROM %s s
+		JOIN items i ON i.url_name = s.url_name
 		WHERE datetime >= NOW() - INTERVAL '%d hour'
-		GROUP BY url_name
+		GROUP BY item_name
 		ORDER BY volume DESC
 		LIMIT $1
 	`, table, hours)
@@ -191,15 +193,16 @@ func GetMostTraded(hours int, limit int) ([]DisplayItem, error) {
 
 	query := fmt.Sprintf(`
 		SELECT
-			url_name,
-			MAX(datetime) as datetime,
-			AVG(avg_price) as avg_price,
-			MIN(min_price) as min_price,
-			MAX(max_price) as max_price,
-			SUM(volume) as volume
-		FROM %s
+			i.item_name as item_name,
+			MAX(s.datetime) as datetime,
+			AVG(s.avg_price) as avg_price,
+			MIN(s.min_price) as min_price,
+			MAX(s.max_price) as max_price,
+			SUM(s.volume) as volume
+		FROM %s s
+		JOIN items i ON i.url_name = s.url_name
 		WHERE datetime >= NOW() - INTERVAL '%d hour'
-		GROUP BY url_name
+		GROUP BY item_name
 		ORDER BY volume DESC
 		LIMIT $1
 	`, table, hours)
