@@ -11,11 +11,6 @@ test2.py
 *.test
 *.out
 
-# Build output
-/bin/
-/build/
-/dist/
-
 # IDEs / Editors
 .vscode/
 .idea/
@@ -25,11 +20,13 @@ test2.py
 coverage.out
 *.prof
 
-# OS-specific
+# OS-specific & Cache
 .DS_Store
 Thumbs.db
+__pycache__/
 
 # Dirs
 vendor/
 node_modules/
 log/
+deprecated/

@@ -6,7 +6,7 @@
 
 ## 📦 Features
 
-- Fast and minimal Go backend using [Gin](https://github.com/gin-gonic/gin)
+- Fast and minimal Python backend using [FastAPI](https://fastapi.tiangolo.com/)
 - Market analytics with:
   - Top performers by price
   - Top sellers by volume
@@ -18,8 +18,7 @@
 
 ## 🛠 Tech Stack
 
-- **Backend:** Go (`gin-gonic`)
+- **Backend:** Python + FastAPI
 - **Database:** PostgreSQL
-- **Frontend:** HTML + Tailwind CSS
-- **Templating:** Go HTML templates (`text/template`)
+- **Frontend:** React + HTML + Tailwind CSS
 
