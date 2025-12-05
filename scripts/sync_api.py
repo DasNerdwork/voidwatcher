@@ -37,7 +37,7 @@ logging.basicConfig(
 )
 
 # --- Konfiguration ---
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "../api/.env"))
 DB_CONFIG = {
     'dbname': os.getenv('VW_NAME'),
     'user': os.getenv('VW_USER'),

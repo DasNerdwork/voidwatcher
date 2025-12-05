@@ -5,19 +5,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-conn = psycopg2.connect(
-    host=os.getenv("VW_HOST"),
-    port=os.getenv("VW_PORT"),
-    user=os.getenv("VW_USER"),
-    password=os.getenv("VW_PASSWORD"),
-    dbname=os.getenv("VW_NAME"),
-)
+def get_conn():
+    return psycopg2.connect(
+        host=os.getenv("VW_HOST"),
+        port=os.getenv("VW_PORT"),
+        user=os.getenv("VW_USER"),
+        password=os.getenv("VW_PASSWORD"),
+        dbname=os.getenv("VW_NAME"),
+    )
 
 def query(sql, params=None):
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(sql, params or ())
-        return cur.fetchall()
-
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params or ())
+            return cur.fetchall()
+    finally:
+        conn.close()
+        
 def get_last_updated():
     row = query("SELECT value FROM metadata WHERE key = 'last_updated'")
     if not row:
