@@ -22,48 +22,60 @@ def query(sql, params=None):
             return cur.fetchall()
     finally:
         conn.close()
-        
+
 def get_last_updated():
     row = query("SELECT value FROM metadata WHERE key = 'last_updated'")
-    if not row:
-        return None
-    return row[0]["value"]
+    return row[0]["value"] if row else None
+
+# ---- UPDATED QUERIES ---- #
 
 def get_top_performers(hours, limit):
     return query(f"""
-        SELECT i.item_name, MAX(s.datetime) AS datetime,
-               AVG(s.avg_price) AS avg_price, MIN(s.min_price) AS min_price,
-               MAX(s.max_price) AS max_price, SUM(s.volume) AS volume
+        SELECT 
+            (i.raw->'i18n'->'en'->>'name') AS item_name,
+            MAX(s.ts) AS datetime,
+            AVG(s.avg_price) AS avg_price,
+            MIN(s.min_price) AS min_price,
+            MAX(s.max_price) AS max_price,
+            SUM(s.volume) AS volume
         FROM item_stats_48h s
-        JOIN items i ON i.url_name = s.url_name
-        WHERE datetime >= NOW() - INTERVAL '{hours} hour'
+        JOIN items i ON i.id = s.item_id
+        WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
         GROUP BY item_name
         ORDER BY avg_price DESC
-        LIMIT %s
+        LIMIT %s;
     """, (limit,))
 
 def get_top_sellers(hours, limit):
     return query(f"""
-        SELECT i.item_name, MAX(s.datetime) AS datetime,
-               AVG(s.avg_price) AS avg_price, MIN(s.min_price) AS min_price,
-               MAX(s.max_price) AS max_price, SUM(s.volume) AS volume
+        SELECT 
+            (i.raw->'i18n'->'en'->>'name') AS item_name,
+            MAX(s.ts) AS datetime,
+            AVG(s.avg_price) AS avg_price,
+            MIN(s.min_price) AS min_price,
+            MAX(s.max_price) AS max_price,
+            SUM(s.volume) AS volume
         FROM item_stats_48h s
-        JOIN items i ON i.url_name = s.url_name
-        WHERE datetime >= NOW() - INTERVAL '{hours} hour'
+        JOIN items i ON i.id = s.item_id
+        WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
         GROUP BY item_name
         ORDER BY volume DESC
-        LIMIT %s
+        LIMIT %s;
     """, (limit,))
 
 def get_most_traded(hours, limit):
     return query(f"""
-        SELECT i.item_name, MAX(s.datetime) AS datetime,
-               AVG(s.avg_price) AS avg_price, MIN(s.min_price) AS min_price,
-               MAX(s.max_price) AS max_price, SUM(s.volume) AS volume
+        SELECT 
+            (i.raw->'i18n'->'en'->>'name') AS item_name,
+            MAX(s.ts) AS datetime,
+            AVG(s.avg_price) AS avg_price,
+            MIN(s.min_price) AS min_price,
+            MAX(s.max_price) AS max_price,
+            SUM(s.volume) AS volume
         FROM item_stats_48h s
-        JOIN items i ON i.url_name = s.url_name
-        WHERE datetime >= NOW() - INTERVAL '{hours} hour'
+        JOIN items i ON i.id = s.item_id
+        WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
         GROUP BY item_name
         ORDER BY volume DESC
-        LIMIT %s
+        LIMIT %s;
     """, (limit,))

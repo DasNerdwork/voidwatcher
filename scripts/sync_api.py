@@ -1,378 +1,444 @@
 #!/usr/bin/env python3
-import requests
-import psycopg2
-from psycopg2.extras import execute_values
-from psycopg2 import sql
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import logging
-from logging.handlers import RotatingFileHandler
-from dotenv import load_dotenv
 import os
 import time
-from datetime import datetime
+import json
+import logging
 import argparse
+from datetime import datetime, timezone
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- Logging einrichten ---
-log_dir = os.path.join(os.path.dirname(__file__), '..', 'log')
-os.makedirs(log_dir, exist_ok=True)
+import requests
+import psycopg2
+from psycopg2.extras import execute_values, Json
+from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
 
-log_file = os.path.join(log_dir, 'cron.log')
+# -------------------------
+# Logging setup
+# -------------------------
+BASE_DIR = Path(__file__).resolve().parent
+log_dir = BASE_DIR.parent / "log"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / "cron.log"
 
-handler = RotatingFileHandler(
-    log_file,
-    maxBytes=50 * 1024 * 1024,
-    backupCount=1
-)
-
+handler = RotatingFileHandler(str(log_file), maxBytes=50 * 1024 * 1024, backupCount=1)
 formatter = logging.Formatter(
     '[%(asctime)s] [%(filename)s - %(levelname)s]: %(message)s',
     datefmt='%d.%m.%Y %H:%M:%S'
 )
-
 handler.setFormatter(formatter)
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[handler]
-)
+# -------------------------
+# Configuration / env
+# -------------------------
+# load .env from ../api/.env (keep your existing layout)
+load_dotenv(BASE_DIR / "../api/.env")
 
-# --- Konfiguration ---
-load_dotenv(os.path.join(os.path.dirname(__file__), "../api/.env"))
 DB_CONFIG = {
     'dbname': os.getenv('VW_NAME'),
     'user': os.getenv('VW_USER'),
     'password': os.getenv('VW_PASSWORD'),
-    'host': os.getenv('VW_HOST'),
-    'port': int(os.getenv('VW_PORT'))
+    'host': os.getenv('VW_HOST', 'localhost'),
+    'port': int(os.getenv('VW_PORT', 5432))
 }
 
-MARKET_API_URL = "https://api.warframe.market/v1/items"
+MARKET_API_URL = "https://api.warframe.market/v2/items"
 WFSTAT_API_URL = "https://api.warframestat.us/items"
 FIELD_BLACKLIST = {'abcABC', '123456'}
 
-def fetch_all_items():
-    try:
-        logging.info(f"Starte Abfrage aller Items von {WFSTAT_API_URL}")
-        response = requests.get(WFSTAT_API_URL)
-        response.raise_for_status()
-        items = response.json()
-        # Kein Filter auf "tradable"
-        logging.info(f"Gefundene Items insgesamt: {len(items)}")
-        return items
-    except Exception as e:
-        logging.error(f"Fehler beim Abrufen der Items: {e}")
-        return []
-
-def get_all_fields(items):
-    fields = set()
-    for item in items:
-        fields.update(item.keys())
-    return sorted(f for f in fields if f not in FIELD_BLACKLIST)
-
-def create_item_info_table(conn, fields):
+# -------------------------
+# Database schema creation
+# -------------------------
+def create_schema(conn):
     with conn.cursor() as cur:
-        safe_fields = [f for f in fields if f.lower() != "uniquename"]
-        field_defs = ",\n".join([f"{f} TEXT" for f in safe_fields])
-        if field_defs:
-            field_defs += ",\n"
-        field_defs += "uniqueName TEXT UNIQUE"
-
-        query = f"""
-            CREATE TABLE IF NOT EXISTS item_info (
-                id SERIAL PRIMARY KEY,
-                {field_defs}
-            );
-        """
-        cur.execute(query)
-        conn.commit()
-        logging.info(f"Tabelle 'item_info' erstellt oder existiert bereits mit {len(fields)} Feldern")
-
-def prepare_rows(items, fields):
-    rows = []
-    for item in items:
-        row = [str(item.get(f)) if item.get(f) is not None else None for f in fields if f.lower() != "uniquename"]
-        row.append(item.get("uniqueName"))
-        rows.append(row)
-    return rows
-
-def insert_item_info(conn, fields, rows):
-    with conn.cursor() as cur:
-        safe_fields = [f for f in fields if f.lower() != "uniquename"]
-        all_columns = safe_fields + ["uniqueName"]
-        update_fields = [f for f in all_columns if f not in ("uniqueName", "id")]
-        update_clause = ", ".join([f"{field} = EXCLUDED.{field}" for field in update_fields])
-
-        query = f"""
-            INSERT INTO item_info ({", ".join(all_columns)})
-            VALUES %s
-            ON CONFLICT (uniqueName) DO UPDATE SET
-            {update_clause};
-        """
-        execute_values(cur, query, rows)
-        conn.commit()
-        logging.info(f"Item-Info Tabelle mit {len(rows)} Einträgen aktualisiert")
-
-# --- Schritt 1: API abrufen ---
-def fetch_items():
-    try:
-        logging.info(f"Starting item sync on {MARKET_API_URL}")
-        response = requests.get(MARKET_API_URL)
-        response.raise_for_status()
-        return response.json()['payload']['items']
-    except requests.RequestException as e:
-        logging.error(f"Fehler beim Abrufen der API: {e}")
-        return []
-
-# --- Schritt 2: Tabellen erstellen ---
-def create_item_table_if_not_exists(conn):
-    with conn.cursor() as cur:
+        # items - normalized with JSONB raw copy
         cur.execute("""
             CREATE TABLE IF NOT EXISTS items (
                 id TEXT PRIMARY KEY,
-                item_name TEXT,
-                url_name TEXT,
-                thumb TEXT
-            )
+                slug TEXT UNIQUE,
+                game_ref TEXT,
+                i18n JSONB,
+                tags JSONB,
+                ducats INT,
+                max_rank INT,
+                raw JSONB,
+                created_at TIMESTAMPTZ DEFAULT now()
+            );
         """)
-        conn.commit()
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_slug ON items (slug);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_tags ON items USING GIN (tags);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_i18n_en_name ON items ((raw->'i18n'->'en'->>'name'));")
 
-def create_48h_table_if_not_exists(conn):
-    with conn.cursor() as cur:
+        # 48h stats
         cur.execute("""
             CREATE TABLE IF NOT EXISTS item_stats_48h (
-                id TEXT NOT NULL,
-                url_name TEXT NOT NULL,
-                datetime TIMESTAMPTZ NOT NULL,
+                item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                ts TIMESTAMPTZ NOT NULL,
                 avg_price NUMERIC,
                 min_price NUMERIC,
                 max_price NUMERIC,
                 volume INTEGER,
-                PRIMARY KEY (id, datetime)
-            )
+                PRIMARY KEY (item_id, ts)
+            );
         """)
-        conn.commit()
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_48h_item_ts ON item_stats_48h (item_id, ts);")
 
-def create_90d_table_if_not_exists(conn):
-    with conn.cursor() as cur:
+        # 90d stats (per day)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS item_stats_90d (
-                id TEXT NOT NULL,
-                url_name TEXT NOT NULL,
-                datetime DATE NOT NULL,
+                item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                day DATE NOT NULL,
                 avg_price NUMERIC,
                 min_price NUMERIC,
                 max_price NUMERIC,
                 volume INTEGER,
-                PRIMARY KEY (url_name, datetime)
-            )
+                PRIMARY KEY (item_id, day)
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_90d_item_day ON item_stats_90d (item_id, day);")
+
+        # metadata table for last update
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
         """)
         conn.commit()
+    logging.info("DB schema verified/created.")
 
+# -------------------------
+# Market / Warframestat fetchers
+# -------------------------
+def fetch_market_items():
+    """
+    Fetch items from Warframe.Market v2 and return a list of item objects.
+    Accept multiple response shapes:
+      - {'payload': {'items': [...]}}
+      - {'data': [...]}
+      - [...]
+    """
+    try:
+        logging.info(f"Fetching items from {MARKET_API_URL}")
+        r = requests.get(MARKET_API_URL, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        # try common shapes
+        if isinstance(data, dict):
+            if 'payload' in data and isinstance(data['payload'], dict) and 'items' in data['payload']:
+                items = data['payload']['items']
+            elif 'data' in data and isinstance(data['data'], list):
+                items = data['data']
+            elif 'items' in data and isinstance(data['items'], list):
+                items = data['items']
+            else:
+                # fallback: look for a top-level array inside dict values
+                found = None
+                for v in data.values():
+                    if isinstance(v, list):
+                        found = v
+                        break
+                items = found or []
+        elif isinstance(data, list):
+            items = data
+        else:
+            items = []
+        logging.info(f"Fetched {len(items)} market items")
+        return items
+    except Exception as e:
+        logging.error(f"Failed to fetch market items: {e}")
+        return []
+
+def fetch_all_wfstat_items():
+    try:
+        logging.info(f"Fetching tradable items from {WFSTAT_API_URL}")
+        r = requests.get(WFSTAT_API_URL, timeout=30)
+        r.raise_for_status()
+        items = r.json()
+        logging.info(f"Fetched {len(items)} items from warframestat")
+        return items
+    except Exception as e:
+        logging.error(f"Failed to fetch warframestat items: {e}")
+        return []
+
+# -------------------------
+# Insert / Upsert items
+# -------------------------
+def upsert_items(conn, items):
+    """
+    Bulk upsert items into items table.
+    Expect items from market v2 shape.
+    """
+    if not items:
+        logging.info("No items to upsert.")
+        return 0
+
+    rows = []
+    now = datetime.now(timezone.utc).isoformat()
+    for it in items:
+        item_id = it.get('id') or it.get('_id') or it.get('uniqueName') or None
+        slug = it.get('slug') or it.get('url_name') or None
+        game_ref = it.get('gameRef') or None
+        i18n = it.get('i18n') or {}
+        tags = it.get('tags') or []
+        ducats = it.get('ducats')
+        max_rank = it.get('maxRank') if it.get('maxRank') is not None else it.get('max_rank')
+        raw = it
+        if not item_id:
+            # skip objects without a stable id
+            logging.debug(f"Skipping item without id: {slug or str(it)[:80]}")
+            continue
+        rows.append((
+            item_id,
+            slug,
+            game_ref,
+            Json(i18n),
+            Json(tags),
+            ducats,
+            max_rank,
+            Json(raw),
+            now
+        ))
+
+    with conn.cursor() as cur:
+        sql_template = """
+            INSERT INTO items (id, slug, game_ref, i18n, tags, ducats, max_rank, raw, created_at)
+            VALUES %s
+            ON CONFLICT (id) DO UPDATE SET
+                slug = EXCLUDED.slug,
+                game_ref = EXCLUDED.game_ref,
+                i18n = EXCLUDED.i18n,
+                tags = EXCLUDED.tags,
+                ducats = EXCLUDED.ducats,
+                max_rank = EXCLUDED.max_rank,
+                raw = EXCLUDED.raw
+        """
+        execute_values(cur, sql_template, rows, page_size=100)
+        conn.commit()
+    logging.info(f"Upserted {len(rows)} items into items table.")
+    return len(rows)
+
+# -------------------------
+# Statistics fetch & store
+# -------------------------
+def fetch_single_statistics(slug, max_retries=3, delay=2):
+    """
+    Fetch statistics for a given slug. Returns (slug, stats_48h_list, stats_90d_list)
+    """
+    # attempt known stats endpoint paths; prefer slug
+    candidates = [
+        f"https://api.warframe.market/v1/items/{slug}/statistics",
+        f"https://api.warframe.market/v2/items/{slug}/statistics",
+    ]
+    for url in candidates:
+        for attempt in range(1, max_retries + 1):
+            try:
+                time.sleep(0.5) # small delay to avoid rate limits
+                r = requests.get(url, headers={"accept": "application/json"}, timeout=30)
+                if r.status_code == 429:
+                    logging.warning(f"429 for {url} (attempt {attempt}/{max_retries})")
+                    if attempt == max_retries:
+                        return None
+                    time.sleep(delay)
+                    continue
+                r.raise_for_status()
+                payload = r.json().get("payload") or r.json().get("data") or r.json()
+                # normalize to get statistics_closed if present, else try direct keys
+                stats_closed = None
+                if isinstance(payload, dict):
+                    stats_closed = payload.get("statistics_closed") or payload.get("statistics") or payload.get("statisticsClosed")
+                if not stats_closed and isinstance(payload, dict):
+                    # Sometimes API returns dict of windows
+                    stats_closed = payload
+                if stats_closed:
+                    stats_48 = stats_closed.get("48hours") or stats_closed.get("48hours", []) or stats_closed.get("48_hours") or []
+                    stats_90 = stats_closed.get("90days") or stats_closed.get("90days", []) or stats_closed.get("90_days") or []
+                    return slug, stats_48 or [], stats_90 or []
+                return None
+            except Exception as e:
+                logging.warning(f"Error fetching stats for {slug} on {url} (attempt {attempt}): {e}")
+                if attempt == max_retries:
+                    logging.warning(f"Giving up on {slug} for {url}")
+                    break
+                time.sleep(delay)
+    return None
+
+def store_48h_stats(conn, item_id, stats_48h):
+    if not stats_48h:
+        return 0, 0
+    rows = []
+    inserted = 0
+    skipped = 0
+    for entry in stats_48h:
+        ts = entry.get('datetime') or entry.get('ts') or entry.get('timestamp')
+        if not ts:
+            continue
+        rows.append((item_id, ts, entry.get('avg_price'), entry.get('min_price'), entry.get('max_price'), entry.get('volume')))
+    if not rows:
+        return 0, 0
+    with conn.cursor() as cur:
+        sql = """
+            INSERT INTO item_stats_48h (item_id, ts, avg_price, min_price, max_price, volume)
+            VALUES %s
+            ON CONFLICT DO NOTHING
+        """
+        execute_values(cur, sql, rows, page_size=100)
+        conn.commit()
+        # approximate counts: can't get rowcount easily from execute_values; get count inserted via checking DB?
+        # Instead, attempt to count rows for the last inserted timeframe - but keep it simple and return len(rows)
+    return len(rows), 0
+
+def store_90d_stats(conn, item_id, stats_90d):
+    if not stats_90d:
+        return 0, 0
+    rows = []
+    for entry in stats_90d:
+        day = entry.get('datetime') or entry.get('date') or entry.get('day')
+        if not day:
+            continue
+        # normalize to DATE for storage (psycopg will accept ISO date string)
+        rows.append((item_id, day.split("T")[0] if "T" in str(day) else day, entry.get('avg_price'), entry.get('min_price'), entry.get('max_price'), entry.get('volume')))
+    if not rows:
+        return 0, 0
+    with conn.cursor() as cur:
+        sql = """
+            INSERT INTO item_stats_90d (item_id, day, avg_price, min_price, max_price, volume)
+            VALUES %s
+            ON CONFLICT DO NOTHING
+        """
+        execute_values(cur, sql, rows, page_size=100)
+        conn.commit()
+    return len(rows), 0
+
+def fetch_statistics_and_store(conn, max_workers=6):
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, slug FROM items WHERE slug IS NOT NULL;")
+        items = cur.fetchall()
+    logging.info(f"Fetching statistics for {len(items)} items (in parallel).")
+
+    available = inserted_48 = inserted_90 = 0
+    skipped = failed = 0
+
+    # process in batches to avoid hammering the API
+    batch_size = max_workers * 2
+    for i in range(0, len(items), batch_size):
+        batch = items[i:i+batch_size]
+        slugs_map = {row[1]: row[0] for row in batch if row[1]}
+        slugs = list(slugs_map.keys())
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(fetch_single_statistics, s): s for s in slugs}
+            for fut in as_completed(futures):
+                slug = futures[fut]
+                try:
+                    result = fut.result()
+                except Exception as e:
+                    logging.warning(f"Statistics worker failed for {slug}: {e}")
+                    failed += 1
+                    continue
+                if not result:
+                    skipped += 1
+                    continue
+                _, stats_48, stats_90 = result
+                item_id = slugs_map.get(slug)
+                if not item_id:
+                    skipped += 1
+                    continue
+                available += 1
+                try:
+                    added48, _ = store_48h_stats(conn, item_id, stats_48)
+                    added90, _ = store_90d_stats(conn, item_id, stats_90)
+                    inserted_48 += added48
+                    inserted_90 += added90
+                except Exception as e:
+                    logging.warning(f"Failed storing stats for {slug} ({item_id}): {e}")
+                    failed += 1
+        # small delay between batches
+        time.sleep(1)
+    logging.info(f"Stats fetch complete: available={available}, 48h_inserted={inserted_48}, 90d_inserted={inserted_90}, skipped={skipped}, failed={failed}")
+
+# -------------------------
+# housekeeping
+# -------------------------
 def delete_old_48h_entries(conn):
     try:
         with conn.cursor() as cur:
-            cur.execute("""
-                DELETE FROM item_stats_48h
-                WHERE datetime < NOW() - INTERVAL '48 hours'
-            """)
+            cur.execute("DELETE FROM item_stats_48h WHERE ts < NOW() - INTERVAL '48 hours';")
             deleted = cur.rowcount
             conn.commit()
             return deleted
     except Exception as e:
-        logging.error(f"Fehler beim Löschen alter Statistikeinträge: {e}")
+        logging.error(f"Failed deleting old 48h entries: {e}")
         return 0
 
 def delete_old_90d_entries(conn):
     try:
         with conn.cursor() as cur:
-            cur.execute("""
-                DELETE FROM item_stats_90d
-                WHERE datetime < CURRENT_DATE - INTERVAL '90 days'
-            """)
+            cur.execute("DELETE FROM item_stats_90d WHERE day < CURRENT_DATE - INTERVAL '90 days';")
             deleted = cur.rowcount
             conn.commit()
             return deleted
     except Exception as e:
-        logging.error(f"Fehler beim Löschen alter 90d-Einträge: {e}")
+        logging.error(f"Failed deleting old 90d entries: {e}")
         return 0
-
-
-# --- Schritt 3: Items einfügen ---
-def insert_items(conn, items):
-    with conn.cursor() as cur:
-        for item in items:
-            cur.execute("SELECT 1 FROM items WHERE id = %s", (item['id'],))
-            if cur.fetchone() is None:
-                cur.execute("""
-                    INSERT INTO items (id, item_name, url_name, thumb)
-                    VALUES (%s, %s, %s, %s)
-                """, (item['id'], item['item_name'], item['url_name'], item['thumb']))
-        conn.commit()
-
-# --- Schritt 4: Einzelstatistik abrufen (nur 48h) ---
-def fetch_single_statistics(url_name, max_retries=3, delay=2):
-    url = f"https://api.warframe.market/v1/items/{url_name}/statistics"
-    for attempt in range(1, max_retries + 1):
-        try:
-            res = requests.get(url, headers={"accept": "application/json"})
-            if res.status_code == 429:
-                logging.warning(f"429 Too Many Requests bei {url_name}, Versuch {attempt}/{max_retries}")
-                if attempt == max_retries:
-                    logging.warning(f"Fehlgeschlagen bei {url} nach {max_retries} Versuchen: 429 Too Many Requests für {url_name}")
-                    return None
-                time.sleep(delay)
-                continue
-            res.raise_for_status()
-            payload = res.json().get("payload", {}).get("statistics_closed", {})
-            if payload:
-                return url_name, payload.get("48hours", []), payload.get("90days", [])
-            else:
-                return None
-        except Exception as e:
-            logging.warning(f"Fehler bei {url_name} (Versuch {attempt}/{max_retries}): {e}")
-            if attempt == max_retries:
-                logging.warning(f"Fehlgeschlagen bei {url} nach {max_retries} Versuchen: {e} für {url_name}")
-                return None
-            time.sleep(delay)
-
-# --- Schritt 5: Statistiken speichern ---
-def fetch_statistics_and_store(conn):
-    with conn.cursor() as cur:
-        cur.execute("SELECT url_name FROM items WHERE url_name IS NOT NULL;")
-        url_names = [row[0] for row in cur.fetchall()]
-
-    available, inserted, skipped, failed = 0, 0, 0, 0
-
-    for i in range(0, len(url_names), 3):
-        batch = url_names[i:i+3]
-
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = [executor.submit(fetch_single_statistics, name) for name in batch]
-
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    url_name, stats_48h, stats_90d = result
-                    available += 1
-                    with conn.cursor() as cur:
-                        for entry in stats_48h:
-                            try:
-                                cur.execute("""
-                                    INSERT INTO item_stats_48h
-                                    (id, url_name, datetime, avg_price, min_price, max_price, volume)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                                    ON CONFLICT DO NOTHING;
-                                """, (
-                                    entry.get('id'), url_name, entry.get('datetime'),
-                                    entry.get('avg_price'), entry.get('min_price'),
-                                    entry.get('max_price'), entry.get('volume')
-                                ))
-                                if cur.rowcount == 1:
-                                    inserted += 1
-                                else:
-                                    skipped += 1
-                            except Exception as e:
-                                failed += 1
-                                logging.warning(f"Insert-Fehler bei 48h {url_name} ({entry.get('datetime')}): {e}")
-                            for entry in stats_90d:
-                                try:
-                                    cur.execute("""
-                                        INSERT INTO item_stats_90d
-                                        (id, url_name, datetime, avg_price, min_price, max_price, volume)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                                        ON CONFLICT DO NOTHING;
-                                    """, (
-                                        entry.get('id'), url_name, entry.get('datetime'),
-                                        entry.get('avg_price'), entry.get('min_price'),
-                                        entry.get('max_price'), entry.get('volume')
-                                    ))
-                                    if cur.rowcount == 1:
-                                        inserted += 1
-                                    else:
-                                        skipped += 1
-                                except Exception as e:
-                                    logging.warning(f"Insert-Fehler 90d: {e}")
-                    conn.commit()
-                else:
-                    skipped += 1
-        time.sleep(1)
-
-    logging.info(f"✔️ API Sync abgeschlossen: verfügbar={available}, neu={inserted}, übersprungen={skipped}, fehlgeschlagen={failed}")
 
 def update_last_updated_timestamp(conn):
     with conn.cursor() as cur:
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         cur.execute("""
             INSERT INTO metadata (key, value)
             VALUES ('last_updated', %s)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
         """, (now,))
         conn.commit()
-        logging.info(f"📌 last_updated gesetzt auf {now}")
+    logging.info(f"last_updated set to {now}")
 
-
+# -------------------------
+# CLI / main
+# -------------------------
 def parse_args():
-    parser = argparse.ArgumentParser(description="Voidwatch Datenimport-Script")
-    parser.add_argument("--dry-run", action="store_true", help="Nur Statistiken holen, keine neuen Items laden")
-    return parser.parse_args()
+    p = argparse.ArgumentParser(description="Voidwatch market sync (v2 normalized schema)")
+    p.add_argument("--dry-run", action="store_true", help="fetch items but don't fetch/store statistics")
+    p.add_argument("--workers", type=int, default=6, help="parallel workers for stats fetching")
+    return p.parse_args()
 
-# --- Hauptlogik ---
-def main(dry_run=False):
-    start_time = time.time()
+def main(dry_run=False, workers=6):
+    start = time.time()
+    logging.info("=== VOIDWATCH SYNC START ===")
 
-    # 1. NEU: Tradable Items von warframestat.us abfragen und item_info Tabelle syncen
-    tradable_items = fetch_all_items()
-    if tradable_items:
-        conn = psycopg2.connect(**DB_CONFIG)
-        try:
-            fields = get_all_fields(tradable_items)
-            create_item_info_table(conn, fields)
-            rows = prepare_rows(tradable_items, fields)
-            insert_item_info(conn, fields, rows)
-        except Exception as e:
-            logging.error(f"Fehler beim Syncen der item_info Tabelle: {e}")
-        finally:
-            conn.close()
-    else:
-        logging.warning("Keine tradable Items zum Syncen gefunden.")
-
-    items = fetch_items()
-    if not items:
-        logging.info("Keine Items geladen. Vorgang abgebrochen.")
+    market_items = fetch_market_items()
+    if not market_items:
+        logging.error("No market items fetched; aborting.")
         return
 
+    # Connect DB and create schema if needed
+    conn = psycopg2.connect(**DB_CONFIG)
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        create_item_table_if_not_exists(conn)
-        insert_items(conn, items)
-        create_48h_table_if_not_exists(conn)
-        create_90d_table_if_not_exists(conn)
+        create_schema(conn)
+        upsert_items(conn, market_items)
+
         if not dry_run:
-            fetch_statistics_and_store(conn)
+            fetch_statistics_and_store(conn, max_workers=workers)
         else:
-            logging.info("⚠️ Item-Sync übersprungen (Test-Modus)")
-        deleted_48h = delete_old_48h_entries(conn)
-        deleted_90d = delete_old_90d_entries(conn)
-        logging.info(f"🧹 Insgesamt gelöscht: {deleted_48h} aus item_stats_48h und {deleted_90d} aus item_stats_90d.")
+            logging.info("Dry-run: skipping stats fetch/store.")
+
+        deleted48 = delete_old_48h_entries(conn)
+        deleted90 = delete_old_90d_entries(conn)
+        logging.info(f"Deleted old entries: {deleted48} from 48h, {deleted90} from 90d")
         try:
             update_last_updated_timestamp(conn)
         except Exception as e:
-            logging.error(f"Fehler beim Aktualisieren des last_updated Timestamps: {e}")
+            logging.error(f"Failed to update metadata timestamp: {e}")
     except Exception as e:
-        logging.error(f"Allgemeiner Fehler im Hauptablauf: {e}")
+        logging.exception(f"Fatal error in main sync: {e}")
     finally:
-        if 'conn' in locals():
-            conn.close()
+        conn.close()
 
-    duration = round(time.time() - start_time, 2)
-    if duration < 60:
-        logging.info(f"✅ Laufzeit: {duration:.2f} Sekunden")
-    else:
-        minutes = duration / 60
-        logging.info(f"✅ Laufzeit: {minutes:.2f} Minuten")
-
-    logging.info('---------------------------------------------------------------------------')
+    elapsed = time.time() - start
+    logging.info(f"=== VOIDWATCH SYNC END ({elapsed:.2f}s) ===")
 
 if __name__ == "__main__":
     args = parse_args()
-    main(dry_run=args.dry_run)
+    main(dry_run=args.dry_run, workers=args.workers)

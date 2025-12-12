@@ -1,7 +1,7 @@
 import React from "react";
 
 interface DisplayItem {
-  name: string;
+  item_name: string;
   datetime: string;
   avg_price: number;
   min_price: number;
@@ -45,7 +45,7 @@ const Table: React.FC<Props> = ({ title, rows, hours }) => {
             ) : (
               rows.map((item, idx) => (
                 <tr key={idx} className="hover:bg-gray-700 transition text-center">
-                  <td className="px-6 py-3 border-t border-gray-700">{item.name}</td>
+                  <td className="px-6 py-3 border-t border-gray-700">{item.item_name}</td>
                   <td className="px-6 py-3 border-t border-gray-700">{formatDate(item.datetime)}</td>
                   <td className="px-6 py-3 border-t border-gray-700">{item.avg_price.toFixed(2)}</td>
                   <td className="px-6 py-3 border-t border-gray-700">{item.min_price.toFixed(0)}</td>

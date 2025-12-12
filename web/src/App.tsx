@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Table from "./components/Table";
 
 interface DisplayItem {
-  name: string;
+  item_name: string;
   datetime: string;
   avg_price: number;
   min_price: number;
