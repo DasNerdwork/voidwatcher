@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://voidwatch.dasnerdwork.net; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: same-origin
@@ -8,6 +8,6 @@
 
 /index.html
   Cache-Control: public, max-age=0, s-maxage=3600, must-revalidate
-  
+
 /health
   Cache-Control: no-cache, no-store, must-revalidate
