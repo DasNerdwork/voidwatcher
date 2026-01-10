@@ -40,7 +40,6 @@ const App: React.FC = () => {
   return (
     <div className="bg-gray-900 text-gray-100 font-sans min-h-screen flex flex-col items-center justify-center p-8 space-y-12">
       <h1 className="text-5xl font-bold">Tagespreise</h1>
-      <div className="test"></div>
       <span className="!mt-4">Letzte Aktualisierung: {data ? formatDate(data.last_updated) : "–"}</span>
 
       <div className="flex flex-wrap justify-center gap-3">
