@@ -8,19 +8,20 @@
     "build": "tsc -b && npm run minify && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "minify": "npx tailwindcss -i ./src/index.css -o ./dist/output.min.css --minify",
-    "watch": "npx tailwindcss -i ./src/index.css -o ./dist/output.min.css --watch --minify"
+    "minify": "npx @tailwindcss/cli -i ./src/index.css -o ./dist/output.min.css --minify",
+    "watch": "npx @tailwindcss/cli -i ./src/index.css -o ./dist/output.min.css --watch --minify"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.16",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwindcss": "^4.1.16",
-    "@tailwindcss/vite": "^4.1.16",
-    "vite": "^7.1.7",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@tailwindcss/cli": "^4.1.18",
     "@tailwindcss/postcss": "^4.1.16",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",
