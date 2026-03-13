@@ -39,7 +39,7 @@ def get_top_performers(hours, limit):
             MAX(s.max_price) AS max_price,
             SUM(s.volume) AS volume
         FROM market_stats_48h s
-        JOIN items i ON i.id = s.item_id
+        JOIN market_items i ON i.id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
         GROUP BY item_name
         ORDER BY avg_price DESC
@@ -56,7 +56,7 @@ def get_top_sellers(hours, limit):
             MAX(s.max_price) AS max_price,
             SUM(s.volume) AS volume
         FROM market_stats_48h s
-        JOIN items i ON i.id = s.item_id
+        JOIN market_items i ON i.id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
         GROUP BY item_name
         ORDER BY volume DESC
@@ -73,7 +73,7 @@ def get_most_traded(hours, limit):
             MAX(s.max_price) AS max_price,
             SUM(s.volume) AS volume
         FROM market_stats_48h s
-        JOIN items i ON i.id = s.item_id
+        JOIN market_items i ON i.id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
         GROUP BY item_name
         ORDER BY volume DESC
