@@ -14,7 +14,7 @@ The app is accessible via [Cloudflare pages](https://voidwatcher.pages.dev) or f
   - Top performers by price
   - Top sellers by volume
 - Time-based filters (24h, 48h, 7d, 14d, 30d, 90d)
-- Data sourced from `item_stats_48h` and `item_stats_90d` tables
+- Data sourced from `market_stats_48h` and `market_stats_90d` tables
 - Postgres-powered backend
 
 
