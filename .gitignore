@@ -30,3 +30,9 @@ vendor/
 node_modules/
 log/
 deprecated/
+
+# Database exports
+export_database_summary.json
+
+# Agents directory
+.agents/
