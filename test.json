@@ -1,9 +1,0 @@
-{
-    "found": true,
-    "type": "warframe_overview",
-    "context": "Ash (Warframe, Male, seit 2012-10-25)\n\nHP: 455 | Schild: 270 | Rüstung: 105 | Energie: 100 | Sprint: 1.15 | Aura: madurai | Pol: madurai, madurai\n\nPassiv: Slash Status Effects inflicted on enemies do [DAMAGE]% increased damage and last [DURATION]% longer.\n\nAbilities:\n1. Shuriken\n2. Smoke Screen\n3. Teleport\n4. Blade Storm\n\n(Für Ability-Details: '<Frame> <Abilityname>' oder '<Frame> <1-4>' anfragen)\n\nPrime verfügbar: Ja\n\nFarm:\n- Chassis: Pluto/Fenton's Field (Skirmish) Rot.A (Ash Chassis Blueprint) Uncommon 13.3%\n- Pluto/Obol Crossing (Skirmish) Rot.A (Ash Chassis Blueprint) Uncommon 13.3%\n- Neuroptics: Neptune/Arva Vector (Skirmish) Rot.A (Ash Neuroptics Blueprint) Uncommon 12.5%\n- Neptune/Enkidu Ice Drifts (Skirmish) Rot.A (Ash Neuroptics Blueprint) Uncommon 12.5%\n- Systems: Venus/Falling Glory (Skirmish) Rot.A (Ash Systems Blueprint) Uncommon 13.3%\n- Venus/Luckless Expanse (Skirmish) Rot.A (Ash Systems Blueprint) Uncommon 13.3%\n\nCrafting: 25000 Credits, 72h Bauzeit\n\nLetzter Patch: 2022-11-30 – Update 32.2.0: Lua's Prey\n\n(Für Patchdetails: '<Frame> patchnotes' anfragen)",
-    "meta": {
-        "name": "Ash",
-        "category": "Warframes"
-    }
-}

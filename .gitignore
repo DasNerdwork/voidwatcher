@@ -36,3 +36,6 @@ export_database_summary.json
 
 # Agents directory
 .agents/
+
+# Test files
+test.json
