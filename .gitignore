@@ -39,3 +39,4 @@ export_database_summary.json
 
 # Test files
 test.json
+test-results/
