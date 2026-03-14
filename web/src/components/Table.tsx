@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SmallPlatIcon } from "../components/Icons";
 
 interface DisplayItem {
   item_name: string;
@@ -17,13 +18,6 @@ interface Props {
   accentColor?: string;
 }
 
-const PlatIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{ display: "inline", marginRight: 3, verticalAlign: "middle", flexShrink: 0 }}>
-    <circle cx="7" cy="7" r="6" stroke="#C8A84B" strokeWidth="1.5"/>
-    <path d="M4.5 9.5L7 4.5L9.5 9.5" stroke="#C8A84B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M5.5 7.5H8.5" stroke="#C8A84B" strokeWidth="1.2" strokeLinecap="round"/>
-  </svg>
-);
 
 const Sparkbar = ({ min, avg, max }: { min: number; avg: number; max: number }) => {
   if (!max || max === min) return null;
@@ -183,7 +177,7 @@ const Table: React.FC<Props> = ({ title, subtitle, rows, hours, accentColor = "v
                     {/* Avg price */}
                     <td style={{ padding: "10px 16px", textAlign: "right", verticalAlign: "middle" }}>
                       <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "var(--plat)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-                        <PlatIcon />
+                        <SmallPlatIcon />
                         {item.avg_price.toFixed(1)}
                       </div>
                     </td>

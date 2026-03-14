@@ -59,7 +59,7 @@ def get_top_sellers(hours, limit):
         JOIN market_items i ON i.id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
         GROUP BY item_name
-        ORDER BY volume DESC
+        ORDER BY avg_price DESC
         LIMIT %s;
     """, (limit,))
 
@@ -138,7 +138,6 @@ def get_category_by_tag(tag: str, limit: int = 20):
             (i.raw->>'slug') AS slug,
             (i.raw->>'ducats') AS ducats,
             (i.raw->>'tags') AS tags,
-            (i.game_ref) AS game_ref,
             ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
             SUM(s.volume) AS volume
         FROM market_items i
@@ -214,7 +213,6 @@ def get_categories_mapping():
         'resource': 'Ressourcen',
         'arcane': 'Arcanes',
         'legendary': 'Arcanes',
-        'rare': 'Arcanes',
         'common': 'Arcanes',
         'kuva': 'Ressourcen',
         'cell': 'Ressourcen',
@@ -227,17 +225,15 @@ def classify_item_by_tags(tags: str, game_ref: str | None = None) -> str:
     Klassifiziert ein Item basierend auf seinen Tags und/oder game_ref.
     
     Prioritäten:
-    1. game_ref auf /Lotus/Powersuits/ (außer Archwing) -> Warframes
-    2. 'warframe' Tag -> Warframe (auch wenn 'set' oder 'prime' vorhanden)
-    3. 'weapon', 'primary', 'secondary', 'melee' Tags -> Waffen
-    4. 'relic' -> Relics
-    5. 'resource', 'arcane', 'cell', 'extract', 'forma', 'kuva' -> Ressourcen
-    6. 'prime', 'set', 'mod', 'augment' -> Warframes (nur wenn kein spezifischerer Tag)
+    1. 'warframe' Tag -> Warframe (auch wenn 'set' oder 'prime' vorhanden)
+    2. 'weapon', 'primary', 'secondary', 'melee' Tags -> Waffen
+    3. 'relic' -> Relics
+    4. 'resource', 'arcane', 'cell', 'extract', 'forma', 'kuva' -> Ressourcen
+    5. 'prime', 'set', 'mod', 'augment' -> Warframes (nur wenn kein spezifischerer Tag)
     
     Args:
         tags: String von Tags, getrennt durch Komma und Leerzeichen (z.B. 'arcane_helmet,skin')
               oder None/empty string für Items ohne Tags
-        game_ref: Optionaler Pfad aus game_ref Feld (z.B. '/Lotus/Powersuits/Ember/EmberPrime')
         
     Returns:
         Kategorie-Name für die Frontend-Anzeige
@@ -248,36 +244,6 @@ def classify_item_by_tags(tags: str, game_ref: str | None = None) -> str:
     else:
         tags_list = [tag.strip().lower() for tag in tags.split(',') if tag.strip()]
     
-    # game_ref hat höchste Priorität - bestimmt die Kategorie direkt
-    if game_ref:
-        game_ref_lower = game_ref.lower()
-        # Powersuits (außer Archwing) sind echte Warframes
-        if game_ref_lower.startswith('/lotus/powersuits/'):
-            if '/archwing/' not in game_ref_lower:
-                return 'Warframes'
-            else:
-                # Archwings sind keine Warframes
-                weapon_tags = ['weapon', 'primary', 'secondary', 'melee', 'blueprint']
-                if any(tag in tags_list for tag in weapon_tags):
-                    return 'Waffen'
-                return 'Andere'
-        
-        # Weapons sind Waffen
-        if '/weapons/' in game_ref_lower or '/types/' in game_ref_lower:
-            weapon_tags = ['weapon', 'primary', 'secondary', 'melee', 'blueprint']
-            if any(tag in tags_list for tag in weapon_tags):
-                return 'Waffen'
-            return 'Andere'
-        
-        # Mods
-        if '/upgrades/mods/' in game_ref_lower or '/mods/' in game_ref_lower:
-            return 'Mods'
-        
-        # Relics
-        if '/relics/' in game_ref_lower:
-            return 'Relics'
-    
-    # Falls game_ref nicht vorhanden, auf Tags zurückgreifen
     # Warframe hat höchste Priorität - auch wenn 'set' oder 'prime' vorhanden
     if 'warframe' in tags_list:
         return 'Warframes'
@@ -326,3 +292,101 @@ def get_category_for_item(tags: str) -> str:
     Wird verwendet, um die API-Daten mit der korrekten Kategorie anzureichern.
     """
     return classify_item_by_tags(tags)
+
+# ──────────────────────────────────────────────
+# ITEM-SUCHE + KOMBINIERTE DATEN
+# ──────────────────────────────────────────────
+
+def get_item_combined(name: str, hours: int = 24):
+    """Kombiniert wfpe_items Wiki-Daten + Market-Preise via game_ref JOIN."""
+    wf_data = query("""
+        SELECT unique_name, name_en, name_de, export_type, raw
+        FROM wfpe_items
+        WHERE name_en ILIKE %s
+        ORDER BY
+            CASE
+                WHEN LOWER(name_en) = LOWER(%s) THEN 0
+                WHEN name_en ILIKE %s THEN 1
+                ELSE 2
+            END,
+            LENGTH(name_en)
+        LIMIT 5
+    """, (f"%{name}%", name, f"{name} %"))
+
+    market_data = query(f"""
+        SELECT 
+            (i.raw->'i18n'->'en'->>'name') AS market_name,
+            i.slug AS market_slug,
+            MAX(s.ts) AS last_updated,
+            ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
+            MIN(s.min_price) AS min_price,
+            MAX(s.max_price) AS max_price,
+            SUM(s.volume) AS volume
+        FROM market_items i
+        JOIN market_stats_48h s ON s.item_id = i.id
+        JOIN wfpe_items w ON w.unique_name = i.game_ref
+        WHERE w.name_en ILIKE %s
+          AND s.ts >= NOW() - INTERVAL '{hours} hour'
+        GROUP BY i.id, i.slug
+        ORDER BY SUM(s.volume) DESC
+        LIMIT 5
+    """, (f"%{name}%",))
+
+    return {"wiki": wf_data, "market": market_data}
+
+
+def get_item_market_only(name: str, hours: int = 24):
+    """Nur Market-Preise via wfpe_items name_en JOIN."""
+    market_data = query(f"""
+        SELECT 
+            (i.raw->'i18n'->'en'->>'name') AS market_name,
+            i.slug AS market_slug,
+            MAX(s.ts) AS last_updated,
+            ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
+            MIN(s.min_price) AS min_price,
+            MAX(s.max_price) AS max_price,
+            SUM(s.volume) AS volume
+        FROM market_items i
+        JOIN market_stats_48h s ON s.item_id = i.id
+        JOIN wfpe_items w ON w.unique_name = i.game_ref
+        WHERE w.name_en ILIKE %s
+          AND s.ts >= NOW() - INTERVAL '{hours} hour'
+        GROUP BY i.id, i.slug
+        ORDER BY SUM(s.volume) DESC
+        LIMIT 5
+    """, (f"%{name}%",))
+
+    return {"market": market_data}
+
+
+def search_items(search_term: str, limit: int = 10):
+    return query(f"""
+        SELECT 
+            (i.raw->'i18n'->'en'->>'name') AS name,
+            i.slug,
+            ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
+            MIN(s.min_price) AS min_price,
+            MAX(s.max_price) AS max_price,
+            SUM(s.volume) AS volume
+        FROM market_items i
+        JOIN market_stats_48h s ON s.item_id = i.id
+        JOIN wfpe_items w ON w.unique_name = i.game_ref
+        WHERE w.name_en ILIKE %s
+          AND s.ts >= NOW() - INTERVAL '48 hour'
+        GROUP BY i.id, i.slug
+        ORDER BY SUM(s.volume) DESC
+        LIMIT %s
+    """, (f"%{search_term}%", limit))
+
+
+def fetch_context(q: str):
+    """
+    Ruft die Warframe Context API auf (Port 8061).
+    """
+    import requests
+    try:
+        response = requests.get(f"http://127.0.0.1:8061/context?q={q}")
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}

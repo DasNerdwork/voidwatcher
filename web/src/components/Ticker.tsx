@@ -1,5 +1,3 @@
-import React from "react";
-
 interface DisplayItem {
   item_name: string;
   datetime: string;

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { TickerBanner } from "./components/Ticker";
 import { CategoryTable } from "./components/CategoryTable";
 import { Sparkbar } from "./components/Sparkbar";
-import { PlatIcon, SmallPlatIcon, LogoIcon } from "./components/Icons";
+import { SmallPlatIcon, LogoIcon } from "./components/Icons";
+import { ItemSearch } from "./components/ItemSearch";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface DisplayItem {
@@ -40,7 +41,9 @@ interface CategoriesOverview {
 }
 
 // ─── API Configuration ─────────────────────────────────────────────────────────
-const API_CATEGORIES_URL = "https://voidwatch.dasnerdwork.net/api/category?tag=all&limit=30";
+const API_CATEGORIES_URL = "/api/category?tag=all&limit=30";
+const API_SEARCH_URL = "/api/item/search";
+const API_ITEM_URL = "/api/item/";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CATEGORIES = ["Alle", "Warframes", "Mods", "Waffen", "Relics", "Ressourcen", "Arcanes"];
@@ -74,7 +77,7 @@ const App: React.FC = () => {
   const fetchMarketData = async (h: number) => {
     setLoading(true);
     try {
-      const res = await fetch(`https://voidwatch.dasnerdwork.net/api/top?hours=${h}&limit=10`);
+      const res = await fetch(`/api/top?hours=${h}&limit=10`);
       const json = await res.json();
       setData(json);
     } catch {
@@ -253,6 +256,11 @@ const App: React.FC = () => {
             <MarketTable title="Meistgehandelt" subtitle="Höchstes Volumen" rows={data.top_traded} hours={hours} accentColor="var(--cyan)" />
           </div>
         )}
+
+        {/* ── Item Search ── */}
+        <div style={{ marginTop: 48 }}>
+          <ItemSearch searchUrl={API_SEARCH_URL} itemUrl={API_ITEM_URL} />
+        </div>
       </main>
     </div>
   );

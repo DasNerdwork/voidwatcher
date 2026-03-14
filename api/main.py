@@ -1,16 +1,68 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, Path, APIRouter 
 from fastapi.middleware.cors import CORSMiddleware
 import api.db
 
-app = FastAPI(title="VoidWatcher API", root_path="/api")
+app = FastAPI(title="VoidWatcher API")
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-@app.get("/")
+router = APIRouter(prefix="/api")
+
+@router.get("/")
 def api_index():
     return {"message": "VoidWatcher API läuft"}
 
-@app.get("/top")
+# ──────────────────────────────────────────────
+# ITEM-SUCHE ENDPOINTS
+# ──────────────────────────────────────────────
+
+@router.get("/item/search")
+def search_items(q: str = Query(..., min_length=2, max_length=100)):
+    """
+    Suche nach Items (Name-Teilmatch).
+    
+    Query Parameter:
+        q: Suchbegriff (min 2, max 100 Zeichen)
+    """
+    try:
+        results = api.db.search_items(q, limit=10)
+        return {"query": q, "results": results}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/item/{name}")
+def get_item(name: str = Path(..., min_length=2, max_length=100), hours: int = Query(24, ge=1, le=720)):
+    """
+    Kombinierte Item-Daten (Wiki + Market).
+    
+    Query Parameter:
+        name: Item-Name (z.B. "Ash")
+        hours: Zeitraum für Market-Preise in Stunden (1-720, Standard: 24)
+    """
+    try:
+        data = api.db.get_item_combined(name, hours=hours)
+        return data
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/item/{name}/stats")
+def get_item_stats(name: str = Path(..., min_length=2, max_length=100), hours: int = Query(24, ge=1, le=720)):
+    """
+    Nur Market-Preise (ohne Wiki-Daten).
+    
+    Query Parameter:
+        name: Item-Name
+        hours: Zeitraum in Stunden
+    """
+    try:
+        data = api.db.get_item_market_only(name, hours=hours)
+        return data
+    except Exception as e:
+        return {"error": str(e)}
+
+@router.get("/top")
 def top(hours: int = 24, limit: int = 10):
     try:
         last_updated = api.db.get_last_updated()
@@ -33,7 +85,7 @@ def top(hours: int = 24, limit: int = 10):
         return {"error": str(e)}
 
 
-@app.get("/category")
+@router.get("/category")
 def category(tag: str | None = None, limit: int = 20):
     """
     Kategorie-Daten abrufen.
@@ -127,3 +179,4 @@ def category(tag: str | None = None, limit: int = 20):
         import traceback
         traceback.print_exc()
         return {"error": str(e)}
+app.include_router(router)

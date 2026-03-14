@@ -201,9 +201,9 @@ def create_schema(conn):
                 created_at TIMESTAMPTZ DEFAULT now()
             );
         """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_slug      ON items (slug);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_tags      ON items USING GIN (tags);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_i18n_en_name ON items ((raw->'i18n'->'en'->>'name'));")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_slug      ON market_items (slug);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_tags      ON market_items USING GIN (tags);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_i18n_en_name ON market_items ((raw->'i18n'->'en'->>'name'));")
 
         # 48h stats
         cur.execute("""

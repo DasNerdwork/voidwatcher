@@ -1,4 +1,4 @@
-import React from "react";
+import { SmallPlatIcon } from "./Icons";
 
 interface CategoryItem {
   name: string;
@@ -75,7 +75,7 @@ export const CategoryTable = ({ category, allCategories }: CategoryTableProps) =
                 </span>
               </td>
               <td style={{ padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--plat)", fontWeight: 700 }}>
-                <PlatIcon />{item.avg_price ?? "—"}
+                <SmallPlatIcon />{item.avg_price ?? "—"}
               </td>
               <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)" }}>
                 {item.volume?.toLocaleString("de-DE") ?? "—"}
@@ -97,11 +97,3 @@ export const CategoryTable = ({ category, allCategories }: CategoryTableProps) =
   );
 };
 
-// ─── PlatIcon (inline für CategoryTable) ────────────────────────────────────────
-const PlatIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ display: "inline", marginRight: 3, verticalAlign: "middle" }}>
-    <circle cx="7" cy="7" r="6" stroke="#C8A84B" strokeWidth="1.5"/>
-    <path d="M4.5 9.5L7 4.5L9.5 9.5" stroke="#C8A84B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M5.5 7.5H8.5" stroke="#C8A84B" strokeWidth="1.2" strokeLinecap="round"/>
-  </svg>
-);
