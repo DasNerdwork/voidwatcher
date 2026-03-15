@@ -1,9 +1,9 @@
-import { SmallPlatIcon } from "./Icons";
-
 interface CategoryItem {
   name: string;
   slug: string;
   avg_price: number | null;
+  min_price: number | null;
+  max_price: number | null;
   volume: number | null;
   tags: string;
   ducats: string | null;
@@ -21,79 +21,126 @@ interface CategoryTableProps {
   allCategories: CategoriesOverview[];
 }
 
-// ─── Category Mapping ──────────────────────────────────────────────────────────
+// ─── Category color mapping ────────────────────────────────────────────────────
 export const CATEGORY_COLORS: Record<string, string> = {
-  "Warframes": "#22D3EE",
-  "Waffen": "#FF4D6D",
-  "Mods": "#C8A84B",
-  "Relics": "#00D68F",
-  "Ressourcen": "#A88A30",
-  "Arcanes": "#FFA500",
+  Warframes:   "#5ab4c8",
+  Waffen:      "#d45c5c",
+  Mods:        "#c8a84b",
+  Relics:      "#4dba7f",
+  Ressourcen:  "#8f7a40",
+  Arcanes:     "#c89050",
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const PlatIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 11 11" style={{ display: "inline-block", verticalAlign: "middle", marginRight: 2, flexShrink: 0 }}>
+    <circle cx="5.5" cy="5.5" r="4.5" stroke="#c8a84b" strokeWidth="1.1" fill="none" />
+    <text x="5.5" y="8.3" textAnchor="middle" fontSize="6" fill="#c8a84b" fontFamily="monospace">₱</text>
+  </svg>
+);
+
+const CategoryBadge = ({ cat }: { cat: string }) => {
+  const color = CATEGORY_COLORS[cat] || "#7a6e52";
+  return (
+    <span style={{
+      fontSize: 11,
+      padding: "1px 7px",
+      borderRadius: 2,
+      color,
+      background: `${color}20`,
+      fontWeight: 500,
+      whiteSpace: "nowrap",
+    }}>
+      {cat}
+    </span>
+  );
 };
 
 // ─── Category Table ────────────────────────────────────────────────────────────
 export const CategoryTable = ({ category, allCategories }: CategoryTableProps) => {
-  const catData = allCategories.find(c => c.name === category) || allCategories[0];
-  const items = catData ? catData.items : [];
+  // "Alle" = merge all categories, otherwise find the matching one
+  const items: CategoryItem[] = category === "Alle"
+    ? allCategories.flatMap(c => c.items.map(it => ({ ...it, category: it.category ?? c.name })))
+    : (allCategories.find(c => c.name === category)?.items ?? []);
+
+  const TH = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
+    <th style={{
+      padding: "9px 15px",
+      textAlign: right ? "right" : "left",
+      fontSize: 11,
+      color: "#7a6e52",
+      fontWeight: 500,
+      borderBottom: "1px solid rgba(200,168,75,0.22)",
+      whiteSpace: "nowrap",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase",
+    }}>
+      {children}
+    </th>
+  );
 
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
-          <tr style={{ background: "var(--bg-void)", borderBottom: "1px solid var(--border)" }}>
-            {["#", "ITEM", "KATEGORIE", "Ø PREIS", "VOLUMEN"].map((h) => (
-              <th key={h} style={{
-                padding: "10px 16px", textAlign: h === "#" || h === "VOLUMEN" ? "center" : "left",
-                fontFamily: "var(--font-display)", fontSize: 9, letterSpacing: "0.15em",
-                color: "var(--text-muted)", fontWeight: 600,
-              }}>{h}</th>
-            ))}
+          <tr style={{ background: "rgba(0,0,0,0.12)" }}>
+            <TH>#</TH>
+            <TH>Item</TH>
+            <TH>Kategorie</TH>
+            <TH right>Avg Price</TH>
+            <TH right>Min</TH>
+            <TH right>Max</TH>
+            <TH right>Volumen</TH>
           </tr>
         </thead>
         <tbody>
-          {items.map((item, idx) => (
-            <tr key={item.slug} style={{
-              borderBottom: "1px solid var(--border)",
-              transition: "background 0.15s",
-              cursor: "default",
-            }}
-              onMouseEnter={e => (e.currentTarget.style.background = "var(--bg-hover)")}
+          {items.length === 0 ? (
+            <tr>
+              <td colSpan={7} style={{
+                textAlign: "center",
+                padding: "32px 16px",
+                color: "#7a6e52",
+                fontFamily: "system-ui, -apple-system, sans-serif",
+                fontSize: 13,
+                fontStyle: "italic",
+              }}>
+                Keine Daten verfügbar für diese Kategorie
+              </td>
+            </tr>
+          ) : items.map((item, idx) => (
+            <tr
+              key={item.slug}
+              style={{ borderBottom: "1px solid rgba(200,168,75,0.22)", transition: "background 0.08s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(200,168,75,0.07)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >
-              <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>{idx + 1}</td>
-              <td style={{ padding: "10px 16px" }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{item.name}</div>
+              <td style={{ padding: "10px 15px", fontFamily: "monospace", fontSize: 11, color: "#7a6e52", textAlign: "left", minWidth: 36 }}>
+                {idx + 1}
               </td>
-              <td style={{ padding: "10px 16px" }}>
-                <span style={{
-                  fontSize: 10, fontFamily: "var(--font-display)", letterSpacing: "0.1em",
-                  color: item.category ? CATEGORY_COLORS[item.category] || "var(--text-muted)" : "var(--text-muted)",
-                  background: item.category ? `${CATEGORY_COLORS[item.category] || "var(--text-muted)"}11` : "transparent",
-                  padding: "2px 8px", borderRadius: 3,
-                }}>
-                  {item.category || "UNKNOWN"}
-                </span>
+              <td style={{ padding: "10px 15px" }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: "#e8dfc0", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+                  {item.name}
+                </div>
               </td>
-              <td style={{ padding: "10px 16px", fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--plat)", fontWeight: 700 }}>
-                <SmallPlatIcon />{item.avg_price ?? "—"}
+              <td style={{ padding: "10px 15px" }}>
+                {item.category && <CategoryBadge cat={item.category} />}
               </td>
-              <td style={{ padding: "10px 16px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-secondary)" }}>
+              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: "#c8a84b", fontWeight: 700 }}>
+                <PlatIcon />{item.avg_price != null ? item.avg_price.toFixed(1) : "—"}
+              </td>
+              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: "#b8a97c" }}>
+                {item.min_price != null ? item.min_price : "—"}
+              </td>
+              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: "#b8a97c" }}>
+                {item.max_price != null ? item.max_price : "—"}
+              </td>
+              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: "#b8a97c" }}>
                 {item.volume?.toLocaleString("de-DE") ?? "—"}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {items.length === 0 && (
-        <div style={{
-          padding: "20px 16px", fontSize: 12, color: "var(--text-muted)",
-          borderTop: "1px solid var(--border)", fontStyle: "italic",
-          fontFamily: "var(--font-body)", textAlign: "center",
-        }}>
-          Keine Daten verfügbar für diese Kategorie
-        </div>
-      )}
     </div>
   );
 };
-

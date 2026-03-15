@@ -1,53 +1,52 @@
-interface DisplayItem {
-  item_name: string;
-  datetime: string;
-  avg_price: number;
-  min_price: number;
-  max_price: number;
-  volume: number;
-}
+import type { TopItem } from "../types";
 
 interface TickerBannerProps {
-  items: DisplayItem[];
+  items: TopItem[];
 }
 
 // ─── Ticker Banner ─────────────────────────────────────────────────────────────
 export const TickerBanner = ({ items }: TickerBannerProps) => {
   if (!items.length) return null;
 
-  const mockChanges: Record<string, number> = {};
-  items.forEach((item) => {
-    const spread = item.max_price - item.min_price;
-    mockChanges[item.item_name] = parseFloat(((spread / (item.avg_price || 1)) * (Math.random() > 0.4 ? 1 : -1) * 100).toFixed(1));
-  });
-
-  const allItems = [...items, ...items]; // double for seamless loop
+  const allItems = [...items, ...items]; // doubled for seamless loop
 
   return (
     <div style={{
-      background: "var(--bg-deep)",
-      borderBottom: "1px solid var(--border)",
-      borderTop: "1px solid var(--border)",
-      overflow: "hidden",
-      height: 36,
+      height: 32,
+      background: "rgba(10,12,28,0.88)",
+      borderBottom: "1px solid rgba(200,168,75,0.22)",
       display: "flex",
       alignItems: "center",
+      overflow: "hidden",
+      backdropFilter: "blur(14px)",
     }}>
-      {/* Label */}
+      {/* LIVE label */}
       <div style={{
         flexShrink: 0,
-        padding: "0 16px",
-        borderRight: "1px solid var(--border)",
+        padding: "0 14px",
+        borderRight: "1px solid rgba(200,168,75,0.38)",
         height: "100%",
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        background: "var(--bg-card)",
-        zIndex: 2,
+        gap: 7,
+        background: "rgba(200,168,75,0.07)",
       }}>
-        <div className="status-dot" />
-        <span style={{ fontFamily: "var(--font-display)", fontSize: 9, letterSpacing: "0.15em", color: "var(--plat)", fontWeight: 700 }}>
-          LIVE
+        <div style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "#860dc7",
+          flexShrink: 0,
+          animation: "pulse 2s ease infinite",
+        }} />
+        <span style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color: "#c8a84b",
+          letterSpacing: "0.12em",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+        }}>
+          LAST 24H
         </span>
       </div>
 
@@ -55,32 +54,58 @@ export const TickerBanner = ({ items }: TickerBannerProps) => {
       <div style={{ overflow: "hidden", flex: 1, position: "relative" }}>
         <div className="ticker-track">
           {allItems.map((item, idx) => {
-            const chg = mockChanges[item.item_name] ?? 0;
-            const up = chg >= 0;
+            // chg comes from the API — null means no prior window available
+            const chg = item.change_pct ?? 0;
+            const up  = chg >= 0;
+            const hasChange = item.change_pct !== null;
+
             return (
               <div key={idx} style={{
-                display: "inline-flex", alignItems: "center", gap: 10,
-                padding: "0 24px",
-                borderRight: "1px solid var(--border)",
-                height: 36,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 9,
+                padding: "0 20px",
+                borderRight: "1px solid rgba(200,168,75,0.22)",
+                height: 32,
                 flexShrink: 0,
               }}>
-                <span style={{ fontFamily: "var(--font-body)", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                <span style={{
+                  fontFamily: "system-ui, -apple-system, sans-serif",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#b8a97c",
+                  whiteSpace: "nowrap",
+                }}>
                   {item.item_name}
                 </span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--plat)", fontWeight: 700 }}>
-                  {item.avg_price.toFixed(1)}p
+                <span style={{
+                  fontFamily: "monospace",
+                  fontSize: 12,
+                  color: "#c8a84b",
+                  fontWeight: 700,
+                }}>
+                  {item.avg_price.toFixed(1)}₱
                 </span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: up ? "var(--up)" : "var(--down)", fontWeight: 700 }}>
-                  {up ? "▲" : "▼"}{Math.abs(chg).toFixed(1)}%
-                </span>
+                {hasChange ? (
+                  <span style={{
+                    fontFamily: "monospace",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: up ? "#4dba7f" : "#d45c5c",
+                  }}>
+                    {up ? "▲" : "▼"}{Math.abs(chg).toFixed(1)}%
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: "monospace", fontSize: 11, color: "#7a6e52" }}>
+                    —
+                  </span>
+                )}
               </div>
             );
           })}
         </div>
-        {/* Fade edges */}
-        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 40, background: "linear-gradient(to right, var(--bg-deep), transparent)", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 40, background: "linear-gradient(to left, var(--bg-deep), transparent)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 32, background: "linear-gradient(to right, rgba(10,12,28,0.88), transparent)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 32, background: "linear-gradient(to left, rgba(10,12,28,0.88), transparent)", pointerEvents: "none" }} />
       </div>
     </div>
   );

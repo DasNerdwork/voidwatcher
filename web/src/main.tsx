@@ -22,7 +22,7 @@ const GLOBAL_CSS = `
   }
   .ticker-track {
     display: flex;
-    animation: ticker-scroll 60s linear infinite;
+    animation: ticker-scroll 65s linear infinite;
     width: max-content;
   }
   .ticker-track:hover { animation-play-state: paused; }
@@ -37,30 +37,6 @@ const GLOBAL_CSS = `
     background: var(--up);
     box-shadow: 0 0 6px var(--up);
     animation: glow-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .fade-in { animation: fadeInUp 0.4s ease forwards; }
-  .fade-in-2 { animation: fadeInUp 0.4s 0.1s ease both; }
-  .fade-in-3 { animation: fadeInUp 0.4s 0.2s ease both; }
-  .fade-in-4 { animation: fadeInUp 0.4s 0.3s ease both; }
-
-  .scanline::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,0,0,0.03) 2px,
-      rgba(0,0,0,0.03) 4px
-    );
-    pointer-events: none;
-    z-index: 9999;
   }
 `;
 

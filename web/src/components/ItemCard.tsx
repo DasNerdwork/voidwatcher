@@ -11,24 +11,25 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
 
   return (
     <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
+      background: 'rgba(10,12,32,0.82)',
+      border: '1px solid rgba(200,168,75,0.22)',
+      borderRadius: '8px',
       padding: '16px 20px',
       transition: 'border-color 0.15s',
+      backdropFilter: 'blur(10px)',
     }}
-      onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--plat-dim)')}
-      onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+      onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(200,168,75,0.38)')}
+      onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(200,168,75,0.22)')}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
+        <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 700, fontSize: 15, color: '#e8dfc0' }}>
           {marketName}
         </div>
         {wiki.export_type && (
           <span style={{
-            fontFamily: 'var(--font-display)', fontSize: 9, letterSpacing: '0.15em',
-            color: 'var(--cyan)', background: '#06B6D411',
-            border: '1px solid var(--cyan-dim)', borderRadius: 3,
+            fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 9, letterSpacing: '0.15em',
+            color: '#5ab4c8', background: '#5ab4c811',
+            border: '1px solid #5ab4c844', borderRadius: '3px',
             padding: '2px 8px', whiteSpace: 'nowrap', marginLeft: 8,
           }}>
             {wiki.export_type.replace('Export', '')}
@@ -38,29 +39,29 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Ø Preis</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, color: 'var(--plat)', fontWeight: 700 }}>
+          <span style={{ fontSize: 12, color: '#7a6e52', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Ø Preis</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 15, color: '#c8a84b', fontWeight: 700 }}>
             {market.avg_price != null ? `${market.avg_price.toFixed(1)} ₱` : 'N/A'}
           </span>
         </div>
         {market.min_price != null && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Min / Max</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: 12, color: '#7a6e52', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Min / Max</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#b8a97c' }}>
               {market.min_price} — {market.max_price} ₱
             </span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Volumen</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>
+          <span style={{ fontSize: 12, color: '#7a6e52', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Volumen</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#b8a97c' }}>
             {market.volume?.toLocaleString('de-DE') ?? 0}
           </span>
         </div>
         {market.last_updated && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Update</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 12, color: '#7a6e52', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Update</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#7a6e52' }}>
               {new Date(market.last_updated).toLocaleString('de-DE')}
             </span>
           </div>
@@ -68,7 +69,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
       </div>
 
       {wiki.raw?.health && (
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 16 }}>
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(200,168,75,0.22)', display: 'flex', gap: 16 }}>
           {[
             { label: 'HP', value: wiki.raw.health },
             { label: 'SH', value: wiki.raw.shield },
@@ -76,8 +77,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
             { label: 'MR', value: wiki.raw.masteryReq },
           ].filter(s => s.value != null).map(({ label, value }) => (
             <div key={label} style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.1em' }}>{label}</div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>{value}</div>
+              <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 9, color: '#7a6e52', letterSpacing: '0.1em' }}>{label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 13, color: '#e8dfc0', fontWeight: 700 }}>{value}</div>
             </div>
           ))}
         </div>

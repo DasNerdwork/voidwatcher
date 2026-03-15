@@ -30,22 +30,23 @@ export const ItemSearch: React.FC<ItemSearchProps> = ({ searchUrl }) => {
 
   return (
     <div style={{
-      background: "var(--bg-card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      marginBottom: 28,
+      background: "rgba(10,12,32,0.82)",
+      border: "1px solid rgba(200,168,75,0.22)",
+      borderRadius: "8px",
+      marginBottom: "28px",
       overflow: "hidden",
+      backdropFilter: "blur(10px)",
     }}>
       {/* Header */}
       <div style={{
-        padding: "14px 20px",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--bg-deep)",
+        padding: "13px 18px",
+        borderBottom: "1px solid rgba(200,168,75,0.22)",
+        background: "rgba(0,0,0,0.18)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
       }}>
-        <span style={{ fontFamily: "var(--font-display)", fontSize: 10, letterSpacing: "0.2em", color: "var(--plat)", fontWeight: 700 }}>
+        <span style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 11, letterSpacing: "0.01em", color: "#7a6e52", fontWeight: 400, whiteSpace: "nowrap", textTransform: "none" }}>
           ITEM-SUCHE
         </span>
       </div>
@@ -61,30 +62,33 @@ export const ItemSearch: React.FC<ItemSearchProps> = ({ searchUrl }) => {
             style={{
               flex: 1,
               padding: "10px 14px",
-              border: "1px solid var(--border)",
-              borderRadius: 4,
-              background: "var(--bg-input)",
-              color: "var(--text-primary)",
-              fontFamily: "var(--font-body)",
+              border: "1px solid rgba(200,168,75,0.22)",
+              borderRadius: "2px",
+              background: "rgba(0,0,0,0.25)",
+              color: "#e8dfc0",
+              fontFamily: "system-ui, -apple-system, sans-serif",
               fontSize: 13,
+              outline: "none",
+              transition: "border-color 0.15s",
             }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "#c8a84b")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(200,168,75,0.22)")}
           />
           <button
             type="submit"
             disabled={loading || !query.trim()}
             style={{
               padding: "10px 20px",
-              border: "1px solid var(--plat)",
-              borderRadius: 4,
-              background: "var(--plat-glow)",
-              color: "var(--plat)",
-              fontFamily: "var(--font-display)",
+              border: "1px solid #c8a84b",
+              borderRadius: "2px",
+              background: "rgba(200,168,75,0.09)",
+              color: "#c8a84b",
+              fontFamily: "system-ui, -apple-system, sans-serif",
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: "0.15em",
               cursor: loading || !query.trim() ? "not-allowed" : "pointer",
               transition: "all 0.15s",
-              boxShadow: "0 0 12px var(--plat-glow)",
             }}
           >
             {loading ? "SUCHE..." : "SUCHEN"}
@@ -95,7 +99,7 @@ export const ItemSearch: React.FC<ItemSearchProps> = ({ searchUrl }) => {
         {results && results.results.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{
-              fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-body)", marginBottom: 8,
+              fontSize: 11, color: "#7a6e52", fontFamily: "system-ui, -apple-system, sans-serif", marginBottom: 8,
             }}>
               Ergebnisse:
             </div>

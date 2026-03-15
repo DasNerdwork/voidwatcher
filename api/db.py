@@ -30,52 +30,109 @@ def get_last_updated():
 # ---- UPDATED QUERIES ---- #
 
 def get_top_performers(hours, limit):
+    half = hours / 2
     return query(f"""
-        SELECT 
-            (i.raw->'i18n'->'en'->>'name') AS item_name,
-            MAX(s.ts) AS datetime,
-            AVG(s.avg_price) AS avg_price,
-            MIN(s.min_price) AS min_price,
-            MAX(s.max_price) AS max_price,
-            SUM(s.volume) AS volume
+        WITH current AS (
+            SELECT item_id, AVG(avg_price) AS price
+            FROM market_stats_48h
+            WHERE ts >= NOW() - INTERVAL '{half} hour'
+            GROUP BY item_id
+        ),
+        previous AS (
+            SELECT item_id, AVG(avg_price) AS price
+            FROM market_stats_48h
+            WHERE ts >= NOW() - INTERVAL '{hours} hour'
+              AND ts  < NOW() - INTERVAL '{half} hour'
+            GROUP BY item_id
+        )
+        SELECT
+            (i.raw->'i18n'->'en'->>'name')   AS item_name,
+            MAX(s.ts)                          AS datetime,
+            AVG(s.avg_price)                   AS avg_price,
+            MIN(s.min_price)                   AS min_price,
+            MAX(s.max_price)                   AS max_price,
+            SUM(s.volume)                      AS volume,
+            ROUND(
+                ((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1
+            )                                  AS change_pct
         FROM market_stats_48h s
         JOIN market_items i ON i.id = s.item_id
+        JOIN current c      ON c.item_id = s.item_id
+        LEFT JOIN previous p ON p.item_id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
-        GROUP BY item_name
+        GROUP BY item_name, c.price, p.price
         ORDER BY avg_price DESC
         LIMIT %s;
     """, (limit,))
 
 def get_top_sellers(hours, limit):
+    half = hours / 2
     return query(f"""
-        SELECT 
-            (i.raw->'i18n'->'en'->>'name') AS item_name,
-            MAX(s.ts) AS datetime,
-            AVG(s.avg_price) AS avg_price,
-            MIN(s.min_price) AS min_price,
-            MAX(s.max_price) AS max_price,
-            SUM(s.volume) AS volume
+        WITH current AS (
+            SELECT item_id, AVG(avg_price) AS price
+            FROM market_stats_48h
+            WHERE ts >= NOW() - INTERVAL '{half} hour'
+            GROUP BY item_id
+        ),
+        previous AS (
+            SELECT item_id, AVG(avg_price) AS price
+            FROM market_stats_48h
+            WHERE ts >= NOW() - INTERVAL '{hours} hour'
+              AND ts  < NOW() - INTERVAL '{half} hour'
+            GROUP BY item_id
+        )
+        SELECT
+            (i.raw->'i18n'->'en'->>'name')   AS item_name,
+            MAX(s.ts)                          AS datetime,
+            AVG(s.avg_price)                   AS avg_price,
+            MIN(s.min_price)                   AS min_price,
+            MAX(s.max_price)                   AS max_price,
+            SUM(s.volume)                      AS volume,
+            ROUND(
+                ((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1
+            )                                  AS change_pct
         FROM market_stats_48h s
         JOIN market_items i ON i.id = s.item_id
+        JOIN current c      ON c.item_id = s.item_id
+        LEFT JOIN previous p ON p.item_id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
-        GROUP BY item_name
+        GROUP BY item_name, c.price, p.price
         ORDER BY avg_price DESC
         LIMIT %s;
     """, (limit,))
 
 def get_most_traded(hours, limit):
+    half = hours / 2
     return query(f"""
-        SELECT 
-            (i.raw->'i18n'->'en'->>'name') AS item_name,
-            MAX(s.ts) AS datetime,
-            AVG(s.avg_price) AS avg_price,
-            MIN(s.min_price) AS min_price,
-            MAX(s.max_price) AS max_price,
-            SUM(s.volume) AS volume
+        WITH current AS (
+            SELECT item_id, AVG(avg_price) AS price
+            FROM market_stats_48h
+            WHERE ts >= NOW() - INTERVAL '{half} hour'
+            GROUP BY item_id
+        ),
+        previous AS (
+            SELECT item_id, AVG(avg_price) AS price
+            FROM market_stats_48h
+            WHERE ts >= NOW() - INTERVAL '{hours} hour'
+              AND ts  < NOW() - INTERVAL '{half} hour'
+            GROUP BY item_id
+        )
+        SELECT
+            (i.raw->'i18n'->'en'->>'name')   AS item_name,
+            MAX(s.ts)                          AS datetime,
+            AVG(s.avg_price)                   AS avg_price,
+            MIN(s.min_price)                   AS min_price,
+            MAX(s.max_price)                   AS max_price,
+            SUM(s.volume)                      AS volume,
+            ROUND(
+                ((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1
+            )                                  AS change_pct
         FROM market_stats_48h s
         JOIN market_items i ON i.id = s.item_id
+        JOIN current c      ON c.item_id = s.item_id
+        LEFT JOIN previous p ON p.item_id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hour'
-        GROUP BY item_name
+        GROUP BY item_name, c.price, p.price
         ORDER BY volume DESC
         LIMIT %s;
     """, (limit,))

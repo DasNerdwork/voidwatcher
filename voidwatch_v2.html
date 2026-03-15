@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en" data-t="c">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VoidWatch — Platinum Market</title>
+<style>
+/* ── THEME TOKENS ── */
+[data-t="a"]{
+  --bg:#09090b;--sf:#111115;--card:#18181c;--hov:#222228;
+  --b:rgba(255,255,255,.07);--b2:rgba(255,255,255,.13);
+  --bw:0.5px;--rad:8px;--rad-sm:6px;--rad-btn:6px;
+  --t:#f4f4f5;--t2:#a1a1aa;--t3:#52525b;
+  --th-sp:.01em;--th-case:none;--th-w:400;
+}
+[data-t="b"]{
+  --bg:#0a0f1a;--sf:#111a2e;--card:#152038;--hov:#1e304d;
+  --b:#2a3f60;--b2:#3a5070;
+  --bw:1px;--rad:4px;--rad-sm:3px;--rad-btn:3px;
+  --t:#e8eef7;--t2:#94a6b8;--t3:#6b7a8f;
+  --th-sp:.06em;--th-case:uppercase;--th-w:600;
+}
+[data-t="c"]{
+  --bg:#0d1022;--sf:#0d1022;--card:rgba(10,12,32,.82);--hov:rgba(200,168,75,.07);
+  --b:rgba(200,168,75,.22);--b2:rgba(200,168,75,.38);
+  --bw:1px;--rad:2px;--rad-sm:2px;--rad-btn:2px;
+  --t:#e8dfc0;--t2:#b8a97c;--t3:#7a6e52;
+  --th-sp:.1em;--th-case:uppercase;--th-w:500;
+}
+[data-t="a"]{--gold:#c8a84b;--gold-dim:#a88a30;--up:#22c55e;--dn:#ef4444;--cy:#06b6d4}
+[data-t="b"]{--gold:#c8a84b;--gold-dim:#a88a30;--up:#00d68f;--dn:#ff4d6d;--cy:#22d3ee}
+[data-t="c"]{--gold:#d4a843;--gold-dim:#b8922e;--up:#4dba7f;--dn:#d45c5c;--cy:#5ab4c8}
+
+/* ── BASE ── */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh}
+body{background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;overflow-x:hidden}
+table{border-collapse:collapse;width:100%}
+button,input,select{font-family:inherit;cursor:pointer}
+input,select{cursor:text}
+
+/* ── VITRUVIAN BG ── */
+[data-t="c"] body{
+  background-image:url("data:image/png;base64,vitruvian-bg");
+  background-size:cover;
+  background-attachment:fixed;
+  background-position:top center;
+}
+/* Overlay to darken bg and make content readable */
+[data-t="c"] body::before{
+  content:'';position:fixed;inset:0;
+  background:rgba(8,10,28,.78);
+  pointer-events:none;z-index:0;
+}
+[data-t="c"] .hdr,
+[data-t="c"] .ticker,
+[data-t="c"] .sbar,
+[data-t="c"] .wrap,
+[data-t="c"] .tsw,
+[data-t="c"] footer{position:relative;z-index:1}
+
+/* Subtle scanline for B */
+[data-t="b"] body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.022) 2px,rgba(0,0,0,.022) 4px);pointer-events:none;z-index:9999}
+
+/* ── THEME SWITCHER ── */
+.tsw{position:fixed;bottom:20px;right:20px;z-index:10000;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.tsw-toggle{background:var(--card);border:var(--bw) solid var(--b2);border-radius:var(--rad);padding:6px 12px;color:var(--t2);font-size:11px;font-weight:600;letter-spacing:.06em;display:flex;align-items:center;gap:6px;transition:all .2s;backdrop-filter:blur(8px)}
+.tsw-toggle:hover{color:var(--t)}
+.tsw-panel{background:var(--card);border:var(--bw) solid var(--b2);border-radius:var(--rad);overflow:hidden;display:none;backdrop-filter:blur(12px)}
+.tsw-panel.open{display:block}
+.tsw-opt{display:block;width:100%;padding:8px 16px;text-align:left;border:none;background:none;color:var(--t2);font-size:12px;transition:all .12s;white-space:nowrap}
+.tsw-opt:hover{background:var(--hov);color:var(--t)}
+.tsw-opt.on{color:var(--gold);font-weight:600}
+.tsw-divider{height:1px;background:var(--b);margin:0}
+
+/* ── HEADER ── */
+.hdr{height:54px;background:var(--sf);border-bottom:var(--bw) solid var(--b2);display:flex;align-items:center;gap:14px;padding:0 22px;position:sticky;top:0;z-index:100;backdrop-filter:blur(14px)}
+[data-t="c"] .hdr{background:rgba(10,12,28,.88)}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo-glyph{width:32px;height:32px;object-fit:contain;flex-shrink:0}
+.logo-n{font-size:13px;font-weight:700;color:var(--gold);letter-spacing:.16em;line-height:1.1}
+.logo-s{font-size:10px;color:var(--t3);letter-spacing:.04em}
+.sep{width:1px;height:22px;background:var(--b);flex-shrink:0}
+nav{display:flex;gap:3px}
+.nb{padding:5px 12px;border-radius:var(--rad-btn);border:none;background:none;color:var(--t3);font-size:12px;letter-spacing:.03em;transition:all .12s}
+.nb:hover{background:var(--hov);color:var(--t)}
+.nb.on{background:var(--hov);color:var(--t);font-weight:600;border:var(--bw) solid var(--b2);padding:4px 11px}
+[data-t="a"] .nb.on{border:none;padding:5px 12px;background:rgba(255,255,255,.08)}
+.sw{flex:1;max-width:280px;margin-left:auto;position:relative}
+.si{width:100%;background:rgba(0,0,0,.3);border:var(--bw) solid var(--b);border-radius:var(--rad-sm);padding:6px 12px 6px 32px;color:var(--t);font-size:13px;outline:none;transition:border-color .15s}
+.si:focus{border-color:var(--gold-dim)}
+.si::placeholder{color:var(--t3)}
+.si-ic{position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--t3)}
+.sdrop{position:absolute;top:calc(100% + 5px);left:0;right:0;background:var(--card);border:var(--bw) solid var(--b2);border-radius:var(--rad-sm);display:none;z-index:300;overflow:hidden;backdrop-filter:blur(14px)}
+.sdrop.open{display:block}
+.sri{padding:9px 14px;display:flex;justify-content:space-between;align-items:center;transition:background .1s;cursor:default}
+.sri:hover{background:var(--hov)}
+.hdr-r{display:flex;align-items:center;gap:10px;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--up);animation:pulse 2s ease infinite;flex-shrink:0}
+
+/* ── TICKER ── */
+@keyframes tk{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.ticker{height:32px;background:var(--sf);border-bottom:var(--bw) solid var(--b);display:flex;align-items:center;overflow:hidden;backdrop-filter:blur(14px)}
+[data-t="c"] .ticker{background:rgba(10,12,28,.88)}
+.tk-lbl{flex-shrink:0;padding:0 14px;border-right:var(--bw) solid var(--b2);height:100%;display:flex;align-items:center;gap:7px;background:rgba(200,168,75,.07)}
+.tk-lbl span{font-size:10px;font-weight:700;color:var(--gold);letter-spacing:.12em}
+.tk-track{display:flex;animation:tk 65s linear infinite;width:max-content}
+.tk-track:hover{animation-play-state:paused}
+.tk-item{display:inline-flex;align-items:center;gap:9px;padding:0 20px;border-right:var(--bw) solid var(--b);height:32px;flex-shrink:0}
+
+/* ── STATS BAR ── */
+.sbar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:var(--bw) solid var(--b)}
+[data-t="b"] .sbar{background-image:linear-gradient(var(--b) 1px,transparent 1px),linear-gradient(90deg,var(--b) 1px,transparent 1px);background-size:40px 40px}
+[data-t="c"] .sbar{background:rgba(8,10,26,.6);backdrop-filter:blur(10px)}
+.sc{padding:18px 22px;border-right:var(--bw) solid var(--b);position:relative}
+.sc:last-child{border-right:none}
+[data-t="b"] .sc{background:linear-gradient(135deg,rgba(21,32,56,.95),rgba(17,26,46,.98))}
+[data-t="b"] .sc::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--gold);opacity:.35}
+[data-t="c"] .sc::before{content:'';position:absolute;top:0;left:0;width:1px;height:100%;background:var(--gold);opacity:.4}
+.sc-l{font-size:11px;color:var(--t3);margin-bottom:6px;letter-spacing:var(--th-sp);text-transform:var(--th-case)}
+.sc-v{font-size:24px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.sc-m{font-size:12px;color:var(--t2);margin-top:5px}
+
+/* ── PAGES ── */
+.page{display:none}.page.on{display:block}
+.wrap{max-width:1400px;margin:0 auto;padding:22px 22px 60px}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:var(--bw) solid var(--b);border-radius:var(--rad);overflow:hidden;position:relative}
+[data-t="c"] .card{backdrop-filter:blur(10px)}
+.card-h{padding:13px 18px;border-bottom:var(--bw) solid var(--b);display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(0,0,0,.18)}
+.ct{font-size:13px;font-weight:600;color:var(--t);display:flex;align-items:center;gap:9px}
+[data-t="a"] .ct{font-weight:500;font-size:13px}
+.ca{width:2px;height:15px;border-radius:1px;flex-shrink:0}
+[data-t="b"] .ca{width:3px}
+[data-t="c"] .ca{width:1px;border-radius:0}
+.csub{font-size:12px;color:var(--t3);font-weight:400;letter-spacing:0}
+.badge{font-size:11px;padding:2px 8px;border-radius:var(--rad-sm);font-weight:600;flex-shrink:0}
+
+/* Vitruvian flourish SVG */
+.vit-flourish{display:none}
+[data-t="c"] .vit-flourish{display:block;opacity:.55}
+/* Vitruvian corner cross */
+[data-t="c"] .card::after{
+  content:'';position:absolute;top:6px;right:6px;width:14px;height:14px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cline x1='0' y1='7' x2='14' y2='7' stroke='%23c8a84b' stroke-width='.7' opacity='.5'/%3E%3Cline x1='7' y1='0' x2='7' y2='14' stroke='%23c8a84b' stroke-width='.7' opacity='.5'/%3E%3C/svg%3E") center/contain no-repeat;
+  pointer-events:none;
+}
+
+/* ── TABLE HEADERS ── */
+th{padding:9px 15px;text-align:left;font-size:11px;color:var(--t3);font-weight:var(--th-w);border-bottom:var(--bw) solid var(--b);white-space:nowrap;letter-spacing:var(--th-sp);text-transform:var(--th-case)}
+th.r{text-align:right}
+tr.rr{border-bottom:var(--bw) solid var(--b);transition:background .08s}
+tr.rr:last-child{border-bottom:none}
+tr.rr:hover td{background:var(--hov)}
+tr.rr td{padding:10px 15px;font-size:13px}
+td.r{text-align:right}
+
+/* ── RANGE BAR — bigger, clearer ── */
+.rng{display:flex;align-items:center;gap:6px;min-width:140px}
+.rng-bar{flex:1;height:4px;background:var(--b);border-radius:1px;position:relative}
+[data-t="a"] .rng-bar{height:3px}
+.rng-f{position:absolute;left:0;top:0;height:100%;background:var(--gold);border-radius:1px;opacity:.7}
+.rng-d{position:absolute;top:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:var(--gold)}
+[data-t="c"] .rng-d{border-radius:0;transform:translate(-50%,-50%) rotate(45deg)}
+/* Range numbers — clearly readable */
+.rng-n{font-family:monospace;font-size:12px;color:var(--t2);min-width:30px;font-weight:500;line-height:1}
+.rng-n.lo{text-align:right}
+.rng-n.hi{text-align:left}
+
+/* ── CHARTS ── */
+.hbar{display:flex;align-items:center;gap:8px;padding:7px 0}
+.hbl{font-size:13px;color:var(--t2);width:140px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbt{flex:1;height:6px;background:var(--b);border-radius:2px;overflow:hidden}
+[data-t="c"] .hbt{border-radius:0;height:5px}
+.hbf{height:100%;border-radius:2px}
+[data-t="c"] .hbf{border-radius:0}
+.hbv{font-family:monospace;font-size:12px;color:var(--t2);min-width:58px;text-align:right;flex-shrink:0;font-weight:500}
+
+/* ── LAYOUTS ── */
+.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:18px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:3px;flex-wrap:wrap}
+.tab{padding:4px 12px;border:var(--bw) solid var(--b);border-radius:var(--rad-btn);background:none;color:var(--t3);font-size:12px;transition:all .12s}
+.tab.on{border-color:var(--gold-dim);background:rgba(200,168,75,.09);color:var(--gold);font-weight:600}
+.tab:hover:not(.on){color:var(--t)}
+.frow{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:var(--bw) solid var(--b);flex-wrap:wrap}
+.fl{font-size:11px;color:var(--t3);letter-spacing:.06em;text-transform:uppercase}
+.fi{background:rgba(0,0,0,.25);border:var(--bw) solid var(--b);border-radius:var(--rad-sm);padding:5px 10px;color:var(--t);font-size:12px;outline:none;cursor:text}
+.fi:focus{border-color:var(--gold-dim)}
+select.fi{cursor:pointer}
+
+/* ── FARM VALUE ── */
+.fv-bar{display:flex;align-items:center;gap:6px}
+.fv-track{flex:1;height:5px;background:var(--b);border-radius:2px;overflow:hidden}
+[data-t="c"] .fv-track{border-radius:0}
+.fv-fill{height:100%;border-radius:2px}
+[data-t="c"] .fv-fill{border-radius:0}
+
+/* ── FOOTER ── */
+footer{border-top:var(--bw) solid var(--b);margin-top:32px;position:relative;z-index:1}
+[data-t="c"] footer{background:rgba(8,10,26,.7);backdrop-filter:blur(10px)}
+.ft{max-width:1400px;margin:0 auto;padding:24px 22px;display:flex;flex-direction:column;gap:10px}
+.ft::before{content:'';display:block;width:80px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin-bottom:4px;opacity:.5}
+.fd{font-size:11px;color:var(--t3);line-height:1.75;max-width:820px}
+.fc{display:flex;align-items:center;gap:16px;font-size:11px;color:var(--t3)}
+.fc a{color:var(--t2);text-decoration:underline;text-underline-offset:2px}
+.fc a:hover{color:var(--t)}
+</style>
+</head>
+<body>
+
+<!-- THEME SWITCHER -->
+<div class="tsw">
+  <button class="tsw-toggle" onclick="document.getElementById('tsp').classList.toggle('open')">
+    <span style="color:var(--gold)">◈</span> <span id="tsw-lbl">C — Vitruvian</span>
+  </button>
+  <div class="tsw-panel" id="tsp">
+    <button class="tsw-opt" id="opt-a" onclick="setTheme('a')">A — Minimal</button>
+    <div class="tsw-divider"></div>
+    <button class="tsw-opt" id="opt-b" onclick="setTheme('b')">B — Warframe</button>
+    <div class="tsw-divider"></div>
+    <button class="tsw-opt on" id="opt-c" onclick="setTheme('c')">C — Vitruvian</button>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="logo">
+    <img class="logo-glyph" src="data:image/webp;base64,..." alt="VoidWatch glyph">
+    <div><div class="logo-n">VOIDWATCH</div><div class="logo-s">Platinum Market</div></div>
+  </div>
+  <div class="sep"></div>
+  <nav>
+    <button class="nb on" onclick="goto('dashboard',this)">Dashboard</button>
+    <button class="nb" onclick="goto('market',this)">Market</button>
+    <button class="nb" onclick="goto('farmvalue',this)">Farm Value</button>
+  </nav>
+  <div class="sw">
+    <svg class="si-ic" width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.2"/><line x1="8" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    <input class="si" type="text" placeholder="Search items..." id="gs" oninput="gSearch()" onfocus="if(this.value)gSearch()" onblur="setTimeout(()=>document.getElementById('gd').classList.remove('open'),150)">
+    <div class="sdrop" id="gd"></div>
+  </div>
+  <div class="hdr-r">
+    <span style="font-size:11px;color:var(--t3)">Sync: <span style="color:var(--t2)" id="syncts">—</span></span>
+    <div class="dot"></div>
+  </div>
+</header>
+
+<!-- TICKER -->
+<div class="ticker">
+  <div class="tk-lbl"><div class="dot"></div><span>LIVE</span></div>
+  <div style="flex:1;overflow:hidden;position:relative">
+    <div class="tk-track" id="tkr"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:32px;pointer-events:none;background:linear-gradient(to right,var(--sf),transparent)"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:32px;pointer-events:none;background:linear-gradient(to left,var(--sf),transparent)"></div>
+  </div>
+</div>
+
+<!-- STATS BAR -->
+<div class="sbar" id="sbar"></div>
+
+<!-- DASHBOARD -->
+<div class="page on" id="pg-dashboard">
+  <div class="wrap">
+    <div class="g3" id="top3"></div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-h">
+          <div class="ct"><div class="ca" style="background:var(--gold)"></div>Volume Leaders <span class="csub">24H trade count</span></div>
+          <svg class="vit-flourish" width="60" height="10" viewBox="0 0 60 10"><path d="M0 5 Q7.5 1 15 5 Q22.5 9 30 5 Q37.5 1 45 5 Q52.5 9 60 5" stroke="#c8a84b" stroke-width=".9" fill="none"/></svg>
+        </div>
+        <div style="padding:14px 18px" id="volChart"></div>
+      </div>
+      <div class="card">
+        <div class="card-h">
+          <div class="ct"><div class="ca" style="background:var(--cy)"></div>Price Overview <span class="csub">Min · Avg · Max</span></div>
+          <svg class="vit-flourish" width="60" height="10" viewBox="0 0 60 10"><path d="M0 5 Q7.5 1 15 5 Q22.5 9 30 5 Q37.5 1 45 5 Q52.5 9 60 5" stroke="#c8a84b" stroke-width=".9" fill="none"/></svg>
+        </div>
+        <div style="padding:14px 18px" id="rngChart"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MARKET -->
+<div class="page" id="pg-market">
+  <div class="wrap">
+    <div class="card">
+      <div class="card-h">
+        <div class="ct"><div class="ca" style="background:var(--cy)"></div>Category Browser <span id="mktCnt" class="csub">— items</span></div>
+        <div class="tabs" id="catTabs"></div>
+      </div>
+      <div class="frow">
+        <span class="fl">Filter:</span>
+        <input class="fi" type="text" id="mktQ" placeholder="Item name..." oninput="renderMkt()" style="width:200px">
+        <select class="fi" id="mktSort" onchange="renderMkt()">
+          <option value="name">Name A–Z</option>
+          <option value="price">Price ↓</option>
+          <option value="vol">Volume ↓</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th style="width:36px">#</th><th>Item</th><th>Category</th>
+            <th class="r">Avg Price</th><th class="r">Min</th><th class="r">Max</th><th class="r">Volume</th>
+          </tr></thead>
+          <tbody id="mktBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FARM VALUE -->
+<div class="page" id="pg-farmvalue">
+  <div class="wrap">
+    <div style="margin-bottom:16px">
+      <p style="font-size:13px;color:var(--t2)">Items ranked by <strong style="color:var(--t);font-weight:600">Farm Value</strong> — expected platinum per 100 farming runs, calculated from drop chance × market price.</p>
+    </div>
+    <div class="card">
+      <div class="card-h">
+        <div class="ct"><div class="ca" style="background:var(--up)"></div>Best Items to Farm <span class="csub">expected ₱ / 100 runs</span></div>
+        <svg class="vit-flourish" width="60" height="10" viewBox="0 0 60 10"><path d="M0 5 Q7.5 1 15 5 Q22.5 9 30 5 Q37.5 1 45 5 Q52.5 9 60 5" stroke="#c8a84b" stroke-width=".9" fill="none"/></svg>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th style="width:36px">#</th><th>Item</th><th>Category</th>
+            <th class="r">Drop Chance</th><th class="r">Avg Price</th>
+            <th class="r">Farm Value <span style="opacity:.5;text-transform:none;letter-spacing:0;font-weight:400">₱/100 runs</span></th>
+            <th style="width:150px">Efficiency</th>
+          </tr></thead>
+          <tbody id="fvBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="ft">
+    <p class="fd">Digital Extremes Ltd, Warframe and the logo Warframe are registered trademarks. All rights are reserved worldwide. This site has no official link with Digital Extremes Ltd or Warframe. All artwork, screenshots, characters or other recognizable features of the intellectual property relating to these trademarks are likewise the intellectual property of Digital Extremes Ltd.</p>
+    <div class="fc">
+      <span>© 2026 Voidwatch.DasNerdwork.net</span>
+      <a href="#">Impressum &amp; Datenschutz</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const CC={Warframes:'#5ab4c8',Weapons:'#d45c5c',Mods:'#c8a84b',Relics:'#4dba7f',Resources:'#8f7a40',Arcanes:'#c89050'};
+const ALL=[
+  {name:'Ash Prime',cat:'Warframes',price:340,min:270,max:440,vol:1240},
+  {name:'Mesa Prime',cat:'Warframes',price:280,min:220,max:380,vol:980},
+  {name:'Volt Prime',cat:'Warframes',price:190,min:150,max:260,vol:750},
+  {name:'Rhino Prime',cat:'Warframes',price:320,min:260,max:420,vol:820},
+  {name:'Nova Prime',cat:'Warframes',price:260,min:200,max:350,vol:710},
+  {name:'Serration',cat:'Mods',price:45,min:35,max:65,vol:3200},
+  {name:'Blind Rage',cat:'Mods',price:38,min:28,max:55,vol:2100},
+  {name:'Condition Overload',cat:'Mods',price:55,min:42,max:78,vol:1800},
+  {name:'Split Chamber',cat:'Mods',price:52,min:38,max:72,vol:2400},
+  {name:'Heavy Caliber',cat:'Mods',price:42,min:30,max:62,vol:1950},
+  {name:'Hornet Strike',cat:'Mods',price:40,min:30,max:58,vol:2800},
+  {name:'Point Strike',cat:'Mods',price:18,min:12,max:28,vol:3400},
+  {name:'Fleeting Expertise',cat:'Mods',price:30,min:22,max:46,vol:1500},
+  {name:'Rubico Prime',cat:'Weapons',price:220,min:175,max:295,vol:640},
+  {name:'Catchmoon',cat:'Weapons',price:85,min:60,max:120,vol:890},
+  {name:'Nikana Prime',cat:'Weapons',price:175,min:135,max:240,vol:520},
+  {name:'Ignis Wraith',cat:'Weapons',price:110,min:80,max:160,vol:780},
+  {name:'Axi A1 Intact',cat:'Relics',price:12,min:8,max:18,vol:5400},
+  {name:'Neo N10 Intact',cat:'Relics',price:8,min:5,max:14,vol:4200},
+  {name:'Lith S11 Intact',cat:'Relics',price:15,min:10,max:22,vol:3800},
+  {name:'Morphics',cat:'Resources',price:3,min:2,max:5,vol:9800},
+  {name:'Orokin Cell',cat:'Resources',price:8,min:5,max:14,vol:6200},
+  {name:'Arcane Energize',cat:'Arcanes',price:890,min:740,max:1080,vol:320},
+  {name:'Arcane Grace',cat:'Arcanes',price:650,min:520,max:820,vol:410},
+  {name:'Arcane Avenger',cat:'Arcanes',price:480,min:380,max:620,vol:280},
+];
+const PERF=[
+  {n:'Arcane Energize',p:890,min:740,max:1080,v:320},
+  {n:'Ash Prime',p:340,min:270,max:440,v:1240},
+  {n:'Rhino Prime',p:320,min:260,max:420,v:820},
+  {n:'Mesa Prime',p:280,min:220,max:380,v:980},
+  {n:'Arcane Grace',p:650,min:520,max:820,v:410},
+  {n:'Nova Prime',p:260,min:200,max:350,v:710},
+  {n:'Rubico Prime',p:220,min:175,max:295,v:640},
+  {n:'Nikana Prime',p:175,min:135,max:240,v:520},
+  {n:'Condition Overload',p:55,min:42,max:78,v:1800},
+  {n:'Split Chamber',p:52,min:38,max:72,v:2400},
+];
+const SELL=[...PERF].sort((a,b)=>b.p-a.p);
+const TRADE=[...PERF].sort((a,b)=>b.v-a.v);
+const FARM=[
+  {name:'Serration',cat:'Mods',drop:8.33,price:45},
+  {name:'Hornet Strike',cat:'Mods',drop:8.33,price:40},
+  {name:'Point Strike',cat:'Mods',drop:8.33,price:18},
+  {name:'Split Chamber',cat:'Mods',drop:2.01,price:52},
+  {name:'Condition Overload',cat:'Mods',drop:1.2,price:55},
+  {name:'Heavy Caliber',cat:'Mods',drop:0.5,price:42},
+  {name:'Blind Rage',cat:'Mods',drop:0.88,price:38},
+  {name:'Fleeting Expertise',cat:'Mods',drop:0.75,price:30},
+  {name:'Arcane Energize',cat:'Arcanes',drop:0.17,price:890},
+  {name:'Arcane Grace',cat:'Arcanes',drop:0.28,price:650},
+  {name:'Arcane Avenger',cat:'Arcanes',drop:0.35,price:480},
+  {name:'Ash Prime Neuroptics',cat:'Warframes',drop:1.2,price:120},
+  {name:'Axi A1 Intact',cat:'Relics',drop:18,price:12},
+  {name:'Orokin Cell',cat:'Resources',drop:12.5,price:8},
+  {name:'Ignis Wraith',cat:'Weapons',drop:0.4,price:110},
+].map(x=>({...x,fv:+(x.price*x.drop).toFixed(2)})).sort((a,b)=>b.fv-a.fv);
+
+function pi(){return`<svg width="11" height="11" viewBox="0 0 11 11" style="display:inline-block;vertical-align:middle;margin-right:2px;flex-shrink:0"><circle cx="5.5" cy="5.5" r="4.5" stroke="#c8a84b" stroke-width="1.1" fill="none"/><text x="5.5" y="8.3" text-anchor="middle" font-size="6" fill="#c8a84b" font-family="monospace">₱</text></svg>`;}
+
+function rbar(min,avg,max){
+  const p=max===min?50:((avg-min)/(max-min))*100;
+  return`<div class="rng">
+    <span class="rng-n lo">${min}</span>
+    <div class="rng-bar"><div class="rng-f" style="width:${p}%"></div><div class="rng-d" style="left:${p}%"></div></div>
+    <span class="rng-n hi">${max}</span>
+  </div>`;
+}
+
+function cb(cat){const c=CC[cat]||'#7a6e52';return`<span style="font-size:11px;padding:1px 7px;border-radius:2px;color:${c};background:${c}20;font-weight:500">${cat}</span>`;}
+
+document.getElementById('sbar').innerHTML=[
+  {l:'24H Volume',v:'48,290 ₱',m:'total platinum traded',c:'var(--gold)'},
+  {l:'Active Listings',v:'12,447',m:'↑ 8.2% vs yesterday',c:'var(--t)'},
+  {l:'Top Gainer',v:'Arcane Energize',m:'↑ 12.4% · 890₱ avg',c:'var(--up)'},
+  {l:'Most Traded',v:'Axi A1 Intact',m:'5,400 transactions',c:'var(--cy)'},
+].map(s=>`<div class="sc"><div class="sc-l">${s.l}</div><div class="sc-v" style="color:${s.c}">${s.v}</div><div class="sc-m">${s.m}</div></div>`).join('');
+
+document.getElementById('tkr').innerHTML=[...PERF,...PERF].map(it=>{
+  const up=Math.random()>.4,chg=(Math.random()*10+1).toFixed(1);
+  return`<div class="tk-item"><span style="font-size:12px;font-weight:600;color:var(--t2);white-space:nowrap">${it.n}</span><span style="font-family:monospace;font-size:12px;color:var(--gold);font-weight:700">${it.p}₱</span><span style="font-family:monospace;font-size:11px;font-weight:700;color:${up?'var(--up)':'var(--dn)'}">${up?'▲':'▼'}${chg}%</span></div>`;
+}).join('');
+
+function topTbl(items,title,sub,acc,lbl){
+  const fl=`<svg class="vit-flourish" width="60" height="10" viewBox="0 0 60 10"><path d="M0 5 Q7.5 1 15 5 Q22.5 9 30 5 Q37.5 1 45 5 Q52.5 9 60 5" stroke="#c8a84b" stroke-width=".9" fill="none"/></svg>`;
+  return`<div class="card"><div class="card-h"><div class="ct"><div class="ca" style="background:${acc}"></div>${title}<span class="csub">${sub}</span></div><div style="display:flex;align-items:center;gap:8px">${fl}<span class="badge" style="color:${acc};background:${acc}18;border:var(--bw) solid ${acc}44">${lbl}</span></div></div><div style="overflow-x:auto"><table><thead><tr><th>Item</th><th class="r">Avg Price</th><th style="min-width:160px;text-align:center">Price Range</th><th class="r">Volume</th></tr></thead><tbody>${items.map((it,i)=>`<tr class="rr"><td><div style="display:flex;align-items:center;gap:8px"><span style="font-family:monospace;font-size:11px;color:var(--t3);min-width:16px;text-align:right">${i+1}</span><span style="font-weight:600;font-size:13px">${it.n}</span></div></td><td class="r" style="font-family:monospace;font-size:15px;color:var(--gold);font-weight:700">${pi()}${it.p.toFixed(1)}</td><td style="padding:8px 12px">${rbar(it.min,it.p,it.max)}</td><td class="r" style="font-family:monospace;font-size:13px;color:var(--t2)">${it.v.toLocaleString('de-DE')}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+document.getElementById('top3').innerHTML=
+  topTbl(PERF,'Top Performers','Price movement','var(--up)','24H')+
+  topTbl(SELL,'Top Sellers','Highest avg prices','var(--gold)','24H')+
+  topTbl(TRADE,'Most Traded','Highest volume','var(--cy)','24H');
+
+const tv=[...TRADE].sort((a,b)=>b.v-a.v).slice(0,6),mv=tv[0].v;
+document.getElementById('volChart').innerHTML=tv.map(it=>`<div class="hbar"><div class="hbl">${it.n}</div><div class="hbt"><div class="hbf" style="width:${(it.v/mv*100).toFixed(1)}%;background:var(--gold);opacity:.8"></div></div><div class="hbv">${it.v.toLocaleString('de-DE')}</div></div>`).join('');
+const ri=PERF.slice(0,6),mx=Math.max(...ri.map(x=>x.max));
+document.getElementById('rngChart').innerHTML=ri.map(it=>{
+  const lp=(it.min/mx*100).toFixed(1),hp=(it.max/mx*100).toFixed(1),ap=(it.p/mx*100).toFixed(1);
+  return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0"><div style="width:140px;flex-shrink:0;font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.n}</div><div style="flex:1;height:6px;background:var(--b);border-radius:1px;position:relative"><div style="position:absolute;left:${lp}%;right:${100-parseFloat(hp)}%;height:100%;background:var(--cy);opacity:.28;border-radius:inherit"></div><div style="position:absolute;left:${ap}%;transform:translateX(-50%);top:50%;width:9px;height:9px;border-radius:50%;background:var(--gold);margin-top:-4.5px"></div></div><div style="font-family:monospace;font-size:12px;color:var(--t2);width:52px;text-align:right;font-weight:500">${it.p}₱</div></div>`;
+}).join('')+`<div style="margin-top:12px;display:flex;align-items:center;gap:14px"><span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:14px;height:4px;background:var(--cy);opacity:.3;border-radius:1px;display:inline-block"></span>Range</span><span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:9px;height:9px;border-radius:50%;background:var(--gold);display:inline-block"></span>Avg</span></div>`;
+
+const CATS=['All','Warframes','Weapons','Mods','Relics','Resources','Arcanes'];
+let aC='All';
+document.getElementById('catTabs').innerHTML=CATS.map(c=>`<button class="tab ${c==='All'?'on':''}" onclick="setCat('${c}',this)">${c}</button>`).join('');
+function setCat(cat,btn){aC=cat;document.querySelectorAll('#catTabs .tab').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderMkt();}
+function renderMkt(){
+  const q=document.getElementById('mktQ').value.toLowerCase(),srt=document.getElementById('mktSort').value;
+  let items=ALL.filter(x=>(aC==='All'||x.cat===aC)&&x.name.toLowerCase().includes(q));
+  if(srt==='price')items.sort((a,b)=>b.price-a.price);
+  else if(srt==='vol')items.sort((a,b)=>b.vol-a.vol);
+  else items.sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById('mktCnt').textContent=`${items.length} items`;
+  document.getElementById('mktBody').innerHTML=items.map((it,i)=>`<tr class="rr"><td style="font-family:monospace;font-size:11px;color:var(--t3)">${i+1}</td><td style="font-weight:600;font-size:13px">${it.name}</td><td>${cb(it.cat)}</td><td class="r" style="font-family:monospace;font-size:14px;color:var(--gold);font-weight:700">${pi()}${it.price}</td><td class="r" style="font-family:monospace;font-size:13px;color:var(--t2)">${it.min}</td><td class="r" style="font-family:monospace;font-size:13px;color:var(--t2)">${it.max}</td><td class="r" style="font-family:monospace;font-size:13px;color:var(--t2)">${it.vol.toLocaleString('de-DE')}</td></tr>`).join('');
+}
+renderMkt();
+
+const mxFV=FARM[0].fv;
+document.getElementById('fvBody').innerHTML=FARM.map((it,i)=>{
+  const pct=(it.fv/mxFV*100).toFixed(1);
+  const col=it.fv>mxFV*.55?'var(--up)':it.fv>mxFV*.15?'var(--gold)':'var(--t3)';
+  return`<tr class="rr"><td style="font-family:monospace;font-size:11px;color:var(--t3)">${i+1}</td><td style="font-weight:600;font-size:13px">${it.name}</td><td>${cb(it.cat)}</td><td class="r" style="font-family:monospace;font-size:13px;color:var(--t2)">${it.drop.toFixed(2)}%</td><td class="r" style="font-family:monospace;font-size:14px;color:var(--gold);font-weight:700">${pi()}${it.price}</td><td class="r" style="font-family:monospace;font-size:15px;font-weight:700;color:${col}">${it.fv.toFixed(2)}</td><td><div class="fv-bar"><div class="fv-track"><div class="fv-fill" style="width:${pct}%;background:${col}"></div></div><span style="font-size:11px;color:var(--t3);min-width:34px;text-align:right">${pct}%</span></div></td></tr>`;
+}).join('');
+
+function gSearch(){
+  const q=document.getElementById('gs').value.toLowerCase().trim(),d=document.getElementById('gd');
+  if(!q){d.innerHTML='';d.classList.remove('open');return;}
+  const f=ALL.filter(x=>x.name.toLowerCase().includes(q)).slice(0,6);
+  if(!f.length){d.innerHTML='<div class="sri" style="color:var(--t3)">No results</div>';d.classList.add('open');return;}
+  d.innerHTML=f.map(it=>`<div class="sri"><div><div style="font-size:13px;font-weight:600">${it.name}</div><div style="font-size:11px;color:var(--t3)">${it.cat}</div></div><span style="font-family:monospace;font-size:14px;color:var(--gold);font-weight:700">${pi()}${it.price}</span></div>`).join('');
+  d.classList.add('open');
+}
+
+function goto(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  btn.classList.add('on');
+  window.scrollTo(0,0);
+}
+
+const TL={a:'A — Minimal',b:'B — Warframe',c:'C — Vitruvian'};
+function setTheme(t){
+  document.documentElement.setAttribute('data-t',t);
+  document.querySelectorAll('.tsw-opt').forEach(o=>o.classList.toggle('on',o.id==='opt-'+t));
+  document.getElementById('tsp').classList.remove('open');
+  document.getElementById('tsw-lbl').textContent=TL[t];
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.tsw'))document.getElementById('tsp').classList.remove('open');});
+
+function tick(){const now=new Date();const e=document.getElementById('syncts');if(e)e.textContent=now.toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}
+tick();setInterval(tick,60000);
+</script>
+</body>
+</html>

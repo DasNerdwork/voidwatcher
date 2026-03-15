@@ -28,6 +28,7 @@ export interface SearchResults {
   }>
 }
 
+// Used by /api/top — all three lists (top_performer, top_seller, top_traded)
 export interface TopItem {
   item_name: string
   datetime: string
@@ -35,4 +36,5 @@ export interface TopItem {
   min_price: number
   max_price: number
   volume: number
+  change_pct: number | null  // % change vs previous window; null if no prior data
 }
