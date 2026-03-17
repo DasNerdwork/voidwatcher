@@ -129,8 +129,10 @@ WFPE_FIELD_ALLOWLIST: dict[str, frozenset | None] = {
         "isStarter", "isFrivilous", "excludeFromCodex",
     }),
     "ExportRelics": frozenset({
-        "uniqueName", "name", "icon",
-        "era", "category", "rewards", "excludeFromCodex",
+    "uniqueName", "name", "icon",
+    "era", "category", "rewards", "excludeFromCodex",
+    "rewardManifest",
+    "quality",
     }),
     "ExportArcanes": frozenset({
         "uniqueName", "name", "description", "icon",
@@ -651,13 +653,14 @@ def store_48h_stats(conn, item_id, stats_48h):
         rows.append((
             item_id, ts,
             entry.get('avg_price'), entry.get('min_price'),
-            entry.get('max_price'), entry.get('volume')
+            entry.get('max_price'), entry.get('volume'),
+            entry.get('mod_rank'),
         ))
     if not rows:
         return 0, 0
     with conn.cursor() as cur:
         execute_values(cur, """
-            INSERT INTO market_stats_48h (item_id, ts, avg_price, min_price, max_price, volume)
+            INSERT INTO market_stats_48h (item_id, ts, avg_price, min_price, max_price, volume, mod_rank)
             VALUES %s ON CONFLICT DO NOTHING
         """, rows, page_size=100)
         conn.commit()
@@ -676,13 +679,14 @@ def store_90d_stats(conn, item_id, stats_90d):
             item_id,
             day.split("T")[0] if "T" in str(day) else day,
             entry.get('avg_price'), entry.get('min_price'),
-            entry.get('max_price'), entry.get('volume')
+            entry.get('max_price'), entry.get('volume'),
+            entry.get('mod_rank'),
         ))
     if not rows:
         return 0, 0
     with conn.cursor() as cur:
         execute_values(cur, """
-            INSERT INTO market_stats_90d (item_id, day, avg_price, min_price, max_price, volume)
+            INSERT INTO market_stats_90d (item_id, day, avg_price, min_price, max_price, volume, mod_rank)
             VALUES %s ON CONFLICT DO NOTHING
         """, rows, page_size=100)
         conn.commit()
@@ -832,6 +836,13 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
         deleted48 = delete_old_48h_entries(conn)
         deleted90 = delete_old_90d_entries(conn)
         logging.info(f"Deleted old entries: {deleted48} from market_stats_48h, {deleted90} from market_stats_90d")
+        if not skip_wfpe and not dry_run:
+            try:
+                import precompute_drops
+                logging.info("Starte precompute_drops...")
+                precompute_drops.run(conn)
+            except Exception as e:
+                logging.error(f"precompute_drops fehlgeschlagen: {e}", exc_info=True)
 
         try:
             update_last_updated_timestamp(conn)

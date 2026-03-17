@@ -33,6 +33,7 @@ deprecated/
 
 # Database exports
 export_database_summary.json
+changes.md
 
 # Agents directory
 .agents/
