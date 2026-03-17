@@ -1,4 +1,5 @@
 import type { TopItem } from "../types";
+import { SmallPlatIcon } from "./Icons";
 
 interface TickerBannerProps {
   items: TopItem[];
@@ -78,14 +79,7 @@ export const TickerBanner = ({ items }: TickerBannerProps) => {
                 }}>
                   {item.item_name}
                 </span>
-                <span style={{
-                  fontFamily: "monospace",
-                  fontSize: 12,
-                  color: "#c8a84b",
-                  fontWeight: 700,
-                }}>
-                  {item.avg_price.toFixed(1)}₱
-                </span>
+                {item.avg_price.toFixed(1)}<SmallPlatIcon />
                 {hasChange ? (
                   <span style={{
                     fontFamily: "monospace",

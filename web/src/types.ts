@@ -37,4 +37,5 @@ export interface TopItem {
   max_price: number
   volume: number
   change_pct: number | null  // % change vs previous window; null if no prior data
+  max_rank?: number | null  // Mod-Rang (1-3 für Mods/Arcanes, null/0 sonst)
 }

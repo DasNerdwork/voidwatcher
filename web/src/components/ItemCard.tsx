@@ -1,4 +1,5 @@
 import type { ItemData } from '../types'
+import { SmallPlatIcon } from "./Icons";
 
 interface ItemCardProps {
   item: ItemData
@@ -41,15 +42,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({ item }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: '#7a6e52', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Ø Preis</span>
           <span style={{ fontFamily: 'monospace', fontSize: 15, color: '#c8a84b', fontWeight: 700 }}>
-            {market.avg_price != null ? `${market.avg_price.toFixed(1)} ₱` : 'N/A'}
+            {market.avg_price != null ? <>{market.avg_price.toFixed(1)}<SmallPlatIcon /></> : 'N/A'}
           </span>
         </div>
         {market.min_price != null && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: '#7a6e52', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Min / Max</span>
-            <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#b8a97c' }}>
-              {market.min_price} — {market.max_price} ₱
-            </span>
+            {market.min_price}<SmallPlatIcon /> — {market.max_price}<SmallPlatIcon />
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

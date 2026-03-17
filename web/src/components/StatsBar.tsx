@@ -1,4 +1,5 @@
 import type { TopItem } from "../types";
+import { SmallPlatIcon } from "./Icons";
 
 interface StatsBarProps {
   topPerformer: TopItem[];
@@ -23,7 +24,7 @@ export const StatsBar = ({ topPerformer, topTraded }: StatsBarProps) => {
   const stats = [
     {
       label: "24H Volume",
-      value: "48.290 ₱",
+      value: <>48.290<SmallPlatIcon /></>,
       meta:  "total platinum traded",
       color: "#c8a84b",
     },
@@ -36,7 +37,7 @@ export const StatsBar = ({ topPerformer, topTraded }: StatsBarProps) => {
     {
       label: "Top Gainer",
       value: topPerformer[0]?.item_name ?? "—",
-      meta:  topPerformer[0] ? `↑ · ${topPerformer[0].avg_price.toFixed(0)}₱ avg` : "—",
+      meta: topPerformer[0] ? <>{topPerformer[0].avg_price.toFixed(0)}<SmallPlatIcon /> avg</> : "—",
       color: "#4dba7f",
     },
     {

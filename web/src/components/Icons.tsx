@@ -1,3 +1,5 @@
+import PlatinumSmall from "../assets/PlatinumSmall.avif";
+
 // ─── PlatIcon ──────────────────────────────────────────────────────────────────
 export const PlatIcon = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ display: "inline", marginRight: 3, verticalAlign: "middle" }}>
@@ -9,7 +11,7 @@ export const PlatIcon = () => (
 
 // ─── SmallPlatIcon ─────────────────────────────────────────────────────────────
 export const SmallPlatIcon = () => (
-  <img src="/static/PlatinumSmall.avif" style={{ display: "inline", marginRight: 3, verticalAlign: "middle", flexShrink: 0 }} alt="" />
+  <img src={PlatinumSmall} style={{ display: "inline", marginLeft: 3, verticalAlign: "middle", flexShrink: 0 }} alt="" />
 );
 
 // ─── LogoIcon ──────────────────────────────────────────────────────────────────

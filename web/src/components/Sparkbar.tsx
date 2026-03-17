@@ -12,61 +12,36 @@ export const Sparkbar = ({ min, avg, max }: SparkbarProps) => {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      {/* Min label */}
-      <span style={{
-        fontFamily: "monospace",
-        fontSize: 12,
-        color: "#b8a97c",
-        minWidth: 30,
-        textAlign: "right",
-        fontWeight: 500,
-        lineHeight: 1,
-      }}>
+      <span style={{ fontFamily: "monospace", fontSize: 11, color: "#7a6e52", minWidth: 28, textAlign: "right" }}>
         {min.toFixed(0)}
       </span>
 
-      {/* Bar track */}
-      <div style={{
-        flex: 1,
-        height: 4,
-        background: "rgba(200,168,75,0.22)",
-        borderRadius: 1,
-        position: "relative",
-      }}>
-        {/* Fill */}
+      {/* Range track */}
+      <div style={{ flex: 1, position: "relative", height: 14, display: "flex", alignItems: "center" }}>
+        {/* Thin line: full range */}
+        <div style={{ position: "absolute", left: 0, right: 0, height: 1, background: "rgba(200,168,75,0.25)" }} />
+        {/* Thick bar: 25th–75th approximation via avg position */}
         <div style={{
           position: "absolute",
-          left: 0,
-          top: 0,
-          height: "100%",
-          width: `${pct}%`,
+          left: `${Math.max(0, pct - 15)}%`,
+          width: `30%`,
+          height: 5,
+          background: "rgba(200,168,75,0.45)",
+          borderRadius: 1,
+        }} />
+        {/* Avg tick */}
+        <div style={{
+          position: "absolute",
+          left: `${pct}%`,
+          transform: "translateX(-50%)",
+          width: 2,
+          height: 12,
           background: "#c8a84b",
           borderRadius: 1,
-          opacity: 0.7,
-        }} />
-        {/* Diamond indicator dot — Theme C specific */}
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: `${pct}%`,
-          width: 8,
-          height: 8,
-          background: "#c8a84b",
-          borderRadius: 0,
-          transform: "translate(-50%, -50%) rotate(45deg)",
         }} />
       </div>
 
-      {/* Max label */}
-      <span style={{
-        fontFamily: "monospace",
-        fontSize: 12,
-        color: "#b8a97c",
-        minWidth: 30,
-        textAlign: "left",
-        fontWeight: 500,
-        lineHeight: 1,
-      }}>
+      <span style={{ fontFamily: "monospace", fontSize: 11, color: "#7a6e52", minWidth: 28 }}>
         {max.toFixed(0)}
       </span>
     </div>

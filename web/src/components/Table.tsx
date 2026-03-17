@@ -177,8 +177,8 @@ const Table: React.FC<Props> = ({ title, subtitle, rows, hours, accentColor = "v
                     {/* Avg price */}
                     <td style={{ padding: "10px 16px", textAlign: "right", verticalAlign: "middle" }}>
                       <div style={{ fontFamily: "var(--font-mono)", fontSize: 14, color: "var(--plat)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-                        <SmallPlatIcon />
                         {item.avg_price.toFixed(1)}
+                        <SmallPlatIcon />
                       </div>
                     </td>
 
