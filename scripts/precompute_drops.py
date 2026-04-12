@@ -352,6 +352,85 @@ def build_enemy_drops(conn) -> list[dict]:
 
 
 # ──────────────────────────────────────────────
+# REWARD DROPS
+# ──────────────────────────────────────────────
+
+def build_reward_drops(conn) -> list[dict]:
+    """
+    Verarbeitet ExportRewards (flache Rows).
+    unique_name = "table_path::rotation.stage"
+    raw = { type: item_path, probability: float, ... }
+    """
+    log.info("Lade ExportRewards (flat rows) ...")
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT unique_name, raw
+            FROM wfpe_items
+            WHERE export_type = 'ExportRewards'
+        """)
+        reward_rows = cur.fetchall()
+
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT id, game_ref FROM market_items WHERE game_ref IS NOT NULL")
+        market_items = {row["game_ref"]: row["id"] for row in cur.fetchall()}
+
+    # item_id + table_path → bestes Entry (höchste Chance über alle Rotationen)
+    best: dict[tuple, dict] = {}
+    matched = 0
+    skipped = 0
+
+    for row in reward_rows:
+        raw = row["raw"]
+        if not raw:
+            continue
+
+        item_path = norm_path(raw.get("type", ""))
+        probability = float(raw.get("probability", 0))
+
+        if not item_path or probability <= 0:
+            continue
+
+        # "table_path::rotation.stage" → table_path
+        table_path = row["unique_name"].split("::")[0]
+        table_name = table_path.split("/")[-1]
+
+        market_item_id = market_items.get(item_path)
+        if not market_item_id:
+            skipped += 1
+            continue
+
+        matched += 1
+        key = (market_item_id, table_path)
+        if key not in best or probability > best[key]["drop_chance_enemy"]:
+            best[key] = {
+                "item_id": market_item_id,
+                "source_type": "mission",
+                "relic_unique_name": None,
+                "relic_era": None,
+                "relic_category": None,
+                "relic_name": None,
+                "relic_quality": None,
+                "relic_manifest": None,
+                "droptable_name": table_name,
+                "droptable_path": table_path,
+                "rarity": raw.get("rarity"),
+                "drop_chance_intact": None,
+                "drop_chance_exceptional": None,
+                "drop_chance_flawless": None,
+                "drop_chance_radiant": None,
+                "drop_chance_enemy": probability,
+                "drop_chance_best": probability,
+            }
+
+    entries = list(best.values())
+    log.info(
+        "Reward Drops: %d Einträge (%d unique Items), %d ohne Market-Eintrag",
+        len(entries), len({e["item_id"] for e in entries}), skipped,
+    )
+    return entries
+
+
+# ──────────────────────────────────────────────
 # WRITE TO DB
 # ──────────────────────────────────────────────
 
@@ -405,8 +484,12 @@ def run(conn=None):
     try:
         relic_entries = build_relic_drops(conn)
         enemy_entries = build_enemy_drops(conn)
-        all_entries = relic_entries + enemy_entries
-        log.info("Gesamt: %d Einträge (%d Relic, %d Enemy)", len(all_entries), len(relic_entries), len(enemy_entries))
+        reward_entries = build_reward_drops(conn)
+        all_entries = relic_entries + enemy_entries + reward_entries
+        log.info(
+            "Gesamt: %d Einträge (%d Relic, %d Enemy, %d Reward/Mission)",
+            len(all_entries), len(relic_entries), len(enemy_entries), len(reward_entries),
+        )
         write_drop_sources(conn, all_entries)
     except Exception as e:
         conn.rollback()

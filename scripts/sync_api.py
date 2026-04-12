@@ -162,6 +162,8 @@ WFPE_FIELD_ALLOWLIST: dict[str, frozenset | None] = {
 
 WFPE_ALWAYS_KEEP = {"uniqueName", "name", "icon"}  # never stripped, even when allowlist active
 
+# EXCLUSIONS
+MARKET_ITEMS_EXCLUDE_PATTERNS = ("_augment_mod", "_armor_set")
 
 # -------------------------
 # Helpers
@@ -563,8 +565,11 @@ def upsert_items(conn, items):
     rows = []
     now = datetime.now(timezone.utc).isoformat()
     for it in items:
+        slug = it.get('slug') or it.get('url_name') or None
+        if slug and any(slug.endswith(p) for p in MARKET_ITEMS_EXCLUDE_PATTERNS):
+            logging.debug(f"Skipping excluded item: {slug}")
+            continue
         item_id  = it.get('id') or it.get('_id') or it.get('uniqueName') or None
-        slug     = it.get('slug') or it.get('url_name') or None
         game_ref = it.get('gameRef') or None
         i18n     = it.get('i18n') or {}
         tags     = it.get('tags') or []
@@ -780,6 +785,25 @@ def update_last_updated_timestamp(conn):
     logging.info(f"last_updated set to {now}")
 
 
+def apply_game_ref_overrides(conn):
+    overrides_path = BASE_DIR / "game_ref_overrides.json"
+    if not overrides_path.exists():
+        return
+    with open(overrides_path) as f:
+        overrides = json.load(f)
+    
+    rows = [(v, k) for k, v in overrides.items() if v is not None]
+    if not rows:
+        return
+    
+    with conn.cursor() as cur:
+        psycopg2.extras.execute_batch(cur, """
+            UPDATE market_items SET game_ref = %s WHERE slug = %s
+        """, rows)
+    conn.commit()
+    logging.info(f"game_ref overrides applied: {len(rows)} items")
+
+
 # -------------------------
 # CLI / main
 # -------------------------
@@ -822,6 +846,7 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
 
         if not skip_market and market_items:
             upsert_items(conn, market_items)
+            apply_game_ref_overrides(conn)
 
         if not skip_wfpe and all_exports:
             upsert_wfpe_items(conn, all_exports, dict_en, dict_de)
@@ -843,6 +868,13 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
                 precompute_drops.run(conn)
             except Exception as e:
                 logging.error(f"precompute_drops fehlgeschlagen: {e}", exc_info=True)
+        if not dry_run:
+            try:
+                import sync_images
+                logging.info("Starte sync_images...")
+                sync_images.run(conn=conn)
+            except Exception as e:
+                logging.error(f"sync_images fehlgeschlagen: {e}", exc_info=True)
 
         try:
             update_last_updated_timestamp(conn)

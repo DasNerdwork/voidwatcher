@@ -15,6 +15,8 @@ export interface ItemData {
     min_price?: number
     max_price?: number
     volume?: number
+    thumb_path?: string | null
+    image_path?: string | null
   }[]
 }
 
@@ -25,17 +27,20 @@ export interface SearchResults {
     slug: string
     avg_price: number
     volume: number
+    thumb_path?: string | null
   }>
 }
 
 // Used by /api/top — all three lists (top_performer, top_seller, top_traded)
 export interface TopItem {
-  item_name: string
-  datetime: string
-  avg_price: number
-  min_price: number
-  max_price: number
-  volume: number
-  change_pct: number | null  // % change vs previous window; null if no prior data
-  max_rank?: number | null  // Mod-Rang (1-3 für Mods/Arcanes, null/0 sonst)
+  item_name:   string
+  datetime:    string
+  avg_price:   number
+  min_price:   number
+  max_price:   number
+  volume:      number
+  change_pct:  number | null  // % change vs previous window; null if no prior data
+  max_rank?:   number | null  // Mod-Rang (z.B. 10 für R10 Mods, 5 für Arcanes, null sonst)
+  thumb_path?: string | null  // /images/thumbs/{slug}.avif — für Tabellen & Listen
+  image_path?: string | null  // /images/{slug}.avif         — für Detailseiten
 }

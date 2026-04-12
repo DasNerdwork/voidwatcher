@@ -1,0 +1,23 @@
+{
+    "melee_duplicate": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/ReplayLightCritHits",
+    "melee_crescendo": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/PermaComboOnFinisher",
+    "melee_exposure": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/CorrosiveMeleePerAbilityCast",
+    "melee_fortification": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/ArmorOnMeleeKill",
+    "melee_influence": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/MeleeProcsSpread",
+    "melee_retaliation": "/Lotus/Upgrades/CosmeticEnhancers/Offensive/MeleeDamageForActiveShields",
+    "abyssal_beacon": null,
+    "ancient_fusion_core": null,
+    "baro_void_signal_(key)": null,
+    "companion_weapon_riven_mod_(veiled)": null,
+    "corpus_void_key": null,
+    "damaged_necramech_set": null,
+    "damaged_necramech_weapon_set": null,
+    "equilibrium_(steam_pinnacle_pack)": null,
+    "grendel_chassis_locator": null,
+    "grendel_neuroptics_locator": null,
+    "grendel_systems_locator": null,
+    "legendary_fusion_core": null,
+    "mutalist_nav_coordinates": null,
+    "scan_lifeforms": null,
+    "vay_hek_frequency_triangulator": null
+}

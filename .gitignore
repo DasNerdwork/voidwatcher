@@ -2,6 +2,8 @@
 test.py
 test2.py
 .env
+nginx.conf
+sync.lock
 
 # Binaries
 *.exe
@@ -30,6 +32,7 @@ vendor/
 node_modules/
 log/
 deprecated/
+images/
 
 # Database exports
 export_database_summary.json

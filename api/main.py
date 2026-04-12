@@ -55,13 +55,28 @@ def _err(e: Exception) -> JSONResponse:
     return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-# ──────────────────────────────────────────────
-# BESTEHENDE ENDPOINTS (unverändert + rückwärtskompatibel)
-# ──────────────────────────────────────────────
-
 @router.get("/")
 def api_index():
     return {"message": "VoidWatcher API läuft"}
+
+
+@router.get("/status")
+def api_status():
+    try:
+        def get(key):
+            row = api.db.query("SELECT value FROM metadata WHERE key = %s", (key,))
+            return row[0]["value"] if row else None
+        return _ok({
+            "wf_build_label":          get("wf_build_label"),
+            "wf_build_updated_at":     get("wf_build_updated_at"),
+            "wf_build_checked_at":     get("wf_build_checked_at"),
+            "wfpe_version":            get("wfpe_version"),
+            "wfpe_version_updated_at": get("wfpe_version_updated_at"),
+            "wfm_items_updated_at":    get("wfm_items_updated_at"),
+            "last_updated":            get("last_updated"),
+        })
+    except Exception as e:
+        return _err(e)
 
 
 @router.get("/top")
@@ -71,10 +86,6 @@ def top(
     tag: str | None = Query(None),
     rank_mode: str = Query("max", description="max | unranked | all"),
 ):
-    """
-    Legacy-Endpoint: Top Performer / Seller / Traded in einem Call.
-    Neu: unterstützt jetzt optional ?tag= Filter.
-    """
     try:
         last_updated = api.db.get_last_updated()
         top_perf   = api.db.get_top_performers(hours, limit, tag=tag, rank_mode=rank_mode)
@@ -119,28 +130,20 @@ def get_item(
 
 
 # ──────────────────────────────────────────────
-# NEU: /api/market/* ENDPOINTS
+# /api/market/* ENDPOINTS
 # ──────────────────────────────────────────────
 
 @router.get("/market/volume")
 def market_volume(
-    hours: int = Query(24, ge=1, le=720, description="Zeitraum in Stunden"),
+    hours: int = Query(24, ge=1, le=720),
     limit: int = Query(20, ge=1, le=100),
-    tag: str | None = Query(None, description="Tag-Filter z.B. mod, prime, relic"),
-    min_volume: int = Query(3, ge=1, le=100, description="Mindest-Handelsvolumen"),
-    rank_mode: str = Query("max", description="max | unranked | all"),
+    tag: str | None = Query(None),
+    min_volume: int = Query(3, ge=1, le=100),
+    rank_mode: str = Query("max"),
 ):
-    """
-    Feature 1 – Meistverkaufte Items nach Handelsvolumen.
-    """
     try:
         items = api.db.get_volume_leaders(hours=hours, limit=limit, tag=tag, min_volume=min_volume, rank_mode=rank_mode)
-        return _ok({
-            "last_updated": api.db.get_last_updated(),
-            "hours": hours,
-            "tag": tag,
-            "items": _serialize(items),
-        })
+        return _ok({"last_updated": api.db.get_last_updated(), "hours": hours, "tag": tag, "items": _serialize(items)})
     except Exception as e:
         return _err(e)
 
@@ -150,51 +153,30 @@ def market_value(
     hours: int = Query(24, ge=1, le=720),
     limit: int = Query(20, ge=1, le=100),
     tag: str | None = Query(None),
-    min_volume: int = Query(3, ge=1, le=100, description="Manipulation-Schutz: mind. N Trades"),
-    rank_mode: str = Query("max", description="max | unranked | all"),
+    min_volume: int = Query(3, ge=1, le=100),
+    rank_mode: str = Query("max"),
 ):
-    """
-    Feature 2 – Teuerste Items mit Preismanipulations-Schutz.
-    Filtert Items raus wo MAX(price) > 10× AVG(price).
-    """
     try:
         items = api.db.get_value_leaders(hours=hours, limit=limit, tag=tag, min_volume=min_volume, rank_mode=rank_mode)
-        return _ok({
-            "last_updated": api.db.get_last_updated(),
-            "hours": hours,
-            "tag": tag,
-            "outlier_filter": "max_price <= avg_price * 10",
-            "items": _serialize(items),
-        })
+        return _ok({"last_updated": api.db.get_last_updated(), "hours": hours, "tag": tag, "outlier_filter": "max_price <= avg_price * 10", "items": _serialize(items)})
     except Exception as e:
         return _err(e)
 
 
 @router.get("/market/movers")
 def market_movers(
-    days: int = Query(7, ge=1, le=90, description="Zeitraum in Tagen (nutzt 90d-Daten)"),
+    days: int = Query(7, ge=1, le=90),
     limit: int = Query(20, ge=1, le=100),
-    direction: str = Query("gainers", description="gainers oder losers"),
+    direction: str = Query("gainers"),
     tag: str | None = Query(None),
     min_volume: int = Query(3, ge=1),
-    rank_mode: str = Query("max", description="max | unranked | all"),
+    rank_mode: str = Query("max"),
 ):
-    """
-    Feature 3 – Größte Preisbewegungen (Gewinner / Verlierer).
-    Vergleicht ersten vs. letzten Tag im Zeitfenster.
-    Nutzt market_stats_90d, daher bis zu 90 Tage möglich.
-    """
     if direction not in ("gainers", "losers"):
         return JSONResponse(status_code=422, content={"error": "direction muss 'gainers' oder 'losers' sein"})
     try:
         items = api.db.get_price_movers(days=days, limit=limit, direction=direction, tag=tag, min_volume=min_volume, rank_mode=rank_mode)
-        return _ok({
-            "last_updated": api.db.get_last_updated(),
-            "days": days,
-            "direction": direction,
-            "tag": tag,
-            "items": _serialize(items),
-        })
+        return _ok({"last_updated": api.db.get_last_updated(), "days": days, "direction": direction, "tag": tag, "items": _serialize(items)})
     except Exception as e:
         return _err(e)
 
@@ -204,22 +186,12 @@ def market_stable(
     hours: int = Query(48, ge=1, le=720),
     limit: int = Query(20, ge=1, le=100),
     tag: str | None = Query(None),
-    min_volume: int = Query(5, ge=2, description="Höherer Default: 1 Trade = immer 0 Spread"),
-    rank_mode: str = Query("max", description="max | unranked | all"),
+    min_volume: int = Query(5, ge=2),
+    rank_mode: str = Query("max"),
 ):
-    """
-    Feature 4 – Stabilste Items nach Preis-Spread.
-    Spread-Ratio = (max - min) / avg. Niedrigster Wert = stabilster Markt.
-    """
     try:
         items = api.db.get_most_stable(hours=hours, limit=limit, tag=tag, min_volume=min_volume, rank_mode=rank_mode)
-        return _ok({
-            "last_updated": api.db.get_last_updated(),
-            "hours": hours,
-            "tag": tag,
-            "metric": "spread_ratio = (max_price - min_price) / avg_price",
-            "items": _serialize(items),
-        })
+        return _ok({"last_updated": api.db.get_last_updated(), "hours": hours, "tag": tag, "metric": "spread_ratio = (max_price - min_price) / avg_price", "items": _serialize(items)})
     except Exception as e:
         return _err(e)
 
@@ -228,36 +200,14 @@ def market_stable(
 def market_drops(
     hours: int = Query(24, ge=1, le=720),
     limit: int = Query(20, ge=1, le=100),
-    tag: str | None = Query(None, description="z.B. mod, prime, relic"),
-    rank_mode: str = Query("max", description="max | unranked | all"),
-    refinement: str = Query(
-        "intact",
-        description="intact | exceptional | flawless | radiant | enemy | best"
-    ),
-    source_type: str | None = Query(
-        None,
-        description="Nur 'relic' oder 'enemy' – None = alle"
-    ),
-    sort_by: str = Query(
-        "drop_chance",
-        description="drop_chance | value | ratio (value × drop_chance)"
-    ),
+    tag: str | None = Query(None),
+    rank_mode: str = Query("max"),
+    refinement: str = Query("intact"),
+    source_type: str | None = Query(None),
+    sort_by: str = Query("drop_chance"),
     min_volume: int = Query(3, ge=1),
-    best_only: bool = Query(
-        False,
-        description="True = nur beste Drop-Quelle pro Item anzeigen"
-    ),
+    best_only: bool = Query(False),
 ):
-    """
-    Feature 6 + 7 – Items gefiltert und sortiert nach Drop-Chance.
-
-    Kombinierbare Filter:
-      - tag=mod + sort_by=drop_chance  → Mods mit höchster Drop-Rate
-      - tag=mod + sort_by=value        → Teuerste Mods mit Drop-Daten
-      - tag=mod + sort_by=ratio        → Beste Wert/Drop-Effizienz für Mods
-      - source_type=relic              → Nur Relic-Drops
-      - refinement=radiant             → Chancen mit Radiant-Refinement
-    """
     valid_refinements = {"intact", "exceptional", "flawless", "radiant", "enemy", "best"}
     valid_sorts = {"drop_chance", "value", "ratio"}
     valid_sources = {None, "relic", "enemy"}
@@ -271,54 +221,33 @@ def market_drops(
 
     try:
         items = api.db.get_items_by_drop_filter(
-            hours=hours,
-            limit=limit,
-            tag=tag,
-            refinement=refinement,
-            source_type=source_type,
-            sort_by=sort_by,
-            min_volume=min_volume,
-            best_only=best_only,
-            rank_mode=rank_mode,
+            hours=hours, limit=limit, tag=tag, refinement=refinement,
+            source_type=source_type, sort_by=sort_by, min_volume=min_volume,
+            best_only=best_only, rank_mode=rank_mode,
         )
         return _ok({
-            "last_updated": api.db.get_last_updated(),
-            "hours": hours,
-            "tag": tag,
-            "refinement": refinement,
-            "source_type": source_type,
-            "sort_by": sort_by,
+            "last_updated": api.db.get_last_updated(), "hours": hours, "tag": tag,
+            "refinement": refinement, "source_type": source_type, "sort_by": sort_by,
             "items": _serialize(items),
         })
     except Exception as e:
         return _err(e)
 
 
-# ──────────────────────────────────────────────
-# NEU: /api/drops/{item_id}
-# ──────────────────────────────────────────────
-
 @router.get("/drops/{item_id}")
 def get_item_drops(
-    item_id: str = Path(..., description="Market-Item ID"),
-    best_only: bool = Query(False, description="Nur beste Drop-Quelle zurückgeben"),
+    item_id: str = Path(...),
+    best_only: bool = Query(False),
 ):
-    """
-    Alle Drop-Quellen für ein spezifisches Market-Item.
-    Gibt Relic-Chancen für alle 4 Refinement-Stufen zurück.
-    """
     try:
         sources = api.db.get_drop_sources_for_item(item_id, best_only=best_only)
-        return _ok({
-            "item_id": item_id,
-            "drop_sources": _serialize(sources),
-        })
+        return _ok({"item_id": item_id, "drop_sources": _serialize(sources)})
     except Exception as e:
         return _err(e)
 
 
 # ──────────────────────────────────────────────
-# APP SETUP
+# CATEGORY
 # ──────────────────────────────────────────────
 
 @router.get("/category")
@@ -330,6 +259,7 @@ def category(tag: str | None = None, limit: int = 20):
             all_items = api.db.get_category_by_tag('all', 99999)
             categories = {}
             for item in all_items:
+                # Kategorie bestimmen
                 try:
                     tags_json = item.get("tags", "[]")
                     cat, subcat = api.db.classify_item_by_tags(tags_json)
@@ -340,10 +270,12 @@ def category(tag: str | None = None, limit: int = 20):
                     item["category"] = "Andere"
                     item["subcategory"] = None
 
-                item["avg_price"] = float(item["avg_price"]) if item.get("avg_price") else None
-                item["min_price"] = float(item["min_price"]) if item.get("min_price") else None  # neu
-                item["max_price"] = float(item["max_price"]) if item.get("max_price") else None  # neu
-                item["volume"]    = int(item["volume"])    if item.get("volume")    else None
+                # Decimal → float/int (immer, unabhängig vom try/except oben)
+                item["avg_price"]            = float(item["avg_price"])            if item.get("avg_price")            else None
+                item["min_price"]            = float(item["min_price"])            if item.get("min_price")            else None
+                item["max_price"]            = float(item["max_price"])            if item.get("max_price")            else None
+                item["volume"]               = int(item["volume"])                 if item.get("volume")               else None
+                item["best_drop_chance_pct"] = float(item["best_drop_chance_pct"]) if item.get("best_drop_chance_pct") else None
 
                 if cat != "Andere":
                     categories.setdefault(cat, []).append(item)
@@ -357,8 +289,11 @@ def category(tag: str | None = None, limit: int = 20):
         elif tag:
             items = api.db.get_category_by_tag(tag, limit)
             for item in items:
-                item["avg_price"] = float(item["ducats"]) if item.get("ducats") else None
-                item["volume"] = int(item["volume"]) if item.get("volume") else None
+                item["avg_price"]            = float(item["avg_price"])            if item.get("avg_price")            else None
+                item["min_price"]            = float(item["min_price"])            if item.get("min_price")            else None
+                item["max_price"]            = float(item["max_price"])            if item.get("max_price")            else None
+                item["volume"]               = int(item["volume"])                 if item.get("volume")               else None
+                item["best_drop_chance_pct"] = float(item["best_drop_chance_pct"]) if item.get("best_drop_chance_pct") else None
             return _ok({"last_updated": last_updated, "category": tag, "items": items})
 
         else:
@@ -367,5 +302,6 @@ def category(tag: str | None = None, limit: int = 20):
 
     except Exception as e:
         return _err(e)
+
 
 app.include_router(router)

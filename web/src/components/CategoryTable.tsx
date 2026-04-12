@@ -2,16 +2,19 @@ import { useState } from "react";
 import { SmallPlatIcon } from "./Icons";
 
 interface CategoryItem {
-  name:         string;
-  slug:         string;
-  avg_price:    number | null;
-  min_price:    number | null;
-  max_price:    number | null;
-  volume:       number | null;
-  tags:         string;
-  ducats:       string | null;
-  category?:    string;
-  subcategory?: string | null;
+  name:                  string;
+  slug:                  string;
+  avg_price:             number | null;
+  min_price:             number | null;
+  max_price:             number | null;
+  volume:                number | null;
+  tags:                  string;
+  ducats:                string | null;
+  max_rank?:             number | null;
+  thumb_path?:           string | null;
+  best_drop_chance_pct?: number | null;
+  category?:             string;
+  subcategory?:          string | null;
 }
 
 interface CategoriesOverview {
@@ -26,7 +29,7 @@ interface CategoryTableProps {
   miscSub?:      string | null;
 }
 
-type SortKey = "name" | "category" | "volume" | "avg_price" | "min_price" | "max_price";
+type SortKey = "name" | "category" | "volume" | "avg_price" | "min_price" | "max_price" | "best_drop_chance_pct";
 type SortDir = "asc" | "desc";
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -114,6 +117,29 @@ const TH = ({
   );
 };
 
+// ─── Item Thumbnail ───────────────────────────────────────────────────────────
+
+const ItemThumb = ({ path, name }: { path?: string | null; name: string }) => {
+  const [failed, setFailed] = useState(false);
+  if (path && !failed) {
+    return (
+      <img src={path} width={28} height={28} onError={() => setFailed(true)}
+        style={{ borderRadius: 2, flexShrink: 0, objectFit: "contain", display: "block" }} />
+    );
+  }
+  const initials = name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+  return (
+    <div style={{
+      width: 28, height: 28, borderRadius: 2, flexShrink: 0,
+      background: "rgba(200,168,75,0.12)", border: "1px solid rgba(200,168,75,0.22)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 10, color: "#c8a84b", fontWeight: 700,
+    }}>
+      {initials}
+    </div>
+  );
+};
+
 export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTableProps) => {
   const [sortKey, setSortKey] = useState<SortKey>("volume");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -123,12 +149,10 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
       setSortDir(d => d === "desc" ? "asc" : "desc");
     } else {
       setSortKey(key);
-      // Text columns default ascending, number columns default descending
       setSortDir(key === "name" || key === "category" ? "asc" : "desc");
     }
   };
 
-  // ── Build item list ──
   let items: CategoryItem[] = [];
   if (category === "Alle") {
     items = allCategories.flatMap(c =>
@@ -141,27 +165,17 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
     items = allCategories.find(c => c.name === category)?.items ?? [];
   }
 
-  // ── Sort ──
   const sorted = [...items].sort((a, b) => {
-    let av: string | number;
-    let bv: string | number;
-
     if (sortKey === "name") {
-      av = a.name?.toLowerCase() ?? "";
-      bv = b.name?.toLowerCase() ?? "";
-      return sortDir === "asc"
-        ? av.localeCompare(bv)
-        : bv.localeCompare(av);
+      const av = a.name?.toLowerCase() ?? "";
+      const bv = b.name?.toLowerCase() ?? "";
+      return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     }
     if (sortKey === "category") {
-      av = (a.category ?? a.subcategory ?? "")?.toLowerCase();
-      bv = (b.category ?? b.subcategory ?? "")?.toLowerCase();
-      return sortDir === "asc"
-        ? av.localeCompare(bv)
-        : bv.localeCompare(av);
+      const av = (a.category ?? a.subcategory ?? "").toLowerCase();
+      const bv = (b.category ?? b.subcategory ?? "").toLowerCase();
+      return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     }
-
-    // Numeric columns — null sorts to bottom always
     const an = a[sortKey] as number | null;
     const bn = b[sortKey] as number | null;
     if (an == null && bn == null) return 0;
@@ -172,7 +186,6 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
 
   const showCategoryCol    = category === "Alle";
   const showSubcategoryCol = category === "Misc" && !miscSub;
-  const colSpan = 7 + (showCategoryCol || showSubcategoryCol ? 1 : 0);
   const thProps = { activeSort: sortKey, sortDir, onSort: handleSort };
 
   return (
@@ -184,16 +197,17 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
             <TH {...thProps} sortKey="name">Item</TH>
             {showCategoryCol    && <TH {...thProps} sortKey="category">Kategorie</TH>}
             {showSubcategoryCol && <TH {...thProps} sortKey="category">Typ</TH>}
-            <TH {...thProps} right sortKey="avg_price">Avg Price</TH>
+            <TH {...thProps} right sortKey="avg_price">Avg</TH>
             <TH {...thProps} right sortKey="min_price">Min</TH>
             <TH {...thProps} right sortKey="max_price">Max</TH>
-            <TH {...thProps} right sortKey="volume">Volumen</TH>
+            <TH {...thProps} right sortKey="best_drop_chance_pct">Drop%</TH>
+            <TH {...thProps} right sortKey="volume">Vol</TH>
           </tr>
         </thead>
         <tbody>
           {sorted.length === 0 ? (
             <tr>
-              <td colSpan={colSpan} style={{
+              <td colSpan={8 + (showCategoryCol || showSubcategoryCol ? 1 : 0)} style={{
                 textAlign: "center", padding: "32px 16px",
                 color: "#7a6e52", fontSize: 13, fontStyle: "italic",
               }}>
@@ -207,15 +221,31 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(200,168,75,0.07)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >
-              <td style={{ padding: "10px 15px", fontFamily: "monospace", fontSize: 11, color: "#7a6e52", minWidth: 36 }}>
+              {/* # */}
+              <td style={{ padding: "9px 15px", fontFamily: "monospace", fontSize: 11, color: "#7a6e52", minWidth: 36 }}>
                 {idx + 1}
               </td>
-              <td style={{ padding: "10px 15px" }}>
-                <span style={{ fontWeight: 600, fontSize: 13, color: "#e8dfc0" }}>{item.name}</span>
+
+              {/* Icon + Name + Rang */}
+              <td style={{ padding: "9px 15px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <ItemThumb path={item.thumb_path} name={item.name} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "#e8dfc0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>
+                      {item.name}
+                    </div>
+                    {item.max_rank != null && item.max_rank > 0 && (
+                      <div style={{ fontSize: 10, color: "#c8a84b", marginTop: 1 }}>
+                        Rang {item.max_rank}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </td>
 
+              {/* Kategorie */}
               {showCategoryCol && (
-                <td style={{ padding: "10px 15px" }}>
+                <td style={{ padding: "9px 15px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     {item.category && <CategoryBadge cat={item.category} />}
                     {item.category === "Misc" && item.subcategory && (
@@ -225,21 +255,36 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
                 </td>
               )}
               {showSubcategoryCol && (
-                <td style={{ padding: "10px 15px" }}>
+                <td style={{ padding: "9px 15px" }}>
                   {item.subcategory && <SubcategoryBadge sub={item.subcategory} />}
                 </td>
               )}
 
-              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: "#c8a84b", fontWeight: 700 }}>
+              {/* Avg Price */}
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: "#c8a84b", fontWeight: 700, whiteSpace: "nowrap" }}>
                 {item.avg_price != null ? item.avg_price.toFixed(1) : "—"}<SmallPlatIcon />
               </td>
-              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: "#b8a97c" }}>
+
+              {/* Min */}
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: "#b8a97c" }}>
                 {item.min_price != null ? item.min_price : "—"}
               </td>
-              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: "#b8a97c" }}>
+
+              {/* Max */}
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: "#b8a97c" }}>
                 {item.max_price != null ? item.max_price : "—"}
               </td>
-              <td style={{ padding: "10px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: "#b8a97c" }}>
+
+              {/* Drop Chance */}
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12 }}>
+                {item.best_drop_chance_pct != null && item.best_drop_chance_pct > 0
+                  ? <span style={{ color: "#4dba7f", fontWeight: 700 }}>{item.best_drop_chance_pct.toFixed(3)}%</span>
+                  : <span style={{ color: "#7a6e52" }}>—</span>
+                }
+              </td>
+
+              {/* Volume */}
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: "#b8a97c" }}>
                 {item.volume?.toLocaleString("de-DE") ?? "—"}
               </td>
             </tr>

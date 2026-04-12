@@ -15,16 +15,17 @@ interface DropSource {
 }
 
 interface DropItem {
-  item_name:          string;
-  slug:               string;
-  tags:               string;
-  avg_price:          number;
-  min_price:          number;
-  max_price:          number;
-  volume:             number;
+  item_name:            string;
+  slug:                 string;
+  tags:                 string;
+  avg_price:            number;
+  min_price:            number;
+  max_price:            number;
+  volume:               number;
   best_drop_chance_pct: number;
-  value_per_drop:     number;
-  drop_sources:       DropSource[];
+  value_per_drop:       number;
+  drop_sources:         DropSource[];
+  thumb_path?:          string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -105,6 +106,28 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
           +{sources.length - 5} weitere Quellen
         </div>
       )}
+    </div>
+  );
+};
+
+// ─── Item Thumbnail ──────────────────────────────────────────────────────────
+const ItemThumb = ({ path, name }: { path?: string | null; name: string }) => {
+  const [failed, setFailed] = useState(false);
+  if (path && !failed) {
+    return (
+      <img src={path} width={28} height={28} onError={() => setFailed(true)}
+        style={{ borderRadius: 2, flexShrink: 0, objectFit: "contain", display: "block", background: "rgba(200,168,75,0.06)" }} />
+    );
+  }
+  const initials = name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+  return (
+    <div style={{
+      width: 28, height: 28, borderRadius: 2, flexShrink: 0,
+      background: "rgba(200,168,75,0.12)", border: `1px solid ${C.b}`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 10, color: C.gold, fontWeight: 700, letterSpacing: "-0.02em",
+    }}>
+      {initials}
     </div>
   );
 };
@@ -284,22 +307,27 @@ export const FarmValuePage = () => {
                           {idx + 1}
                         </td>
 
-                        <td style={{ padding: "10px 14px", maxWidth: 220 }}>
-                          <div style={{ fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3 }}>
-                            {item.item_name}
-                          </div>
-                          {topSource && (
-                            <div style={{ fontSize: 10, color: C.t3, marginTop: 2 }}>
-                              {isRelic
-                                ? `${topSource.relic_name ?? "?"} · ${topSource.rarity ?? "?"}`
-                                : topSource.droptable?.replace("DropTable", "").replace(/([A-Z])/g, " $1").trim()
-                              }
+                        <td style={{ padding: "10px 14px", maxWidth: 240 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                            <ItemThumb path={item.thumb_path} name={item.item_name} />
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {item.item_name}
+                              </div>
+                              {topSource && (
+                                <div style={{ fontSize: 10, color: C.t3, marginTop: 2 }}>
+                                  {isRelic
+                                    ? `${topSource.relic_name ?? "?"} · ${topSource.rarity ?? "?"}`
+                                    : topSource.droptable?.replace("DropTable", "").replace(/([A-Z])/g, " $1").trim()
+                                  }
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>
-                          {item.avg_price.toFixed(1)}<SmallPlatIcon />
+                          <SmallPlatIcon />{item.avg_price.toFixed(1)}
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right" }}>
