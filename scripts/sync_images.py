@@ -6,12 +6,20 @@ Lädt Item-Bilder von warframe.market/static/assets/, speichert zwei AVIF-Versio
   /images/{slug}.avif          → Vollbild  (max 256px, Q85)  für Detailseiten
   /images/thumbs/{slug}.avif   → Thumbnail (max 128px, Q75)  für Tabellen
 
-Fallback-Kette:
-  1. WFM static assets  → Primärquelle, enthält Mod-Rahmen etc.
-  2. wiki.warframe.com  → Fallback wenn WFM einen Placeholder (~532B) liefert.
-                          Slug wird zu WikiTitle konvertiert (galvanized_steel → Galvanized_Steel),
-                          Seite wird geparst, main-image extrahiert.
-                          Wiki-Bilder haben kein Padding → 5px Padding wird hinzugefügt.
+Fallback-Kette (normale Items):
+  1. wiki.warframe.com  → Primärquelle
+  2. WFM /set API       → Fallback
+  3. WFM static assets  → letzter Ausweg
+
+Prime Warframe Sonderbehandlung (nur wenn 'warframe'-Tag gesetzt):
+  - *_prime_chassis[_blueprint]    → shared /images/prime_chassis.avif   (PrimeChassis.png)
+  - *_prime_neuroptics[_blueprint] → shared /images/prime_helmet.avif    (PrimeHelmet.png)
+  - *_prime_systems[_blueprint]    → shared /images/prime_systems.avif   (PrimeSystems.png)
+  - *_prime_blueprint              → individuell {Name}Prime_Thumb.png    (z.B. VorunaPrime_Thumb.png)
+  - *_prime_set                    → individuell {Name}PrimeHelmet.png    (z.B. VorunaPrimeHelmet.png)
+
+  Die 3 shared Component-AVIFs werden einmal erzeugt und von allen Warframe-Komponenten-Items
+  in der DB referenziert — kein per-Slug-Duplikat, kein Symlink.
 
 Verwendung:
     python3 sync_images.py                  # alle fehlenden/geänderten
@@ -21,12 +29,15 @@ Verwendung:
     python3 sync_images.py --workers 4      # Parallelität (default: 4)
 """
 
+import io
+import json
 import os
 import re
 import sys
 import time
 import logging
 import argparse
+import threading
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -36,8 +47,7 @@ import psycopg2.extras
 from dotenv import load_dotenv
 
 try:
-    from PIL import Image, ImageOps
-    import io
+    from PIL import Image
     try:
         import pillow_avif  # noqa: F401
     except ImportError:
@@ -69,11 +79,24 @@ FULL_Q     = 85
 THUMB_SIZE = 128
 THUMB_Q    = 75
 
-# WFM Placeholder-Größe — alles darunter ist kein echtes Bild
 WFM_PLACEHOLDER_MAX_BYTES = 1024
-
-# Padding das wiki.warframe.com-Bilder brauchen um WFM-Stil zu matchen (px)
 WIKI_PADDING = 5
+
+# ── Prime Warframe Shared Component Images ────────────────────────────────────
+#
+# Mapping: Komponenten-Typ → (Wiki-Quelldatei, lokaler AVIF-Stem ohne Extension)
+# Die shared AVIFs landen direkt in IMAGE_DIR / THUMB_DIR.
+# In der DB zeigen alle zugehörigen Items auf diese Pfade — keine Slug-Kopien.
+
+_PRIME_COMPONENT_FILES: dict[str, tuple[str, str]] = {
+    "chassis":    ("PrimeChassis.png", "prime_chassis"),
+    "neuroptics": ("PrimeHelmet.png",  "prime_helmet"),
+    "systems":    ("PrimeSystems.png", "prime_systems"),
+}
+
+# Thread-sicherer "bereits gespeichert"-Guard
+_PRIME_COMPONENT_READY: set[str] = set()
+_PRIME_COMPONENT_LOCK  = threading.Lock()
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -116,7 +139,8 @@ def get_items_needing_images(conn, force: bool = False, limit: int | None = None
                 mi.id,
                 mi.slug,
                 mi.raw->'i18n'->'en'->>'icon' AS icon_path,
-                mi.thumb_hash                 AS current_hash
+                mi.thumb_hash                  AS current_hash,
+                mi.raw->>'tags'                AS tags
             FROM market_items mi
             WHERE mi.raw->'i18n'->'en'->>'icon' IS NOT NULL
               {hash_filter}
@@ -138,12 +162,162 @@ def update_item_paths(conn, item_id: str, image_path: str, thumb_path: str, cach
     conn.commit()
 
 
+# ── Prime Warframe Detection ──────────────────────────────────────────────────
+
+def _parse_tags(tags_raw) -> set[str]:
+    if not tags_raw:
+        return set()
+    if isinstance(tags_raw, list):
+        return {str(t).lower() for t in tags_raw}
+    try:
+        return {str(t).lower() for t in json.loads(tags_raw)}
+    except Exception:
+        return {t.strip().lower() for t in str(tags_raw).split(",") if t.strip()}
+
+
+def detect_prime_warframe_type(slug: str, tags_raw) -> str | None:
+    """
+    Gibt den Sondertyp zurück wenn es sich um einen Prime Warframe handelt:
+      'chassis' | 'neuroptics' | 'systems' | 'blueprint' | 'set' | None
+
+    Erkennung ausschließlich via 'warframe'-Tag — Waffen wie Bo Prime, Ankylos Prime
+    haben diesen Tag nicht und fallen durch.
+
+    Reihenfolge wichtig: Komponenten zuerst, dann blueprint, dann set.
+    """
+    tags = _parse_tags(tags_raw)
+    if "warframe" not in tags or "prime" not in tags:
+        return None
+
+    # Komponenten (mit und ohne _blueprint-Suffix)
+    for comp in ("chassis", "neuroptics", "systems"):
+        if slug.endswith(f"_prime_{comp}") or slug.endswith(f"_prime_{comp}_blueprint"):
+            return comp
+
+    # Haupt-Blueprint des Warframes: voruna_prime_blueprint
+    if slug.endswith("_prime_blueprint"):
+        return "blueprint"
+
+    # Set
+    if slug.endswith("_prime_set") or (slug.endswith("_prime") and "set" in tags):
+        return "set"
+
+    return None
+
+
+def prime_component_db_paths(wf_type: str) -> tuple[str, str]:
+    """Gibt (image_path, thumb_path) für die shared Component-AVIFs zurück."""
+    _, stem = _PRIME_COMPONENT_FILES[wf_type]
+    return f"/images/{stem}.avif", f"/images/thumbs/{stem}.avif"
+
+
+def slug_to_warframe_camel(slug: str) -> str:
+    """
+    voruna_prime_blueprint → 'VorunaPrime'
+    ash_prime_set          → 'AshPrime'
+    Strippt alles nach '_prime' weg und camelcased den Rest.
+    """
+    # Alles bis einschließlich '_prime' behalten
+    m = re.match(r"^(.+_prime)(?:_|$)", slug)
+    base = m.group(1) if m else slug
+    return "".join(p.capitalize() for p in base.split("_"))
+
+
+def wiki_image_filename(wf_type: str, slug: str) -> str:
+    """
+    Gibt den Wiki-Dateinamen für den jeweiligen Warframe-Typ zurück.
+      blueprint → VorunaPrime_Thumb.png
+      set       → VorunaPrimeHelmet.png
+    """
+    camel = slug_to_warframe_camel(slug)
+    if wf_type == "blueprint":
+        return f"{camel}_Thumb.png"
+    if wf_type == "set":
+        return f"{camel}Helmet.png"
+    return ""
+
+
+# ── Prime Component: einmalig herunterladen und als shared AVIF speichern ─────
+
+def ensure_prime_component_avif(wf_type: str, timeout: int = 15, force: bool = False) -> bool:
+    """
+    Stellt sicher dass die shared AVIF-Datei für diesen Komponenten-Typ existiert.
+    Wird nur einmal pro Run ausgeführt (danach im _PRIME_COMPONENT_READY-Set).
+    Gibt True zurück wenn die Datei vorhanden/erfolgreich erstellt wurde.
+    """
+    with _PRIME_COMPONENT_LOCK:
+        if wf_type in _PRIME_COMPONENT_READY:
+            return True
+
+    wiki_fname, stem = _PRIME_COMPONENT_FILES[wf_type]
+    full_out  = IMAGE_DIR / f"{stem}.avif"
+    thumb_out = THUMB_DIR  / f"{stem}.avif"
+
+    if not force and full_out.exists() and thumb_out.exists():
+        with _PRIME_COMPONENT_LOCK:
+            _PRIME_COMPONENT_READY.add(wf_type)
+        log.info(f"  Prime component [{wf_type}]: shared AVIF already exists, skipping.")
+        return True
+
+    raw_bytes = _download_image(f"/images/{wiki_fname}", timeout)
+    if not raw_bytes:
+        html = _fetch_page(f"{WIKI_BASE}/w/File:{wiki_fname}", timeout)
+        if html:
+            m = re.search(r'href="(/images/[^"]+\.png)"[^>]*>\s*(?:Full|Original)', html)
+            if not m:
+                m = re.search(r'<div class="fullMedia".*?href="(/images/[^"]+)"', html, re.DOTALL)
+            if m:
+                raw_bytes = _download_image(m.group(1), timeout)
+
+    if not raw_bytes:
+        log.warning(f"  Prime component [{wf_type}]: Bild nicht gefunden ({wiki_fname})")
+        return False
+
+    try:
+        img = add_padding(Image.open(io.BytesIO(raw_bytes)).convert("RGBA"), WIKI_PADDING)
+
+        full_img = img.copy()
+        full_img.thumbnail((FULL_SIZE, FULL_SIZE), Image.LANCZOS)
+        full_img.save(full_out, format="AVIF", quality=FULL_Q)
+
+        thumb_img = img.copy()
+        thumb_img.thumbnail((THUMB_SIZE, THUMB_SIZE), Image.LANCZOS)
+        thumb_img.save(thumb_out, format="AVIF", quality=THUMB_Q)
+
+        log.info(f"  Prime component [{wf_type}]: shared AVIF gespeichert → {full_out.name}")
+        with _PRIME_COMPONENT_LOCK:
+            _PRIME_COMPONENT_READY.add(wf_type)
+        return True
+
+    except Exception as e:
+        log.warning(f"  Prime component [{wf_type}]: Bildverarbeitung fehlgeschlagen: {e}")
+        return False
+
+
+def fetch_prime_warframe_image(wf_type: str, slug: str, timeout: int = 15) -> bytes | None:
+    """
+    Lädt das individuelle Bild für einen Prime Warframe Blueprint oder Set.
+      blueprint → {Name}Prime_Thumb.png
+      set       → {Name}PrimeHelmet.png
+    Versucht direkten Download, kein HTML-Parsing nötig.
+    """
+    fname = wiki_image_filename(wf_type, slug)
+    if not fname:
+        return None
+    url = f"{WIKI_BASE}/images/{fname}"
+    log.info(f"  fetch_prime_warframe_image: GET {url}")  # ← NEU
+    data = _download_image(f"/images/{fname}", timeout)
+    if data:
+        log.debug(f"  {slug} [{wf_type}]: Wiki direct → {fname}")
+    else:
+        log.info(f"  fetch_prime_warframe_image: FEHLGESCHLAGEN für {fname}")  # ← NEU
+    return data
+
+
 # ── Wiki Fallback ─────────────────────────────────────────────────────────────
 
-# Artikel/Präpositionen die im Wiki-Titel klein geschrieben werden (außer am Anfang)
 _SMALL_WORDS = {"of", "the", "a", "an", "in", "on", "at", "to", "and", "or", "for"}
 
-# Suffixe die auf Komponenten/Blueprints hinweisen → Parent-Seite suchen
 _COMPONENT_SUFFIXES = (
     "_blueprint", "_barrel", "_receiver", "_stock",
     "_handle", "_blade", "_carapace", "_systems",
@@ -152,12 +326,6 @@ _COMPONENT_SUFFIXES = (
 
 
 def slug_to_wiki_title(slug: str) -> str:
-    """
-    galvanized_steel  → Galvanized_Steel
-    axi_o6_relic      → Axi_O6          (kein _relic Suffix)
-    prey_of_dynar     → Prey_of_Dynar   (Artikel bleiben klein außer erstem Wort)
-    cull_the_weak     → Cull_the_Weak
-    """
     s = re.sub(r"_relic$", "", slug)
     words = s.split("_")
     result = []
@@ -167,11 +335,6 @@ def slug_to_wiki_title(slug: str) -> str:
 
 
 def slug_to_parent_title(slug: str) -> str | None:
-    """
-    epitaph_prime_barrel    → Epitaph_Prime
-    caliban_prime_blueprint → Caliban_Prime
-    Returns None if no known component suffix found.
-    """
     for suffix in _COMPONENT_SUFFIXES:
         if slug.endswith(suffix):
             parent = slug[: -len(suffix)]
@@ -180,23 +343,13 @@ def slug_to_parent_title(slug: str) -> str | None:
 
 
 def extract_foundrytable_image(html: str, component_hint: str) -> str | None:
-    """
-    Sucht in einem foundrytable-Block nach einem Bild das zum Komponenten-Typ passt.
-    /images/thumb/GenericGunPrimeBarrel.png/32px-... → /images/GenericGunPrimeBarrel.png
-
-    component_hint: z.B. "barrel", "receiver", "blueprint", "neuroptics" …
-    """
-    # Alle thumb-Bilder aus der Seite extrahieren
     matches = re.findall(r'/images/thumb/([^/]+\.png)/\d+px-', html)
     if not matches:
         return None
-
     hint = component_hint.lower()
-    # Versuche zuerst einen Treffer der den Hint enthält
     for fname in matches:
         if hint in fname.lower():
             return fname
-    # Fallback: erstes Bild im foundrytable
     ft = re.search(r'class="foundrytable".*?/images/thumb/([^/]+\.png)/\d+px-', html, re.DOTALL)
     if ft:
         return ft.group(1)
@@ -208,12 +361,6 @@ WFM_API_BASE         = "https://api.warframe.market/v2"
 
 
 def fetch_wfm_set(slug: str, timeout: int = 15) -> tuple[bytes | None, str | None]:
-    """
-    Ruft /v2/item/{slug}/set auf.
-    Gibt zurück: (icon_bytes | None, wiki_link | None)
-      - icon_bytes: erstes echtes Icon aus dem Set (nicht Placeholder)
-      - wiki_link:  wikiLink aus dem ersten Item das eines hat
-    """
     try:
         r = requests.get(
             f"{WFM_API_BASE}/item/{slug}/set",
@@ -229,12 +376,8 @@ def fetch_wfm_set(slug: str, timeout: int = 15) -> tuple[bytes | None, str | Non
 
         for item in items:
             i18n_en = (item.get("i18n") or {}).get("en", {})
-
-            # wikiLink sammeln (erstes gefundenes)
             if not found_wiki:
                 found_wiki = i18n_en.get("wikiLink") or None
-
-            # Echtes Icon suchen
             if not found_bytes:
                 icon_path = i18n_en.get("icon", "")
                 if icon_path and WFM_PLACEHOLDER_HASH not in icon_path:
@@ -251,7 +394,6 @@ def fetch_wfm_set(slug: str, timeout: int = 15) -> tuple[bytes | None, str | Non
 
 
 def _fetch_page(url: str, timeout: int = 15) -> str | None:
-    """Lädt eine Wiki-Seite und gibt den HTML-Text zurück, oder None."""
     try:
         r = requests.get(url, timeout=timeout, headers={
             "User-Agent": "VoidWatcher/1.0",
@@ -263,7 +405,6 @@ def _fetch_page(url: str, timeout: int = 15) -> str | None:
 
 
 def _download_image(img_path: str, timeout: int = 15) -> bytes | None:
-    """Lädt ein Bild von wiki.warframe.com herunter."""
     try:
         r = requests.get(f"{WIKI_BASE}{img_path}", timeout=timeout,
                          headers={"User-Agent": "VoidWatcher/1.0"})
@@ -275,40 +416,28 @@ def _download_image(img_path: str, timeout: int = 15) -> bytes | None:
 
 
 def _extract_main_image(html: str) -> str | None:
-    """
-    Extrahiert den besten verfügbaren Bildpfad aus dem main-image Block.
-    Priorität:
-      1. srcset full-res:  srcset="/images/Foo.png?hash 2x"  → /images/Foo.png
-      2. File-Href:        href="/w/File:Foo.png"             → /images/Foo.png
-      3. src fallback:     src="/images/thumb/Foo.png/300px-" → /images/Foo.png
-    """
     block_m = re.search(r'class="main-image"[^>]*>.*?</span>', html, re.DOTALL)
     if not block_m:
         return None
     block = block_m.group(0)
 
-    # 1. srcset: "/images/Foo.png?hash 2x" → /images/Foo.png
     srcset_m = re.search(r'srcset="(/images/[^"?]+)', block)
     if srcset_m:
         return srcset_m.group(1)
 
-    # 2. File href: href="/w/File:Foo.png" → /images/Foo.png
     file_m = re.search(r'href="/w/File:([^"]+)"', block)
     if file_m:
         return f"/images/{file_m.group(1)}"
 
-    # 3. src fallback: strip thumb path
     src_m = re.search(r'src="/images/thumb/([^/]+)/\d+px-', block)
     if src_m:
         return f"/images/{src_m.group(1)}"
 
-    # 4. plain src
     plain_m = re.search(r'src="(/images/[^"?]+)', block)
     return plain_m.group(1) if plain_m else None
 
 
 def _try_wiki_page(url: str, slug: str, timeout: int) -> bytes | None:
-    """Lädt eine Wiki-Seite und versucht das main-image zu extrahieren."""
     html = _fetch_page(url, timeout)
     if not html:
         return None
@@ -317,7 +446,6 @@ def _try_wiki_page(url: str, slug: str, timeout: int) -> bytes | None:
         data = _download_image(img_path, timeout)
         if data:
             return data
-    # Foundrytable-Fallback für Komponenten
     for suffix in _COMPONENT_SUFFIXES:
         if slug.endswith(suffix):
             hint = suffix.lstrip("_")
@@ -328,43 +456,27 @@ def _try_wiki_page(url: str, slug: str, timeout: int) -> bytes | None:
 
 
 def fetch_wiki_image(slug: str, timeout: int = 15, wiki_url: str | None = None) -> bytes | None:
-    """
-    Wiki-Bild-Kette für einen Slug:
-      1. Direkt-URL-Guess: /images/{Title}.png  (oft funktioniert das ohne Seitenaufruf)
-      2. Explizite wiki_url (aus WFM-Set-Response)  → main-image
-      3. Slug → Wiki-Titel → Seite                  → main-image
-      4. Parent-Seite (Komponenten)                 → main-image / foundrytable
-    """
     title = slug_to_wiki_title(slug)
-
-    # ── 1. Direkt-URL-Guess ───────────────────────────────────────────────────
-    # Reihenfolge: "Mod"-Variante zuerst (GalvanizedChamberMod.png > GalvanizedChamber.png),
-    # dann Arcane/Standard-Variante.
-    # Zwei Schreibweisen: mit Underscores und CamelCase.
     camel = "".join(w.capitalize() for w in slug.split("_"))
     for fname in (
-        f"{camel}Mod.png",      # GalvanizedChamberMod.png  ← Mod-Karte (bevorzugt)
-        f"{camel}.png",         # ArcaneAvenger.png / GalvanizedChamber.png
-        f"{title}Mod.png",      # Galvanized_ChamberMod.png (selten)
-        f"{title}.png",         # Galvanized_Chamber.png
+        f"{camel}Mod.png",
+        f"{camel}.png",
+        f"{title}Mod.png",
+        f"{title}.png",
     ):
         direct = _download_image(f"/images/{fname}", timeout)
         if direct:
             return direct
 
-    # ── 2. Explizite Wiki-URL aus WFM-Set ─────────────────────────────────────
     if wiki_url:
-        # https://wiki.warframe.com/w/Secondary_Enervate → direkt fetchen
         data = _try_wiki_page(wiki_url, slug, timeout)
         if data:
             return data
 
-    # ── 3. Slug → Wiki-Titel → Seite ─────────────────────────────────────────
     data = _try_wiki_page(f"{WIKI_BASE}/w/{title}", slug, timeout)
     if data:
         return data
 
-    # ── 4. Parent-Seite für Komponenten ──────────────────────────────────────
     parent_title = slug_to_parent_title(slug)
     if parent_title:
         data = _try_wiki_page(f"{WIKI_BASE}/w/{parent_title}", slug, timeout)
@@ -389,80 +501,96 @@ def download_and_convert(
     item: dict,
     timeout: int = 20,
     max_retries: int = 3,
+    force: bool = False,
 ) -> tuple[bool, str, str]:
     """
-    Lädt das Bild herunter (WFM → wiki Fallback), speichert Full + Thumb als AVIF.
-    Returns (success, message, status) — status: 'ok' | 'ok_wiki' | '404' | 'placeholder' | 'error'
+    Lädt das Bild herunter und speichert Full + Thumb als AVIF.
+
+    Prime Warframe Typen:
+      chassis/neuroptics/systems → shared AVIF (einmal erzeugt, kein per-Slug-File)
+      blueprint                  → {Name}Prime_Thumb.png   (individuell, slug-spezifisch)
+      set                        → {Name}PrimeHelmet.png   (individuell, slug-spezifisch)
+
+    Returns (success, message, status)
     """
     slug      = item["slug"]
     icon_path = item["icon_path"]
-    url       = f"{WFM_STATIC}/{icon_path}"
     full_out  = IMAGE_DIR / f"{slug}.avif"
     thumb_out = THUMB_DIR  / f"{slug}.avif"
 
-    raw_bytes  = None
-    source     = "wiki"
+    wf_type = detect_prime_warframe_type(slug, item.get("tags"))
 
-    # ── Versuch 1: wiki.warframe.com (bevorzugt — höhere Qualität, korrekte Bilder) ──
-    # Erst WFM-Set anfragen um ggf. den wikiLink zu bekommen, dann Wiki
-    wfm_set_bytes, wfm_wiki_url = fetch_wfm_set(slug, timeout=timeout)
-    wiki_bytes = fetch_wiki_image(slug, timeout=timeout, wiki_url=wfm_wiki_url)
-    if wiki_bytes:
-        raw_bytes = wiki_bytes
+    # ── Prime Komponenten: shared AVIF sicherstellen ──────────────────────────
+    if wf_type in ("chassis", "neuroptics", "systems"):
+        ok = ensure_prime_component_avif(wf_type, timeout=timeout, force=force)
+        if ok:
+            _, stem = _PRIME_COMPONENT_FILES[wf_type]
+            return True, f"OK [shared:{stem}.avif]", "ok_wiki"
+        return False, f"Prime component AVIF konnte nicht erstellt werden ({wf_type})", "placeholder"
 
-    # ── Versuch 2: WFM /set Icon (bereits abgerufen in Schritt 1) ───────────
-    if raw_bytes is None and wfm_set_bytes:
-        raw_bytes = wfm_set_bytes
-        source    = "wfm_set"
+    # ── Prime Blueprint / Set: individuelles Wiki-Bild ────────────────────────
+    raw_bytes: bytes | None = None
+    source = "wiki"
 
-    # ── Versuch 3: WFM direkt ─────────────────────────────────────────────────
-    if raw_bytes is None:
-        source = "wfm"
-        for attempt in range(1, max_retries + 1):
-            try:
-                time.sleep(0.1)
-                r = requests.get(url, timeout=timeout, headers={"User-Agent": "VoidWatcher/1.0"})
+    if wf_type in ("blueprint", "set"):
+        raw_bytes = fetch_prime_warframe_image(wf_type, slug, timeout=timeout)
+        source    = "wiki_prime"
+        if raw_bytes is None:
+            # Fallback auf normale Pipeline
+            log.debug(f"  {slug} [{wf_type}]: Wiki-Bild nicht gefunden, fallback auf Standard-Pipeline")
+            wf_type = None
 
-                if r.status_code == 429:
-                    wait = 2 ** attempt
-                    log.warning(f"  429 für {slug} (Versuch {attempt}), warte {wait}s…")
-                    time.sleep(wait)
-                    continue
+    # ── Normale Pipeline ──────────────────────────────────────────────────────
+    if wf_type is None:
+        source = "wiki"
+        wfm_set_bytes, wfm_wiki_url = fetch_wfm_set(slug, timeout=timeout)
+        wiki_bytes = fetch_wiki_image(slug, timeout=timeout, wiki_url=wfm_wiki_url)
+        if wiki_bytes:
+            raw_bytes = wiki_bytes
 
-                if r.status_code == 404:
+        if raw_bytes is None and wfm_set_bytes:
+            raw_bytes = wfm_set_bytes
+            source    = "wfm_set"
+
+        if raw_bytes is None:
+            source = "wfm"
+            url    = f"{WFM_STATIC}/{icon_path}"
+            for attempt in range(1, max_retries + 1):
+                try:
+                    time.sleep(0.1)
+                    r = requests.get(url, timeout=timeout, headers={"User-Agent": "VoidWatcher/1.0"})
+                    if r.status_code == 429:
+                        wait = 2 ** attempt
+                        log.warning(f"  429 für {slug} (Versuch {attempt}), warte {wait}s…")
+                        time.sleep(wait)
+                        continue
+                    if r.status_code == 404:
+                        break
+                    r.raise_for_status()
+                    if len(r.content) < WFM_PLACEHOLDER_MAX_BYTES:
+                        break
+                    raw_bytes = r.content
                     break
-
-                r.raise_for_status()
-
-                if len(r.content) < WFM_PLACEHOLDER_MAX_BYTES:
-                    break  # Placeholder — kein brauchbares Bild
-
-                raw_bytes = r.content
-                break
-
-            except Exception:
-                if attempt == max_retries:
-                    break
-                time.sleep(2 ** attempt)
+                except Exception:
+                    if attempt == max_retries:
+                        break
+                    time.sleep(2 ** attempt)
 
     if raw_bytes is None:
-        return False, f"Kein Bild gefunden (WFM Placeholder + Wiki fehlgeschlagen)", "placeholder"
+        return False, "Kein Bild gefunden (WFM Placeholder + Wiki fehlgeschlagen)", "placeholder"
 
-    # ── Bild verarbeiten ──────────────────────────────────────────────────────
+    # ── Bild verarbeiten und slug-spezifische AVIF speichern ─────────────────
     try:
         img = Image.open(io.BytesIO(raw_bytes)).convert("RGBA")
 
-        # Wiki-Bilder brauchen 5px Padding um WFM-Stil zu matchen
-        # WFM-Bilder (direkt oder via Set) haben bereits das korrekte Padding
-        if source == "wiki":
+        # Wiki-Bilder (alle Quellen außer WFM direct/set) brauchen Padding
+        if source in ("wiki", "wiki_prime"):
             img = add_padding(img, WIKI_PADDING)
 
-        # Vollbild
         full_img = img.copy()
         full_img.thumbnail((FULL_SIZE, FULL_SIZE), Image.LANCZOS)
         full_img.save(full_out, format="AVIF", quality=FULL_Q)
 
-        # Thumbnail
         thumb_img = img.copy()
         thumb_img.thumbnail((THUMB_SIZE, THUMB_SIZE), Image.LANCZOS)
         thumb_img.save(thumb_out, format="AVIF", quality=THUMB_Q)
@@ -470,9 +598,8 @@ def download_and_convert(
         full_kb  = full_out.stat().st_size  // 1024
         thumb_kb = thumb_out.stat().st_size // 1024
         dim      = f"{full_img.width}×{full_img.height}"
-        status   = "ok_wiki" if source == "wiki" else "ok"
-        label    = f"OK [{source}] {dim} full={full_kb}KB thumb={thumb_kb}KB"
-        return True, label, status
+        status   = "ok_wiki" if source.startswith("wiki") else "ok"
+        return True, f"OK [{source}] {dim} full={full_kb}KB thumb={thumb_kb}KB", status
 
     except Exception as e:
         return False, f"Bild-Verarbeitung fehlgeschlagen: {e}", "error"
@@ -512,7 +639,16 @@ def run(conn=None, force=False, workers=4, limit=None, dry_run=False):
 
         if dry_run:
             for item in items[:20]:
-                log.info(f"  {item['slug']} → {WFM_STATIC}/{item['icon_path']}")
+                wf_type = detect_prime_warframe_type(item["slug"], item.get("tags"))
+                if wf_type in ("chassis", "neuroptics", "systems"):
+                    _, stem = _PRIME_COMPONENT_FILES[wf_type]
+                    hint = f"[shared] /images/{stem}.avif"
+                elif wf_type in ("blueprint", "set"):
+                    fname = wiki_image_filename(wf_type, item["slug"])
+                    hint  = f"[wiki_prime] /images/{fname}"
+                else:
+                    hint = f"[wfm] {WFM_STATIC}/{item['icon_path']}"
+                log.info(f"  {item['slug']} → {hint}")
             if len(items) > 20:
                 log.info(f"  … und {len(items) - 20} weitere")
             return
@@ -521,16 +657,22 @@ def run(conn=None, force=False, workers=4, limit=None, dry_run=False):
         start = time.time()
 
         def process(item):
-            success, msg, status = download_and_convert(item)
+            success, msg, status = download_and_convert(item, force=force)
             if success:
+                wf_type   = detect_prime_warframe_type(item["slug"], item.get("tags"))
                 cache_key = item["icon_path"].split("/")[-1]
-                update_item_paths(
-                    conn,
-                    item["id"],
-                    image_path=f"/images/{item['slug']}.avif",
-                    thumb_path=f"/images/thumbs/{item['slug']}.avif",
-                    cache_key=cache_key,
-                )
+
+                # Shared DB-Pfad für Komponenten, slug-spezifisch für alle anderen
+                if wf_type in ("chassis", "neuroptics", "systems"):
+                    img_path, thumb_path = prime_component_db_paths(wf_type)
+                else:
+                    img_path   = f"/images/{item['slug']}.avif"
+                    thumb_path = f"/images/thumbs/{item['slug']}.avif"
+
+                update_item_paths(conn, item["id"],
+                                  image_path=img_path,
+                                  thumb_path=thumb_path,
+                                  cache_key=cache_key)
             return item["slug"], success, msg, status
 
         with ThreadPoolExecutor(max_workers=workers) as ex:

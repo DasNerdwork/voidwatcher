@@ -5,42 +5,26 @@ check_version.py — VoidWatcher Versions-Check (stündlich via Cron)
 Prüft drei Quellen auf Änderungen:
 
   1. WF Build Label  → api.warframe.com/cdn/worldState.php → "BuildLabel"
-                       Enthält den echten Warframe-Build-String (z.B. "2026.02.13.16.03").
-                       Ändert sich bei jedem WF-Update/Hotfix.
+  2. WF Update Label → api.warframe.com/cdn/worldState.php → "Events" (neuestes Patch-Notes-Event)
+  3. WF Update URL   → Patch-Notes-URL zum Update-Label (klickbar im Frontend)
+  4. WFPE Version    → github.com/calamity-inc/warframe-public-export-plus/package.json
+  5. WFM Items-Hash  → api.warframe.market/v2/versions → collections.items
 
-  2. WFPE Version    → github.com/calamity-inc/warframe-public-export-plus/package.json
-                       npm-Paketversion des Repos (z.B. "0.5.103").
-                       Ändert sich wenn calamity-inc neue WF-Daten verarbeitet hat.
-                       Gut für WFPE-Sync-Trigger, NICHT die WF-Spielversion.
-
-  3. WFM Items-Hash  → api.warframe.market/v2/versions → collections.items
-                       Ändert sich wenn WFM neue Items in ihrer DB hat.
-                       Gut für Market-Sync-Trigger ohne WFPE-Sync.
-
-Sync-Logik:
-  - WF Build geändert  → full sync (WFPE + Market + Stats + Images)
-  - WFPE Version geändert (aber WF Build gleich) → full sync
-  - WFM Hash geändert (nur WFM) → Market-only sync (--skip-wfpe)
-  - Nichts geändert    → nichts tun
-  - Sync läuft bereits → überspringen
-
-metadata-Keys (in DB gespeichert, per /api/status abrufbar):
-  wf_build_label         → "2025.12.10.19.57" (für Header-Display)
-  wf_build_updated_at    → ISO-Timestamp wann sich der Build geändert hat
-  wf_build_checked_at    → ISO-Timestamp letzter Check
-  wfpe_version           → "0.5.103" (für Footer-Display)
-  wfpe_version_updated_at→ ISO-Timestamp
-  wfm_items_hash         → Base64-Hash (für Footer gekürzt anzeigen)
-  wfm_items_updated_at   → ISO-Timestamp
-
-Cron (stündlich):
-  0 * * * * /usr/bin/python3 /hdd1/warframe/voidwatch/scripts/check_version.py
-
-Täglicher Full-Sync (unabhängig, z.B. 3 Uhr):
-  0 3 * * * /usr/bin/python3 /hdd1/warframe/voidwatch/scripts/sync_api.py
+metadata-Keys:
+  wf_build_label             → "2026.04.09.13.53"
+  wf_build_updated_at        → ISO-Timestamp
+  wf_build_checked_at        → ISO-Timestamp letzter Check
+  wf_update_label            → "Voruna Prime: Hotfix 42.0.7"
+  wf_update_label_updated_at → ISO-Timestamp
+  wf_update_url              → "https://www.warframe.com/en/patch-notes/pc/42-0-7"
+  wfpe_version               → "0.5.105"
+  wfpe_version_updated_at    → ISO-Timestamp
+  wfm_items_hash             → Base64-Hash
+  wfm_items_updated_at       → ISO-Timestamp
 """
 
 import os
+import re
 import sys
 import subprocess
 import logging
@@ -72,6 +56,10 @@ WFM_VER_URL     = "https://api.warframe.market/v2/versions"
 SYNC_SCRIPT       = BASE_DIR / "sync_api.py"
 LOCK_FILE         = BASE_DIR.parent / "sync.lock"
 MIN_SYNC_INTERVAL = 60 * 30  # Sekunden
+
+PATCH_NOTES_URL_PATTERN = re.compile(
+    r'warframe\.com/(?:en/)?patch-notes/pc/(\d+)-(\d+)-(\d+)(?:-(\d+))?'
+)
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -123,34 +111,109 @@ def was_synced_recently(conn) -> bool:
         return False
 
 
-# ── Version fetchers ──────────────────────────────────────────────────────────
+# ── Update Label Parsing ──────────────────────────────────────────────────────
 
-def fetch_wf_build_label(timeout: int = 15) -> str | None:
+def _parse_update_label(message: str, prop_url: str) -> tuple[str, str] | None:
+    msg = message.strip()
+
+    # "NAME: Hotfix/Update X.Y.Z [+ ...]"
+    for keyword in ("Hotfix", "Update"):
+        pattern = f": {keyword} "
+        if pattern in msg:
+            name, version_part = msg.split(": ", 1)
+
+            if " + " in version_part:
+                last_ver = version_part.split(" + ")[-1].strip()
+                version_part = f"{keyword} {last_ver}"
+
+            return name.strip(), version_part.strip()
+
+    # "NAME Patch Notes"
+    if "Patch Notes" in msg:
+        name = msg.replace(" Patch Notes", "").strip()
+        m = PATCH_NOTES_URL_PATTERN.search(prop_url)
+
+        if m:
+            major, minor, patch_v, build = m.groups()
+
+            if minor == "0" and patch_v == "0":
+                return name, f"Update {major}"
+            elif build:
+                return name, f"Hotfix {major}.{minor}.{patch_v}.{build}"
+            else:
+                return name, f"Hotfix {major}.{minor}.{patch_v}"
+
+        return name, ""
+
+    return None
+
+
+# ── WorldState Fetch (einmal, alle WF-Werte) ─────────────────────────────────
+
+def fetch_worldstate(timeout: int = 15) -> tuple[str | None, str | None, str | None, str | None]:
     """
-    Holt den WF-Build-String aus worldState.php.
-    BuildLabel Format: "2026.02.13.16.03/hash" — wir nehmen nur den Datumsteil.
-    Ändert sich bei jedem Update und Hotfix.
+    Holt worldState.php einmal und extrahiert:
+      - build_label:  Datumsteil des BuildLabel-Strings (z.B. "2026.04.09.13.53")
+      - update_label: Menschenlesbares Update-Label (z.B. "Voruna Prime: Hotfix 42.0.7")
+      - update_url:   Patch-Notes-URL (z.B. "https://www.warframe.com/en/patch-notes/pc/42-0-7")
+
+    Gibt (build_label, update_label, update_url) zurück.
     """
     try:
         r = requests.get(WF_MANIFEST_URL, timeout=timeout)
         r.raise_for_status()
         data = r.json()
-        label = data.get("BuildLabel")
-        if label:
-            # "2026.02.13.16.03/m9D2v+..." → nur Datumsteil
-            return str(label).split("/")[0].strip()
-        log.warning("worldState.php hat kein 'BuildLabel'-Feld")
-        return None
     except Exception as e:
-        log.error(f"WF BuildLabel fetch fehlgeschlagen: {e}")
-        return None
+        log.error(f"worldState.php fetch fehlgeschlagen: {e}")
+        return None, None, None
 
+    # ── Build Label ──
+    build_label = None
+    raw_label = data.get("BuildLabel")
+    if raw_label:
+        build_label = str(raw_label).split("/")[0].strip()
+    else:
+        log.warning("worldState.php hat kein 'BuildLabel'-Feld")
+
+    # ── Update Label + URL ──
+    update_label = None
+    update_url   = None
+    candidates   = []
+
+    for ev in data.get("Events", []):
+        prop = ev.get("Prop", "")
+        if not PATCH_NOTES_URL_PATTERN.search(prop):
+            continue
+
+        messages = ev.get("Messages", [])
+        en_msg = next(
+            (m["Message"] for m in messages if m.get("LanguageCode") == "en"),
+            None
+        )
+        if not en_msg:
+            continue
+
+        label = _parse_update_label(en_msg, prop)
+        if not label:
+            continue
+
+        date_val = (ev.get("Date") or {}).get("$date", {})
+        if isinstance(date_val, dict):
+            date_val = date_val.get("$numberLong", 0)
+        candidates.append((int(date_val or 0), label, prop))
+
+    if candidates:
+        candidates.sort(reverse=True)
+        _, update_label, update_url = candidates[0]
+    else:
+        log.warning("Kein Patch-Notes-Event in worldState gefunden")
+
+    return build_label, update_label, update_url
+
+
+# ── Weitere Version Fetcher ───────────────────────────────────────────────────
 
 def fetch_wfpe_version(timeout: int = 15) -> str | None:
-    """
-    Holt die WFPE npm-Paketversion (z.B. "0.5.103").
-    NICHT die WF-Spielversion — aber gut als WFPE-Sync-Trigger.
-    """
     try:
         r = requests.get(WFPE_PKG_URL, timeout=timeout)
         r.raise_for_status()
@@ -162,10 +225,6 @@ def fetch_wfpe_version(timeout: int = 15) -> str | None:
 
 
 def fetch_wfm_items_hash(timeout: int = 15) -> str | None:
-    """
-    Holt den WFM collections.items Hash.
-    Ändert sich wenn WFM neue Items aufnimmt.
-    """
     try:
         r = requests.get(WFM_VER_URL, timeout=timeout,
                          headers={"accept": "application/json"})
@@ -225,27 +284,38 @@ def main():
 
         now = datetime.now(timezone.utc).isoformat()
 
-        # ── Versionen fetchen ──
-        wf_build   = fetch_wf_build_label()
-        wfpe_ver   = fetch_wfpe_version()
-        wfm_hash   = fetch_wfm_items_hash()
+        # ── Versionen fetchen (worldState einmal) ──
+        wf_build, wf_update_label, wf_update_url = fetch_worldstate()
+        wfpe_ver                                  = fetch_wfpe_version()
+        wfm_hash                                  = fetch_wfm_items_hash()
 
         # ── Gespeicherte Versionen ──
-        wf_build_stored  = get_meta(conn, "wf_build_label")
-        wfpe_ver_stored  = get_meta(conn, "wfpe_version")
-        wfm_hash_stored  = get_meta(conn, "wfm_items_hash")
+        wf_build_stored        = get_meta(conn, "wf_build_label")
+        wf_update_name_stored  = get_meta(conn, "wf_update_name")
+        wf_update_ver_stored   = get_meta(conn, "wf_update_version")
+        wf_update_label_stored = (
+            f"{wf_update_name_stored}: {wf_update_ver_stored}"
+            if wf_update_name_stored and wf_update_ver_stored
+            else wf_update_name_stored
+        )
+        wf_update_url_stored   = get_meta(conn, "wf_update_url")
+        wfpe_ver_stored        = get_meta(conn, "wfpe_version")
+        wfm_hash_stored        = get_meta(conn, "wfm_items_hash")
 
         # ── Logging ──
-        log.info(f"WF Build:     {wf_build_stored!r:30} → {wf_build!r}")
-        log.info(f"WFPE Version: {wfpe_ver_stored!r:30} → {wfpe_ver!r}")
-        log.info(f"WFM Hash:     {(wfm_hash_stored or '')[:16]:30} → {(wfm_hash or '')[:16]}")
+        log.info(f"WF Build:        {wf_build_stored!r:40} → {wf_build!r}")
+        log.info(f"WF Update Label: {wf_update_label_stored!r:40} → {wf_update_label!r}")
+        log.info(f"WF Update URL:   ...{(wf_update_url_stored or '')[-30:]:37} → ...{(wf_update_url or '')[-30:]}")
+        log.info(f"WFPE Version:    {wfpe_ver_stored!r:40} → {wfpe_ver!r}")
+        log.info(f"WFM Hash:        {(wfm_hash_stored or '')[:16]:40} → {(wfm_hash or '')[:16]}")
 
         # ── Änderungen erkennen ──
-        # wf_build_stored is None = erster Lauf → nur speichern, kein Sync triggern
-        wf_changed   = bool(wf_build  and wf_build_stored  is not None and wf_build  != wf_build_stored)
-        wfpe_changed = bool(wfpe_ver  and wfpe_ver_stored  is not None and wfpe_ver  != wfpe_ver_stored)
-        wfm_changed  = bool(wfm_hash  and wfm_hash_stored  is not None and wfm_hash  != wfm_hash_stored)
-        first_run    = wf_build_stored is None
+        first_run     = wf_build_stored is None
+        wf_changed    = bool(wf_build        and not first_run and wf_build        != wf_build_stored)
+        wfpe_changed  = bool(wfpe_ver        and wfpe_ver_stored        is not None and wfpe_ver        != wfpe_ver_stored)
+        wfm_changed   = bool(wfm_hash        and wfm_hash_stored        is not None and wfm_hash        != wfm_hash_stored)
+        wf_update_label_str = f"{wf_update_label[0]}: {wf_update_label[1]}" if wf_update_label else None
+        label_changed = bool(wf_update_label_str and wf_update_label_stored is not None and wf_update_label_str != wf_update_label_stored)
 
         # ── Versionen in DB aktualisieren ──
         if wf_build:
@@ -253,7 +323,18 @@ def main():
             set_meta(conn, "wf_build_checked_at", now)
             if wf_changed:
                 set_meta(conn, "wf_build_updated_at", now)
-                log.info(f"⚡ WF-Update: {wf_build_stored} → {wf_build}")
+                log.info(f"⚡ WF-Build-Update: {wf_build_stored} → {wf_build}")
+
+        if wf_update_label:
+            name, version = wf_update_label   # ist bereits ein Tuple aus _parse_update_label
+            set_meta(conn, "wf_update_name", name)
+            set_meta(conn, "wf_update_version", version)
+            if label_changed:
+                set_meta(conn, "wf_update_label_updated_at", now)
+                log.info(f"⚡ WF-Label-Update: {wf_update_label_stored} → {name}: {version}")
+
+        if wf_update_url:
+            set_meta(conn, "wf_update_url", wf_update_url)
 
         if wfpe_ver:
             set_meta(conn, "wfpe_version", wfpe_ver)
@@ -273,7 +354,7 @@ def main():
         elif wf_changed or wfpe_changed:
             trigger_sync(
                 skip_wfpe=False,
-                reason=f"WF/WFPE Update: build={wf_build}, wfpe={wfpe_ver}"
+                reason=f"WF/WFPE Update: build={wf_build}, label={wf_update_label}, wfpe={wfpe_ver}"
             )
         elif wfm_changed:
             trigger_sync(

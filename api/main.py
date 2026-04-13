@@ -67,13 +67,17 @@ def api_status():
             row = api.db.query("SELECT value FROM metadata WHERE key = %s", (key,))
             return row[0]["value"] if row else None
         return _ok({
-            "wf_build_label":          get("wf_build_label"),
-            "wf_build_updated_at":     get("wf_build_updated_at"),
-            "wf_build_checked_at":     get("wf_build_checked_at"),
-            "wfpe_version":            get("wfpe_version"),
-            "wfpe_version_updated_at": get("wfpe_version_updated_at"),
-            "wfm_items_updated_at":    get("wfm_items_updated_at"),
-            "last_updated":            get("last_updated"),
+            "wf_build_label":              get("wf_build_label"),
+            "wf_build_updated_at":         get("wf_build_updated_at"),
+            "wf_build_checked_at":         get("wf_build_checked_at"),
+            "wf_update_name":              get("wf_update_name"),
+            "wf_update_version":           get("wf_update_version"),
+            "wf_update_label_updated_at":  get("wf_update_label_updated_at"),
+            "wf_update_url":               get("wf_update_url"),
+            "wfpe_version":                get("wfpe_version"),
+            "wfpe_version_updated_at":     get("wfpe_version_updated_at"),
+            "wfm_items_updated_at":        get("wfm_items_updated_at"),
+            "last_updated":                get("last_updated"),
         })
     except Exception as e:
         return _err(e)
