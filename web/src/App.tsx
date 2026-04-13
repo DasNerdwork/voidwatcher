@@ -20,6 +20,9 @@ interface ApiResponse {
 interface StatusResponse {
   wf_build_label:          string | null;
   wf_build_updated_at:     string | null;
+  wf_update_name:          string | null;
+  wf_update_version:       string | null;
+  wf_update_url:           string | null;
   wfpe_version:            string | null;
   wfpe_version_updated_at: string | null;
   wfm_items_updated_at:    string | null;
@@ -118,12 +121,6 @@ const App: React.FC = () => {
   };
   useEffect(() => { fetchCategories(); }, []);
 
-  const formatTs = (iso: string) =>
-    new Date(iso).toLocaleString("de-DE", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-
   const visibleItemCount = () => {
     if (category === "Alle") return allCategories.reduce((a, c) => a + c.items.length, 0);
     if (category === "Misc") {
@@ -209,12 +206,9 @@ const App: React.FC = () => {
           {loading && <span style={{ fontSize: 10, color: C.t3, letterSpacing: "0.15em" }}>LADEN...</span>}
           {status?.wf_build_label && (
             <span style={{ fontSize: 11, color: C.t3 }}>
-              WF <span style={{ color: C.gold, fontFamily: "monospace" }}>{status.wf_build_label}</span>
+              Last Update: <a href={status.wf_update_url ?? "#"} style={{ color: C.gold, fontFamily: "monospace", textDecoration: "none"}}>{status.wf_update_name} ({status.wf_update_version})</a>
             </span>
           )}
-          <span style={{ fontSize: 11, color: C.t3 }}>
-            Sync: <span style={{ color: C.t2 }}>{data ? formatTs(data.last_updated) : "—"}</span>
-          </span>
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.up, flexShrink: 0, animation: "pulse 2s ease infinite" }} />
           <span style={{ fontFamily: "monospace", fontSize: 13, color: C.t2, letterSpacing: "0.05em" }}>
             {now.toLocaleTimeString("de-DE")}
