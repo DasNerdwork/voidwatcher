@@ -4,6 +4,7 @@ test2.py
 .env
 nginx.conf
 sync.lock
+.codex
 
 # Binaries
 *.exe
