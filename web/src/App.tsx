@@ -60,8 +60,8 @@ const App: React.FC = () => {
   const [hours, setHours]                         = useState(24);
   const [activeTag, setActiveTag]                 = useState<string | null>(null);
   const [data, setData]                           = useState<ApiResponse | null>(null);
-  const [loading, setLoading]                     = useState(true);
   const [status, setStatus]                       = useState<StatusResponse | null>(null);
+  const [tickerItems, setTickerItems]             = useState<TopItem[]>([]);
   const [category, setCategory]                   = useState("Alle");
   const [now, setNow]                             = useState(new Date());
   const [allCategories, setAllCategories]         = useState<CategoriesOverview[]>([]);
@@ -86,16 +86,34 @@ const App: React.FC = () => {
   }, [miscOpen]);
 
   const fetchMarketData = async (h: number, tag: string | null) => {
-    setLoading(true);
     try {
       const tagParam = tag ? `&tag=${tag}` : "";
       const res  = await fetch(`/api/top?hours=${h}&limit=10${tagParam}`);
       const json = await res.json();
       setData(json);
     } catch { /* keep */ }
-    finally { setLoading(false); }
   };
   useEffect(() => { fetchMarketData(hours, activeTag); }, [hours, activeTag]);
+
+  // Ticker: eigene, ungefilterte Datenquelle (fest 24H) — bewusst entkoppelt
+  // von hours/activeTag, damit Dashboard-Filter den Ticker nicht neu starten.
+  // State wird nur ersetzt wenn sich der Inhalt wirklich ändert, damit die
+  // CSS-Animation auch beim 60s-Refresh nicht springt.
+  const fetchTicker = async () => {
+    try {
+      const res  = await fetch("/api/top?hours=24&limit=10");
+      const json = await res.json();
+      const next: TopItem[] = json.top_performer ?? [];
+      setTickerItems(prev =>
+        JSON.stringify(prev) === JSON.stringify(next) ? prev : next
+      );
+    } catch { /* keep */ }
+  };
+  useEffect(() => {
+    fetchTicker();
+    const t = setInterval(fetchTicker, 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const fetchStatus = async () => {
     try {
@@ -203,7 +221,6 @@ const App: React.FC = () => {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          {loading && <span style={{ fontSize: 10, color: C.t3, letterSpacing: "0.15em" }}>LADEN...</span>}
           {status?.wf_build_label && (
             <span style={{ fontSize: 11, color: C.t3 }}>
               Last Update: <a href={status.wf_update_url ?? "#"} style={{ color: C.gold, fontFamily: "monospace", textDecoration: "none"}}>{status.wf_update_name} ({status.wf_update_version})</a>
@@ -217,7 +234,7 @@ const App: React.FC = () => {
       </header>
 
       {/* ── Ticker ── */}
-      {data && <TickerBanner items={data.top_performer} />}
+      {tickerItems.length > 0 && <TickerBanner items={tickerItems} />}
 
       {/* ── Pages ── */}
       <main style={{ flex: 1, width: "100%", maxWidth: 1400, margin: "0 auto", padding: "22px 22px 60px" }}>

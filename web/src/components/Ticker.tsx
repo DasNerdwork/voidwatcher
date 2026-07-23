@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { TopItem } from "../types";
 import { SmallPlatIcon } from "./Icons";
 
@@ -5,7 +6,11 @@ interface TickerBannerProps {
   items: TopItem[];
 }
 
-export const TickerBanner = ({ items }: TickerBannerProps) => {
+// memo: verhindert Re-Render solange sich die items-Referenz nicht ändert.
+// App.tsx re-rendert jede Sekunde (Uhr) — ohne memo würde der Ticker jedes
+// Mal mitrendern. Der Neustart der Scroll-Animation passiert damit nur noch,
+// wenn sich der Ticker-Inhalt tatsächlich ändert.
+export const TickerBanner = memo(({ items }: TickerBannerProps) => {
   if (!items.length) return null;
 
   const allItems = [...items, ...items];
@@ -93,4 +98,4 @@ export const TickerBanner = ({ items }: TickerBannerProps) => {
       </div>
     </div>
   );
-};
+});
