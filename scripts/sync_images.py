@@ -11,6 +11,13 @@ Fallback-Kette (normale Items):
   2. WFM /set API       → Fallback
   3. WFM static assets  → letzter Ausweg
 
+Relikte Sonderbehandlung (Feature: shared Ären-Bilder):
+  Alle Relikte einer Ära sehen identisch aus. Statt per-Slug-Downloads gibt es
+  eine shared AVIF pro Ära (lith, meso, neo, axi, requiem):
+    /images/relic_{era}.avif  +  /images/thumbs/relic_{era}.avif
+  Quelle ist das WFM-Icon des ersten verarbeiteten Items der Ära. Alle
+  Relikt-Items der Ära referenzieren in der DB dieselben Pfade.
+
 Prime Warframe Sonderbehandlung (nur wenn 'warframe'-Tag gesetzt):
   - *_prime_chassis[_blueprint]    → shared /images/prime_chassis.avif   (PrimeChassis.png)
   - *_prime_neuroptics[_blueprint] → shared /images/prime_helmet.avif    (PrimeHelmet.png)
@@ -305,13 +312,154 @@ def fetch_prime_warframe_image(wf_type: str, slug: str, timeout: int = 15) -> by
     if not fname:
         return None
     url = f"{WIKI_BASE}/images/{fname}"
-    log.info(f"  fetch_prime_warframe_image: GET {url}")  # ← NEU
+    log.info(f"  fetch_prime_warframe_image: GET {url}")
     data = _download_image(f"/images/{fname}", timeout)
     if data:
         log.debug(f"  {slug} [{wf_type}]: Wiki direct → {fname}")
     else:
-        log.info(f"  fetch_prime_warframe_image: FEHLGESCHLAGEN für {fname}")  # ← NEU
+        log.info(f"  fetch_prime_warframe_image: FEHLGESCHLAGEN für {fname}")
     return data
+
+
+# ── Relic Shared Images ───────────────────────────────────────────────────────
+#
+# Alle Relikte einer Ära sehen identisch aus. Statt pro Slug ein Bild zu laden,
+# gibt es eine shared AVIF pro Ära:
+#   /images/relic_{era}.avif  +  /images/thumbs/relic_{era}.avif
+# Quelle: WFM static icon des jeweils ersten verarbeiteten Items dieser Ära.
+# In der DB zeigen alle Relikte der Ära auf diese Pfade — keine Slug-Kopien.
+
+_RELIC_ERAS = ("lith", "meso", "neo", "axi", "requiem")
+
+# Wiki-Quelldateien für die shared Ären-Bilder — bewusst die Intact-Variante.
+# WFM liefert in seinen Icons fälschlich die Radiant-Optik (leuchtende
+# Reactant-Punkte), die Wiki-Intact-Bilder zeigen den Basiszustand.
+_RELIC_WIKI_FILES: dict[str, str] = {
+    "lith":    "LithRelicIntact.png",
+    "meso":    "MesoRelicIntact.png",
+    "neo":     "NeoRelicIntact.png",
+    "axi":     "AxiRelicIntact.png",
+    "requiem": "RequiemRelicIntact.png",
+}
+
+# Sonder-Relikte mit eigenem Look — kein Sharing, normale per-Slug-Pipeline:
+#   - Requiem Eterna (ersetzt seit 2026 Requiem I-IV, eigenes Design,
+#     WFM-Icon ist unknown.png → Bild kommt via Wiki)
+# Hinweis: Vanguard-Relikte (Prime Resurgence) sehen laut Wiki exakt wie
+# normale Axi-Relikte aus (AxiRelicIntact.png) und nutzen daher das shared Bild.
+_RELIC_SHARED_EXCLUDE_SLUGS: set[str] = {"requiem_eterna_relic"}
+
+# Thread-sicherer "bereits gespeichert"-Guard (analog zu Prime Components)
+_RELIC_READY: set[str] = set()
+_RELIC_LOCK  = threading.Lock()
+
+
+def detect_relic_era(slug: str, tags_raw) -> str | None:
+    """
+    Gibt die Relikt-Ära zurück ('lith' | 'meso' | 'neo' | 'axi' | 'requiem')
+    oder None wenn das Item kein Relikt ist oder keiner Ära zuordenbar.
+
+    Erkennung primär über Tags (z.B. ["relic", "neo"]), Slug-Präfix als Fallback.
+    Sonder-Relikte (Requiem Eterna) geben None zurück und laufen durch die
+    normale per-Slug-Pipeline.
+    """
+    tags = _parse_tags(tags_raw)
+    if "relic" not in tags:
+        return None
+    if slug in _RELIC_SHARED_EXCLUDE_SLUGS:
+        return None
+    for era in _RELIC_ERAS:
+        if era in tags or slug.startswith(f"{era}_"):
+            return era
+    return None
+
+
+def relic_db_paths(era: str) -> tuple[str, str]:
+    """Gibt (image_path, thumb_path) für die shared Relikt-AVIFs zurück."""
+    return f"/images/relic_{era}.avif", f"/images/thumbs/relic_{era}.avif"
+
+
+def ensure_relic_avif(era: str, slug: str, icon_path: str, timeout: int = 15, force: bool = False) -> bool:
+    """
+    Stellt sicher dass die shared AVIF für diese Ära existiert.
+
+    Quellen (in dieser Reihenfolge):
+      1. Wiki {Era}RelicIntact.png — Basiszustand, gewollte Optik
+      2. WFM-Icon des aufrufenden Items — zeigt fälschlich Radiant, nur Fallback
+      3. Wiki-Pipeline des Items als letzter Ausweg
+
+    Die gesamte Erzeugung läuft unter _RELIC_LOCK, damit nicht mehrere
+    Threads gleichzeitig dieselbe Datei schreiben.
+    """
+    with _RELIC_LOCK:
+        if era in _RELIC_READY:
+            return True
+
+        full_out  = IMAGE_DIR / f"relic_{era}.avif"
+        thumb_out = THUMB_DIR  / f"relic_{era}.avif"
+
+        if not force and full_out.exists() and thumb_out.exists():
+            _RELIC_READY.add(era)
+            return True
+
+        raw_bytes: bytes | None = None
+        source = "wiki_intact"
+
+        # 1) Wiki Intact-Bild direkt (Basiszustand, gewollte Optik)
+        wiki_fname = _RELIC_WIKI_FILES.get(era, "")
+        if wiki_fname:
+            raw_bytes = _download_image(f"/images/{wiki_fname}", timeout)
+
+            # 1b) Fallback über die File:-Seite (falls der Direktpfad nicht greift)
+            if raw_bytes is None:
+                html = _fetch_page(f"{WIKI_BASE}/w/File:{wiki_fname}", timeout)
+                if html:
+                    m = re.search(r'href="(/images/[^"]+\.png)"[^>]*>\s*(?:Full|Original)', html)
+                    if not m:
+                        m = re.search(r'<div class="fullMedia".*?href="(/images/[^"]+)"', html, re.DOTALL)
+                    if m:
+                        raw_bytes = _download_image(m.group(1), timeout)
+
+        # 2) Fallback: WFM static icon — zeigt Radiant statt Intact, besser als nichts
+        if raw_bytes is None and icon_path and "unknown" not in icon_path:
+            source = "wfm"
+            try:
+                r = requests.get(f"{WFM_STATIC}/{icon_path}", timeout=timeout,
+                                 headers={"User-Agent": "VoidWatcher/1.0"})
+                if r.status_code == 200 and len(r.content) >= WFM_PLACEHOLDER_MAX_BYTES:
+                    raw_bytes = r.content
+            except Exception:
+                pass
+
+        # 3) Letzter Ausweg: Wiki-Pipeline des Items (z.B. wiki.warframe.com/w/Neo_C8)
+        if raw_bytes is None:
+            source = "wiki"
+            raw_bytes = fetch_wiki_image(slug, timeout=timeout)
+
+        if raw_bytes is None:
+            log.warning(f"  Relic [{era}]: kein Bild gefunden (Wiki: {wiki_fname}, WFM: {icon_path})")
+            return False
+
+        try:
+            img = Image.open(io.BytesIO(raw_bytes)).convert("RGBA")
+            if source in ("wiki_intact", "wiki"):
+                img = add_padding(trim_transparent(img), WIKI_PADDING)
+
+            full_img = img.copy()
+            full_img.thumbnail((FULL_SIZE, FULL_SIZE), Image.LANCZOS)
+            full_img.save(full_out, format="AVIF", quality=FULL_Q)
+
+            thumb_img = img.copy()
+            thumb_img.thumbnail((THUMB_SIZE, THUMB_SIZE), Image.LANCZOS)
+            thumb_img.save(thumb_out, format="AVIF", quality=THUMB_Q)
+
+            log.info(f"  Relic [{era}]: shared AVIF gespeichert [{source}] → {full_out.name}")
+            _RELIC_READY.add(era)
+            return True
+
+        except Exception as e:
+            log.warning(f"  Relic [{era}]: Bildverarbeitung fehlgeschlagen: {e}")
+            return False
 
 
 # ── Wiki Fallback ─────────────────────────────────────────────────────────────
@@ -495,6 +643,17 @@ def add_padding(img: Image.Image, padding: int) -> Image.Image:
     return padded
 
 
+def trim_transparent(img: Image.Image) -> Image.Image:
+    """
+    Schneidet vollständig transparente Ränder weg (Alpha-Bounding-Box).
+    Wiki-Bilder haben teils viel Leerraum um das Motiv (z.B. Relikte: Motiv
+    belegt nur ~51% der Canvas), WFM-Icons sind eng zugeschnitten. Trim +
+    add_padding normalisiert beide Quellen auf dieselbe wirksame Motivgröße.
+    """
+    bbox = img.getchannel("A").getbbox()
+    return img.crop(bbox) if bbox else img
+
+
 # ── Download + Convert ────────────────────────────────────────────────────────
 
 def download_and_convert(
@@ -505,6 +664,10 @@ def download_and_convert(
 ) -> tuple[bool, str, str]:
     """
     Lädt das Bild herunter und speichert Full + Thumb als AVIF.
+
+    Relikte:
+      lith/meso/neo/axi/requiem → shared AVIF pro Ära (einmal erzeugt,
+                                  kein per-Slug-File, kein per-Slug-Download)
 
     Prime Warframe Typen:
       chassis/neuroptics/systems → shared AVIF (einmal erzeugt, kein per-Slug-File)
@@ -517,6 +680,14 @@ def download_and_convert(
     icon_path = item["icon_path"]
     full_out  = IMAGE_DIR / f"{slug}.avif"
     thumb_out = THUMB_DIR  / f"{slug}.avif"
+
+    # ── Relikte: shared AVIF pro Ära ──────────────────────────────────────────
+    era = detect_relic_era(slug, item.get("tags"))
+    if era:
+        if ensure_relic_avif(era, slug, icon_path, timeout=timeout, force=force):
+            return True, f"OK [shared:relic_{era}.avif]", "ok"
+        # WFM hat (noch) kein Bild → thumb_hash bleibt NULL, Retry beim nächsten Lauf
+        return False, f"Relic shared AVIF konnte nicht erstellt werden ({era})", "placeholder"
 
     wf_type = detect_prime_warframe_type(slug, item.get("tags"))
 
@@ -639,8 +810,11 @@ def run(conn=None, force=False, workers=4, limit=None, dry_run=False):
 
         if dry_run:
             for item in items[:20]:
+                era     = detect_relic_era(item["slug"], item.get("tags"))
                 wf_type = detect_prime_warframe_type(item["slug"], item.get("tags"))
-                if wf_type in ("chassis", "neuroptics", "systems"):
+                if era:
+                    hint = f"[shared] /images/relic_{era}.avif"
+                elif wf_type in ("chassis", "neuroptics", "systems"):
                     _, stem = _PRIME_COMPONENT_FILES[wf_type]
                     hint = f"[shared] /images/{stem}.avif"
                 elif wf_type in ("blueprint", "set"):
@@ -659,11 +833,15 @@ def run(conn=None, force=False, workers=4, limit=None, dry_run=False):
         def process(item):
             success, msg, status = download_and_convert(item, force=force)
             if success:
+                era       = detect_relic_era(item["slug"], item.get("tags"))
                 wf_type   = detect_prime_warframe_type(item["slug"], item.get("tags"))
                 cache_key = item["icon_path"].split("/")[-1]
 
-                # Shared DB-Pfad für Komponenten, slug-spezifisch für alle anderen
-                if wf_type in ("chassis", "neuroptics", "systems"):
+                # Shared DB-Pfade für Relikte und Prime-Komponenten,
+                # slug-spezifisch für alle anderen
+                if era:
+                    img_path, thumb_path = relic_db_paths(era)
+                elif wf_type in ("chassis", "neuroptics", "systems"):
                     img_path, thumb_path = prime_component_db_paths(wf_type)
                 else:
                     img_path   = f"/images/{item['slug']}.avif"
