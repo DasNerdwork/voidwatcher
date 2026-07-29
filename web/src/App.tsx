@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { LogoIcon } from "./components/Icons";
 import { TickerBanner } from "./components/Ticker";
-import { DashboardPage } from "./components/DashboardPage";
+import { DashboardPage, loadMetric, saveMetric } from "./components/DashboardPage";
+import type { ChangeMetric } from "./components/DashboardPage";
 import { CategoryTable } from "./components/CategoryTable";
-import { ItemSearch } from "./components/ItemSearch";
+import { SearchBox } from "./components/SearchBox";
 import { Footer } from "./components/Footer";
 import { MoversPage } from "./components/MoversPage";
 import { FarmValuePage } from "./components/FarmValuePage";
+import { ItemPage } from "./components/ItemPage";
 import type { TopItem } from "./types";
-import { C, CardCorner, VitFlourish } from "./components/shared";
+import { C, CardCorner, FilterLabel, T, TAG_OPTIONS, TextLink, VitFlourish, segBtn, segBtnHover } from "./components/shared";
+import { A, itemSlugFromPath, navigate, useRoute } from "./router";
 
 interface ApiResponse {
   last_updated: string;
   top_performer: TopItem[];
+  top_loser:     TopItem[];   // echte Verlierer, seit /api/top sie separat liefert
   top_seller:    TopItem[];
   top_traded:    TopItem[];
 }
@@ -49,7 +53,6 @@ interface CategoriesOverview {
 }
 
 const API_CATEGORIES_URL = "/api/category?tag=all";
-const API_SEARCH_URL     = "/api/item/search";
 
 const CATEGORIES = ["Alle", "Warframes", "Mods", "Waffen", "Relics", "Arcanes", "Misc"];
 const MISC_SUBS  = ["Fish", "Skins & Helmets", "Scenes", "Gems & Resources", "Ayatan", "Necramech", "Sonstiges"];
@@ -69,7 +72,12 @@ const App: React.FC = () => {
   const [page, setPage]                           = useState<Page>("dashboard");
   const [miscSub, setMiscSub]                     = useState<string | null>(null);
   const [miscOpen, setMiscOpen]                   = useState(false);
+  // Einheit der Veränderungs-Ansichten: prozentual oder Platin-Differenz.
+  const [metric, setMetric]                       = useState<ChangeMetric>(loadMetric);
   const miscRef                                   = useRef<HTMLDivElement>(null);
+
+  const route    = useRoute();
+  const itemSlug = itemSlugFromPath(route);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -85,15 +93,15 @@ const App: React.FC = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, [miscOpen]);
 
-  const fetchMarketData = async (h: number, tag: string | null) => {
+  const fetchMarketData = async (h: number, tag: string | null, m: ChangeMetric) => {
     try {
       const tagParam = tag ? `&tag=${tag}` : "";
-      const res  = await fetch(`/api/top?hours=${h}&limit=10${tagParam}`);
+      const res  = await fetch(`/api/top?hours=${h}&limit=10&metric=${m}${tagParam}`);
       const json = await res.json();
       setData(json);
     } catch { /* keep */ }
   };
-  useEffect(() => { fetchMarketData(hours, activeTag); }, [hours, activeTag]);
+  useEffect(() => { fetchMarketData(hours, activeTag, metric); }, [hours, activeTag, metric]);
 
   // Ticker: eigene, ungefilterte Datenquelle (fest 24H) — bewusst entkoppelt
   // von hours/activeTag, damit Dashboard-Filter den Ticker nicht neu starten.
@@ -149,22 +157,17 @@ const App: React.FC = () => {
   };
 
   const navBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: active ? "4px 11px" : "5px 12px", borderRadius: C.radBtn,
-    border: active ? `1px solid ${C.b2}` : "none",
+    padding: active ? "5px 12px" : "6px 13px", borderRadius: C.radBtn,
+    border: active ? `1px solid ${C.b2}` : "1px solid transparent",
     background: active ? C.hov : "none",
-    color: active ? C.t : C.t3,
-    fontSize: 12, fontWeight: active ? 600 : 400,
+    color: active ? C.t : C.t2,
+    fontSize: 13, fontWeight: active ? 700 : 500,
     letterSpacing: "0.03em", cursor: "pointer", transition: "all 0.12s",
   });
 
   const catBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: "4px 12px",
-    border: active ? `1px solid ${C.b2}` : `1px solid ${C.b}`,
-    borderRadius: C.radBtn,
-    background: active ? "rgba(200,168,75,0.09)" : "none",
-    color: active ? C.gold : C.t3,
-    fontSize: 12, fontWeight: active ? 600 : 400,
-    cursor: "pointer", transition: "all 0.12s",
+    ...segBtn(active),
+    padding: "5px 13px",
   });
 
   const NAV: { key: Page; label: string }[] = [
@@ -179,55 +182,45 @@ const App: React.FC = () => {
 
       {/* ── Header ── */}
       <header style={{
-        height: 54, background: "rgba(10,12,28,0.88)", borderBottom: `1px solid ${C.b2}`,
+        height: 58, background: "rgba(10,12,28,0.88)", borderBottom: `1px solid ${C.b2}`,
         display: "flex", alignItems: "center", gap: 14, padding: "0 22px",
         position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(14px)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <A href="/" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <LogoIcon />
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.gold, letterSpacing: "0.16em", lineHeight: 1.1 }}>VOIDWATCH</div>
-            <div style={{ fontSize: 10, color: C.t3, letterSpacing: "0.04em" }}>Platinum Market</div>
+            <div style={{ fontSize: 11, color: C.t2, letterSpacing: "0.04em" }}>Platinum Market</div>
           </div>
-        </div>
+        </A>
 
         <div style={{ width: 1, height: 22, background: C.b, flexShrink: 0 }} />
 
         <nav style={{ display: "flex", gap: 3 }}>
           {NAV.map(({ key, label }) => (
-            <button key={key} style={navBtnStyle(page === key)} onClick={() => setPage(key)}
+            <button key={key} style={navBtnStyle(page === key && !itemSlug)}
+              onClick={() => { setPage(key); navigate("/"); }}
               onMouseEnter={e => { if (page !== key) { e.currentTarget.style.background = C.hov; e.currentTarget.style.color = C.t; }}}
-              onMouseLeave={e => { if (page !== key) { e.currentTarget.style.background = "none"; e.currentTarget.style.color = C.t3; }}}>
+              onMouseLeave={e => { if (page !== key) { e.currentTarget.style.background = "none"; e.currentTarget.style.color = C.t2; }}}>
               {label}
             </button>
           ))}
         </nav>
 
         {/* Center search */}
-        <div style={{ flex: 1, maxWidth: 320, margin: "0 auto", position: "relative" }}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"
-            style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: C.t3 }}>
-            <circle cx="5" cy="5" r="4" stroke="currentColor" strokeWidth="1.2" />
-            <line x1="8" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
-          <input type="text" placeholder="Item suchen…" style={{
-            width: "100%", background: "rgba(0,0,0,0.3)", border: `1px solid ${C.b}`,
-            borderRadius: C.rad, padding: "6px 12px 6px 32px", color: C.t,
-            fontSize: 13, outline: "none", transition: "border-color 0.15s",
-          }}
-            onFocus={e => (e.currentTarget.style.borderColor = C.gold)}
-            onBlur={e  => (e.currentTarget.style.borderColor = C.b)}
-          />
-        </div>
+        <SearchBox />
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           {status?.wf_build_label && (
-            <span style={{ fontSize: 11, color: C.t3 }}>
-              Last Update: <a href={status.wf_update_url ?? "#"} style={{ color: C.gold, fontFamily: "monospace", textDecoration: "none"}}>{status.wf_update_name} ({status.wf_update_version})</a>
+            <span style={{ ...T.meta }}>
+              Last Update: <TextLink href={status.wf_update_url ?? "#"} color={C.gold}
+                style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600 }}>
+                {status.wf_update_name} ({status.wf_update_version})
+              </TextLink>
             </span>
           )}
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.up, flexShrink: 0, animation: "pulse 2s ease infinite" }} />
-          <span style={{ fontFamily: "monospace", fontSize: 13, color: C.t2, letterSpacing: "0.05em" }}>
+          <span style={{ ...T.num, color: C.t, letterSpacing: "0.05em" }}>
             {now.toLocaleTimeString("de-DE")}
           </span>
         </div>
@@ -239,58 +232,44 @@ const App: React.FC = () => {
       {/* ── Pages ── */}
       <main style={{ flex: 1, width: "100%", maxWidth: 1400, margin: "0 auto", padding: "22px 22px 60px" }}>
 
-        {page === "dashboard" && (
+        {itemSlug && <ItemPage key={itemSlug} slug={itemSlug} />}
+
+        {!itemSlug && page === "dashboard" && (
           <>
             {/* Zeitraum + Kategorie Controls */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ fontSize: 9, color: C.t3, letterSpacing: "0.2em", marginRight: 4 }}>ZEITRAUM</span>
-                {([24, 48, 168, 336, 720] as const).map(h => {
-                  const labels: Record<number, string> = { 24: "24H", 48: "48H", 168: "7T", 336: "14T", 720: "30T" };
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <FilterLabel>ZEITRAUM</FilterLabel>
+                {([24, 48, 168, 336, 720, 2160] as const).map(h => {
+                  const labels: Record<number, string> = { 24: "24H", 48: "48H", 168: "7T", 336: "14T", 720: "30T", 2160: "90T" };
+                  const active = hours === h;
                   return (
-                    <button key={h} onClick={() => setHours(h)} style={{
-                      padding: "4px 11px", border: hours === h ? `1px solid ${C.b2}` : `1px solid ${C.b}`,
-                      borderRadius: 2, background: hours === h ? C.hov : "transparent",
-                      color: hours === h ? C.gold : C.t3, fontSize: 10, fontWeight: 700,
-                      letterSpacing: "0.12em", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
-                    }}>
+                    <button key={h} onClick={() => setHours(h)}
+                      style={segBtn(active)} {...segBtnHover(active)}>
                       {labels[h]}
                     </button>
                   );
                 })}
               </div>
-              <div style={{ width: 1, height: 18, background: C.b, flexShrink: 0 }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 9, color: C.t3, letterSpacing: "0.18em", marginRight: 2 }}>KATEGORIE</span>
-                {([
-                  { label: "Alle",      value: null       },
-                  { label: "Mods",      value: "mod"      },
-                  { label: "Prime",     value: "prime"    },
-                  { label: "Relics",    value: "relic"    },
-                  { label: "Waffen",    value: "weapon"   },
-                  { label: "Warframes", value: "warframe" },
-                  { label: "Arcanes",   value: "arcane"   },
-                ] as { label: string; value: string | null }[]).map(({ label, value }) => {
+              <div style={{ width: 1, height: 20, background: C.b, flexShrink: 0 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                <FilterLabel>KATEGORIE</FilterLabel>
+                {TAG_OPTIONS.map(({ label, value }) => {
                   const active = activeTag === value;
                   return (
-                    <button key={label} onClick={() => setActiveTag(value)} style={{
-                      padding: "4px 10px", fontSize: 10, fontWeight: active ? 700 : 400,
-                      border: active ? `1px solid ${C.b2}` : `1px solid ${C.b}`,
-                      borderRadius: 2, background: active ? C.hov : "transparent",
-                      color: active ? C.gold : C.t3, letterSpacing: "0.08em",
-                      cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
-                    }}>
+                    <button key={label} onClick={() => setActiveTag(value)}
+                      style={segBtn(active)} {...segBtnHover(active)}>
                       {label}
                     </button>
                   );
                 })}
               </div>
             </div>
-            <DashboardPage data={data} hours={hours} />
+            <DashboardPage data={data} hours={hours} metric={metric} onMetricChange={m => { saveMetric(m); setMetric(m); }} />
           </>
         )}
 
-        {page === "market" && (
+        {!itemSlug && page === "market" && (
           <>
             <section style={{
               background: C.card, border: `1px solid ${C.b}`, borderRadius: C.rad,
@@ -304,10 +283,10 @@ const App: React.FC = () => {
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <div style={{ width: 2, height: 15, borderRadius: 1, background: C.cy, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: C.t }}>Category Browser</span>
-                  <span style={{ fontSize: 12, color: C.t3 }}>· {visibleItemCount()} Items</span>
+                  <span style={T.cardTitle}>Category Browser</span>
+                  <span style={T.meta}>· {visibleItemCount()} Items</span>
                   {category === "Misc" && miscSub && (
-                    <span style={{ fontSize: 10, color: C.gold, background: "rgba(200,168,75,0.12)", border: `1px solid rgba(200,168,75,0.25)`, borderRadius: C.radBtn, padding: "2px 8px" }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.gold, background: "rgba(200,168,75,0.12)", border: `1px solid rgba(200,168,75,0.25)`, borderRadius: C.radBtn, padding: "2px 8px" }}>
                       {miscSub}
                     </span>
                   )}
@@ -318,17 +297,14 @@ const App: React.FC = () => {
                     {CATEGORIES.map(cat => cat !== "Misc" ? (
                       <button key={cat}
                         onClick={() => { setCategory(cat); setMiscSub(null); setMiscOpen(false); }}
-                        style={catBtnStyle(category === cat)}
-                        onMouseEnter={e => { if (category !== cat) e.currentTarget.style.color = C.t; }}
-                        onMouseLeave={e => { if (category !== cat) e.currentTarget.style.color = C.t3; }}>
+                        style={catBtnStyle(category === cat)} {...segBtnHover(category === cat)}>
                         {cat}
                       </button>
                     ) : (
                       <div key="Misc" ref={miscRef} style={{ position: "relative" }}>
                         <button onClick={() => setMiscOpen(o => !o)}
-                          style={{ ...catBtnStyle(category === "Misc"), padding: "4px 9px", display: "flex", alignItems: "center", gap: 5 }}
-                          onMouseEnter={e => { if (category !== "Misc") e.currentTarget.style.color = C.t; }}
-                          onMouseLeave={e => { if (category !== "Misc") e.currentTarget.style.color = C.t3; }}>
+                          style={{ ...catBtnStyle(category === "Misc"), padding: "5px 10px", display: "flex", alignItems: "center", gap: 5 }}
+                          {...segBtnHover(category === "Misc")}>
                           Misc
                           <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ transform: miscOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
                             <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -343,7 +319,7 @@ const App: React.FC = () => {
                             <div style={{ height: 1, background: C.b, margin: "3px 4px" }} />
                             {MISC_SUBS.map(sub => (
                               <button key={sub} onClick={() => { setCategory("Misc"); setMiscSub(sub); setMiscOpen(false); }}
-                                style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 12, background: miscSub === sub ? C.hov : "none", color: miscSub === sub ? C.gold : C.t3, fontWeight: miscSub === sub ? 600 : 400 }}>
+                                style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 12, background: miscSub === sub ? C.hov : "none", color: miscSub === sub ? C.gold : C.t2, fontWeight: miscSub === sub ? 600 : 500 }}>
                                 {sub}
                               </button>
                             ))}
@@ -355,17 +331,16 @@ const App: React.FC = () => {
                 </div>
               </div>
               {categoriesLoading ? (
-                <div style={{ padding: "40px 16px", textAlign: "center", color: C.t3, fontFamily: "monospace", letterSpacing: "0.15em" }}>KATEGORIEN LADEN...</div>
+                <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", fontSize: 12, letterSpacing: "0.15em" }}>KATEGORIEN LADEN...</div>
               ) : (
                 <CategoryTable category={category} allCategories={allCategories} miscSub={miscSub} />
               )}
             </section>
-            <ItemSearch searchUrl={API_SEARCH_URL} itemUrl="/api/item/" />
           </>
         )}
 
-        {page === "movers"    && <MoversPage />}
-        {page === "farmvalue" && <FarmValuePage />}
+        {!itemSlug && page === "movers"    && <MoversPage />}
+        {!itemSlug && page === "farmvalue" && <FarmValuePage />}
       </main>
 
       <Footer status={status} />
