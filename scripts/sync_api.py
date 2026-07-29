@@ -201,6 +201,7 @@ def create_schema(conn):
                 tags       JSONB,
                 ducats     INT,
                 max_rank   INT,
+                price_median NUMERIC,
                 raw        JSONB,
                 created_at TIMESTAMPTZ DEFAULT now()
             );
@@ -212,30 +213,56 @@ def create_schema(conn):
         # 48h stats
         cur.execute("""
             CREATE TABLE IF NOT EXISTS market_stats_48h (
-                item_id   TEXT NOT NULL REFERENCES market_items(id) ON DELETE CASCADE,
-                ts        TIMESTAMPTZ NOT NULL,
-                avg_price NUMERIC,
-                min_price NUMERIC,
-                max_price NUMERIC,
-                volume    INTEGER,
-                PRIMARY KEY (item_id, ts)
+                item_id      TEXT NOT NULL REFERENCES market_items(id) ON DELETE CASCADE,
+                ts           TIMESTAMPTZ NOT NULL,
+                avg_price    NUMERIC,
+                min_price    NUMERIC,
+                max_price    NUMERIC,
+                volume       INTEGER,
+                mod_rank     INTEGER,
+                subtype      TEXT,
+                open_price   NUMERIC,
+                closed_price NUMERIC,
+                median       NUMERIC,
+                moving_avg   NUMERIC,
+                donch_top    NUMERIC,
+                donch_bot    NUMERIC
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_stats_48h_item_ts ON market_stats_48h (item_id, ts);")
+        # Kein PK auf (item_id, ts): die API liefert je Zeitpunkt mehrere Zeilen —
+        # eine pro mod_rank (Mods) bzw. subtype (z.B. Fischgrößen). Beide sind für
+        # die meisten Items NULL und können deshalb nicht in einen PK → Unique-Index
+        # über COALESCE. Siehe migrations/004 und 005.
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS market_stats_48h_item_ts_variant_uk
+            ON market_stats_48h (item_id, ts, COALESCE(mod_rank, -1), COALESCE(subtype, ''));
+        """)
 
         # 90d stats (per day)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS market_stats_90d (
-                item_id   TEXT NOT NULL REFERENCES market_items(id) ON DELETE CASCADE,
-                day       DATE NOT NULL,
-                avg_price NUMERIC,
-                min_price NUMERIC,
-                max_price NUMERIC,
-                volume    INTEGER,
-                PRIMARY KEY (item_id, day)
+                item_id      TEXT NOT NULL REFERENCES market_items(id) ON DELETE CASCADE,
+                day          DATE NOT NULL,
+                avg_price    NUMERIC,
+                min_price    NUMERIC,
+                max_price    NUMERIC,
+                volume       INTEGER,
+                mod_rank     INTEGER,
+                subtype      TEXT,
+                open_price   NUMERIC,
+                closed_price NUMERIC,
+                median       NUMERIC,
+                moving_avg   NUMERIC,
+                donch_top    NUMERIC,
+                donch_bot    NUMERIC
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_stats_90d_item_day ON market_stats_90d (item_id, day);")
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS market_stats_90d_item_day_variant_uk
+            ON market_stats_90d (item_id, day, COALESCE(mod_rank, -1), COALESCE(subtype, ''));
+        """)
 
         # Warframe Public Export Plus (replaces wfstat_items)
         # unique_name is the canonical Warframe internal path, e.g. /Lotus/Weapons/…
@@ -647,6 +674,48 @@ def fetch_single_statistics(slug, max_retries=3, delay=2):
     return None
 
 
+# Indikator-Felder, die die API mitliefert (siehe migrations/003_stats_indicators.sql).
+# open/closed speisen die Candlesticks, donch_top/bot den Donchian-Kanal.
+INDICATOR_FIELDS = ('open_price', 'closed_price', 'median', 'moving_avg', 'donch_top', 'donch_bot')
+
+
+def _indicator_values(entry: dict) -> tuple:
+    return tuple(entry.get(f) for f in INDICATOR_FIELDS)
+
+
+# ON CONFLICT DO UPDATE statt DO NOTHING: die Indikator-Spalten kamen erst
+# nachträglich dazu, Bestandszeilen sind leer. Mit DO NOTHING würden sie beim
+# Insert übersprungen und blieben für immer NULL. Da die API bei jedem Abruf
+# das volle 90-Tage-Fenster liefert, füllt sich die Historie so von selbst.
+_UPSERT_TAIL = """
+    ON CONFLICT ({conflict}) DO UPDATE SET
+        avg_price    = EXCLUDED.avg_price,
+        min_price    = EXCLUDED.min_price,
+        max_price    = EXCLUDED.max_price,
+        volume       = EXCLUDED.volume,
+        open_price   = EXCLUDED.open_price,
+        closed_price = EXCLUDED.closed_price,
+        median       = EXCLUDED.median,
+        moving_avg   = EXCLUDED.moving_avg,
+        donch_top    = EXCLUDED.donch_top,
+        donch_bot    = EXCLUDED.donch_bot
+"""
+
+
+def _dedupe(rows: list, key_len: int) -> list:
+    """
+    Letzten Eintrag je Schlüssel behalten.
+
+    ON CONFLICT DO UPDATE bricht ab, wenn ein einzelnes INSERT dieselbe Zielzeile
+    zweimal trifft ("command cannot affect row a second time"). Die API liefert
+    das gelegentlich — deshalb hier absichern, statt auf Wohlverhalten zu hoffen.
+    """
+    seen = {}
+    for r in rows:
+        seen[r[:key_len]] = r
+    return list(seen.values())
+
+
 def store_48h_stats(conn, item_id, stats_48h):
     if not stats_48h:
         return 0, 0
@@ -656,18 +725,22 @@ def store_48h_stats(conn, item_id, stats_48h):
         if not ts:
             continue
         rows.append((
-            item_id, ts,
+            item_id, ts, entry.get('mod_rank'), entry.get('subtype'),
             entry.get('avg_price'), entry.get('min_price'),
             entry.get('max_price'), entry.get('volume'),
-            entry.get('mod_rank'),
-        ))
+        ) + _indicator_values(entry))
+    rows = _dedupe(rows, 4)   # (item_id, ts, mod_rank, subtype)
     if not rows:
         return 0, 0
     with conn.cursor() as cur:
         execute_values(cur, """
-            INSERT INTO market_stats_48h (item_id, ts, avg_price, min_price, max_price, volume, mod_rank)
-            VALUES %s ON CONFLICT DO NOTHING
-        """, rows, page_size=100)
+            INSERT INTO market_stats_48h
+                (item_id, ts, mod_rank, subtype, avg_price, min_price, max_price, volume,
+                 open_price, closed_price, median, moving_avg, donch_top, donch_bot)
+            VALUES %s
+        """ + _UPSERT_TAIL.format(
+            conflict="item_id, ts, COALESCE(mod_rank, -1), COALESCE(subtype, '')"
+        ), rows, page_size=100)
         conn.commit()
     return len(rows), 0
 
@@ -683,25 +756,35 @@ def store_90d_stats(conn, item_id, stats_90d):
         rows.append((
             item_id,
             day.split("T")[0] if "T" in str(day) else day,
+            entry.get('mod_rank'), entry.get('subtype'),
             entry.get('avg_price'), entry.get('min_price'),
             entry.get('max_price'), entry.get('volume'),
-            entry.get('mod_rank'),
-        ))
+        ) + _indicator_values(entry))
+    rows = _dedupe(rows, 4)   # (item_id, day, mod_rank, subtype)
     if not rows:
         return 0, 0
     with conn.cursor() as cur:
         execute_values(cur, """
-            INSERT INTO market_stats_90d (item_id, day, avg_price, min_price, max_price, volume, mod_rank)
-            VALUES %s ON CONFLICT DO NOTHING
-        """, rows, page_size=100)
+            INSERT INTO market_stats_90d
+                (item_id, day, mod_rank, subtype, avg_price, min_price, max_price, volume,
+                 open_price, closed_price, median, moving_avg, donch_top, donch_bot)
+            VALUES %s
+        """ + _UPSERT_TAIL.format(
+            conflict="item_id, day, COALESCE(mod_rank, -1), COALESCE(subtype, '')"
+        ), rows, page_size=100)
         conn.commit()
     return len(rows), 0
 
 
-def fetch_statistics_and_store(conn, max_workers=6):
+def fetch_statistics_and_store(conn, max_workers=6, only_slugs=None):
     with conn.cursor() as cur:
-        cur.execute("SELECT id, slug FROM market_items WHERE slug IS NOT NULL;")
+        if only_slugs:
+            cur.execute("SELECT id, slug FROM market_items WHERE slug = ANY(%s);", (list(only_slugs),))
+        else:
+            cur.execute("SELECT id, slug FROM market_items WHERE slug IS NOT NULL;")
         items = cur.fetchall()
+    if only_slugs and not items:
+        logging.warning(f"No market items matched --slug {list(only_slugs)}")
     logging.info(f"Fetching statistics for {len(items)} items (in parallel).")
 
     available = inserted_48 = inserted_90 = 0
@@ -739,6 +822,7 @@ def fetch_statistics_and_store(conn, max_workers=6):
                     inserted_90 += added90
                 except Exception as e:
                     logging.warning(f"Failed storing stats for {slug} ({item_id}): {e}")
+                    conn.rollback()
                     failed += 1
         time.sleep(1)
     logging.info(
@@ -772,6 +856,33 @@ def delete_old_90d_entries(conn):
     except Exception as e:
         logging.error(f"Failed deleting old 90d entries: {e}")
         return 0
+
+
+def refresh_price_reference(conn):
+    """
+    Median-Preis je Item neu berechnen (siehe migrations/007_price_reference.sql).
+
+    Dient als Maßstab für die Ausreißererkennung: warframe.market-Daten sind
+    Nutzerangaben, einzelne Einträge liegen um das Zehntausendfache daneben.
+    Vorberechnet, weil der Median inline 154 ms kostet und pro /api/top-Aufruf
+    viermal gebraucht würde.
+    """
+    with conn.cursor() as cur:
+        cur.execute("""
+            UPDATE market_items i
+            SET price_median = m.med
+            FROM (
+                SELECT item_id, percentile_disc(0.5) WITHIN GROUP (ORDER BY avg_price) AS med
+                FROM market_stats_90d
+                GROUP BY item_id
+            ) m
+            WHERE m.item_id = i.id
+              AND i.price_median IS DISTINCT FROM m.med
+        """)
+        updated = cur.rowcount
+        conn.commit()
+    logging.info(f"price_median aktualisiert: {updated} Items")
+    return updated
 
 
 def update_last_updated_timestamp(conn):
@@ -814,10 +925,11 @@ def parse_args():
     p.add_argument("--skip-market",   action="store_true", help="skip warframe.market item sync")
     p.add_argument("--workers",       type=int, default=6,  help="parallel workers for stats fetching")
     p.add_argument("--wfpe-workers",  type=int, default=3,  help="parallel workers for WFPE file fetching (keep low to avoid GitHub rate limits)")
+    p.add_argument("--slug",          action="append",      help="only sync statistics for these slugs (repeatable) — for testing; a full run takes ~15 min")
     return p.parse_args()
 
 
-def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=False):
+def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=False, slugs=None):
     start = time.time()
     logging.info("=== VOIDWATCH SYNC START ===")
 
@@ -854,21 +966,32 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
             logging.warning("Skipping WFPE upsert: no data fetched.")
 
         if not dry_run and not skip_market:
-            fetch_statistics_and_store(conn, max_workers=workers)
+            fetch_statistics_and_store(conn, max_workers=workers, only_slugs=slugs)
         else:
             logging.info("Skipping stats fetch/store (dry-run or skip-market).")
 
-        deleted48 = delete_old_48h_entries(conn)
-        deleted90 = delete_old_90d_entries(conn)
-        logging.info(f"Deleted old entries: {deleted48} from market_stats_48h, {deleted90} from market_stats_90d")
-        if not skip_wfpe and not dry_run:
+        # Referenzpreise immer aktualisieren — sie hängen an den gerade
+        # geschriebenen Statistiken, nicht am Housekeeping.
+        if not dry_run and not skip_market:
+            try:
+                refresh_price_reference(conn)
+            except Exception as e:
+                logging.error(f"refresh_price_reference fehlgeschlagen: {e}")
+
+        if slugs:
+            logging.info("--slug gesetzt: Housekeeping und Nachlauf-Skripte übersprungen.")
+        else:
+            deleted48 = delete_old_48h_entries(conn)
+            deleted90 = delete_old_90d_entries(conn)
+            logging.info(f"Deleted old entries: {deleted48} from market_stats_48h, {deleted90} from market_stats_90d")
+        if not skip_wfpe and not dry_run and not slugs:
             try:
                 import precompute_drops
                 logging.info("Starte precompute_drops...")
                 precompute_drops.run(conn)
             except Exception as e:
                 logging.error(f"precompute_drops fehlgeschlagen: {e}", exc_info=True)
-        if not dry_run:
+        if not dry_run and not slugs:
             try:
                 import sync_images
                 logging.info("Starte sync_images...")
@@ -876,10 +999,13 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
             except Exception as e:
                 logging.error(f"sync_images fehlgeschlagen: {e}", exc_info=True)
 
-        try:
-            update_last_updated_timestamp(conn)
-        except Exception as e:
-            logging.error(f"Failed to update metadata timestamp: {e}")
+        # Bei --slug lief kein vollständiger Sync — der Zeitstempel im Footer
+        # würde sonst eine Aktualität vortäuschen, die es nicht gibt.
+        if not slugs:
+            try:
+                update_last_updated_timestamp(conn)
+            except Exception as e:
+                logging.error(f"Failed to update metadata timestamp: {e}")
     except Exception as e:
         logging.exception(f"Fatal error in main sync: {e}")
     finally:
@@ -897,4 +1023,5 @@ if __name__ == "__main__":
         wfpe_workers=args.wfpe_workers,
         skip_wfpe=args.skip_wfpe,
         skip_market=args.skip_market,
+        slugs=args.slug,
     )
