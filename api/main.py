@@ -18,6 +18,8 @@ Alle Market-Endpoints unterstützen:
 Bestehende Endpoints bleiben unverändert.
 """
 
+import json
+
 from fastapi import FastAPI, Query, Path, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -85,18 +87,24 @@ def api_status():
 
 @router.get("/top")
 def top(
-    hours: int = Query(24, ge=1, le=720),
+    # 2160 h = 90 Tage, die volle Tiefe von market_stats_90d. Der Dashboard-
+    # Zeitraum steuert seit der Vereinheitlichung auch den Graphen, deshalb
+    # muss er denselben Bereich abdecken wie /api/item/{slug}/history.
+    hours: int = Query(24, ge=1, le=2160),
     limit: int = Query(10, ge=1, le=200),
     tag: str | None = Query(None),
     rank_mode: str = Query("max", description="max | unranked | all"),
+    metric: str = Query("pct", description="pct = prozentuale Veränderung | abs = Platin-Differenz"),
 ):
     try:
         last_updated = api.db.get_last_updated()
-        top_perf   = api.db.get_top_performers(hours, limit, tag=tag, rank_mode=rank_mode)
+        metric     = metric if metric in ("pct", "abs") else "pct"
+        top_perf   = api.db.get_top_performers(hours, limit, tag=tag, rank_mode=rank_mode, metric=metric)
+        top_loser  = api.db.get_top_losers(hours, limit, tag=tag, rank_mode=rank_mode, metric=metric)
         top_seller = api.db.get_top_sellers(hours, limit, tag=tag, rank_mode=rank_mode)
         top_traded = api.db.get_most_traded(hours, limit, tag=tag, rank_mode=rank_mode)
 
-        for lst in (top_perf, top_seller, top_traded):
+        for lst in (top_perf, top_loser, top_seller, top_traded):
             for item in lst:
                 item["datetime"] = item["datetime"].isoformat() if item.get("datetime") else None
                 cp = item.get("change_pct")
@@ -105,6 +113,7 @@ def top(
         return _ok({
             "last_updated":   last_updated,
             "top_performer":  _serialize(top_perf),
+            "top_loser":      _serialize(top_loser),
             "top_seller":     _serialize(top_seller),
             "top_traded":     _serialize(top_traded),
         })
@@ -117,6 +126,57 @@ def search_items(q: str = Query(..., min_length=2, max_length=100)):
     try:
         results = api.db.search_items(q, limit=10)
         return _ok({"query": q, "results": _serialize(results)})
+    except Exception as e:
+        return _err(e)
+
+
+@router.get("/item/{slug}/detail")
+def item_detail(slug: str = Path(..., min_length=1, max_length=120)):
+    """Alles für die Item-Detailseite in einem Roundtrip (ohne Zeitreihe)."""
+    try:
+        item = api.db.get_item_detail(slug)
+        if not item:
+            return JSONResponse(status_code=404, content={"error": f"Item '{slug}' nicht gefunden"})
+
+        item = _serialize([item])[0]
+
+        tags = item.get("tags") or []
+        category, subcategory = api.db.classify_item_by_tags(json.dumps(tags))
+        item["category"]    = category
+        item["subcategory"] = subcategory
+
+        relic_contents = (
+            _serialize(api.db.get_relic_contents(item["name"]))
+            if "relic" in tags else []
+        )
+        set_parts = api.db.get_set_parts(slug)
+
+        return _ok({
+            "item":           item,
+            "drop_sources":   _serialize(api.db.get_drop_sources_for_slug(slug)),
+            "relic_contents": relic_contents,
+            "set_parts":      _serialize(set_parts) if set_parts else [],
+        })
+    except Exception as e:
+        return _err(e)
+
+
+@router.get("/item/{slug}/history")
+def item_history(
+    slug: str = Path(..., min_length=1, max_length=120),
+    hours: int = Query(48, ge=1, le=2160),
+    mod_rank: int | None = Query(None, ge=0, le=10),
+):
+    """Zeitreihe für den Preisgraphen. <=48h stündlich, darüber täglich."""
+    try:
+        points = api.db.get_item_history(slug, hours=hours, mod_rank=mod_rank)
+        return _ok({
+            "slug":       slug,
+            "hours":      hours,
+            "mod_rank":   mod_rank,
+            "resolution": "hour" if hours <= 48 else "day",
+            "points":     _serialize(points),
+        })
     except Exception as e:
         return _err(e)
 

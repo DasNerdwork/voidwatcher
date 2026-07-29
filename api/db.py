@@ -35,10 +35,39 @@ def get_last_updated():
 # HILFSFUNKTIONEN
 # ──────────────────────────────────────────────
 
+# Kategoriefilter für die Oberfläche.
+#
+# Ein reiner "Tag ist enthalten"-Test reichte nicht und war an drei Stellen falsch:
+#   • 'arcane'   existiert im Tag-Vokabular gar nicht → Kategorie war immer leer.
+#                Richtig ist 'arcane_enhancement'.
+#   • 'warframe' bedeutet "gehört zu Warframes", nicht "ist ein Warframe": von 604
+#                Items sind 354 Mods und 251 Prime-Teile, echte Warframes: keine.
+#                Die Kategorie ist deshalb ersatzlos entfallen.
+#   • 'weapon'   enthält zu 471/769 Prime-Teile. Für die Kategorie WEAPONS sind
+#                nur die Nicht-Prime-Waffen gemeint → braucht eine Negation.
+#
+# Abgefragt wird die Spalte i.tags statt (i.raw->>'tags')::jsonb — inhaltlich
+# identisch (geprüft: 0 Abweichungen), aber nur die Spalte nutzt den GIN-Index
+# idx_market_items_tags.
+_CATEGORY_FILTERS: dict[str, str] = {
+    "mod":    "AND i.tags ? 'mod'",
+    "arcane": "AND i.tags ? 'arcane_enhancement'",
+    "prime":  "AND i.tags ? 'prime'",
+    "weapon": "AND i.tags ? 'weapon' AND NOT i.tags ? 'prime'",
+    "relic":  "AND i.tags ? 'relic'",
+}
+
+
 def _tag_filter(tag: str | None) -> tuple[str, list]:
+    """
+    SQL-Bedingung für eine Kategorie. Unbekannte Werte (z.B. 'warframe' oder
+    'resource' aus einem alten Lesezeichen) filtern bewusst NICHT, statt eine
+    leere Liste zu liefern — eine unbekannte Kategorie soll nicht wie
+    "nichts gefunden" aussehen.
+    """
     if not tag:
         return "", []
-    return "AND (i.raw->>'tags')::jsonb ? %s", [tag]
+    return _CATEGORY_FILTERS.get(tag, ""), []
 
 
 def _rank_clause(rank_mode: str) -> str:
@@ -53,62 +82,191 @@ def _rank_clause(rank_mode: str) -> str:
     return ""
 
 
-def _change_pct_cte(hours: float) -> str:
+# ── Datenqualität ─────────────────────────────────────────────────────────────
+# warframe.market-Daten sind Nutzerangaben, keine Ingame-Trades. Zwei getrennte
+# Probleme, deshalb zwei Verfahren:
+#
+#   1. UNMÖGLICHE PREISE — "Warm Coat" für 500.067 ₱ bei einem Median von 10 ₱.
+#      Lässt sich nicht über das Volumen abfangen (dieser Eintrag hatte Volumen 35),
+#      wohl aber über den Abstand zum eigenen Median des Items.
+#   2. ZU DÜNNE DATENLAGE — drei Trades von 5 auf 85 ₱ sind kein Markttrend.
+#      Lässt sich nicht über Preisgrenzen abfangen, wohl aber über eine
+#      Glaubwürdigkeitsgewichtung.
+
+# 99 % aller Beobachtungen liegen unter dem 4,8-fachen ihres Item-Medians,
+# 99,9 % unter dem 15-fachen. Bei 20× bleiben 81 von 285.461 Zeilen übrig —
+# darunter alle zwölf Einträge über 5.000 ₱. Echte Ereignisse wie ein
+# Prime-Unvaulting bewegen sich im einstelligen Faktor und bleiben unberührt.
+PLAUSIBILITY_FACTOR = 20
+
+# Glaubwürdigkeit v/(v+m). Wirkt NUR auf die Sortierung — angezeigt wird immer
+# der echte Wert.
+#
+#   Trades      m=10 (alt)   m=30 (jetzt)
+#       20         0,67          0,40
+#      100         0,91          0,77
+#     2000         1,00          0,99
+#
+# Von 10 auf 30 angehoben: bei m=10 lagen 20 und 2000 Trades nur um den Faktor
+# 1,5 auseinander, was dem Volumen zu wenig Gewicht gab. Jetzt 2,5.
+CREDIBILITY_M = 30
+
+# Mindestvolumen für die Ranglisten. Von 2 angehoben; 1757 der 2398 gehandelten
+# Items bleiben damit sichtbar.
+MIN_VOLUME = 5
+
+# Untergrenze NUR für den Prozent-Modus. Bei Cent-Items ist die prozentuale
+# Veränderung reines Rauschen: "Requiem I Relic" ging von 0,22 auf 0,67 ₱ —
+# rechnerisch +203 %, tatsächlich 0,45 Platin. 79 von 2346 gehandelten Items
+# liegen unter 2 ₱ und erzeugen systematisch solche Ausschläge.
+# Im absoluten Modus braucht es die Grenze nicht: dort fällt ein Cent-Item
+# mangels nennenswerter Differenz von selbst durch.
+MIN_PRICE_FOR_PCT = 2
+
+
+def _metric_parts(metric: str) -> tuple[str, str]:
+    """
+    (Sortier-Ausdruck, Zusatzbedingung fürs HAVING) je nach Metrik.
+
+    "pct" ordnet nach prozentualer Veränderung und blendet Cent-Items aus,
+    "abs" nach der Platin-Differenz — dort ist die Untergrenze überflüssig,
+    weil ein 1-₱-Item ohnehin keine nennenswerte Differenz erzeugt.
+    """
+    change_pct = "ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1)"
+    change_abs = "ROUND((c.price - p.price)::numeric, 2)"
+    if metric == "abs":
+        return change_abs, ""
+    # Grenze auf den ANGEZEIGTEN Durchschnitt, nicht auf c.price: sonst rutscht
+    # ein Item durch, dessen zweite Hälfte knapp über 2 ₱ liegt, während der
+    # ausgewiesene Preis darunter bleibt (z.B. Meso X1 Relic mit 1,5 ₱).
+    return change_pct, f" AND AVG(s.avg_price) >= {MIN_PRICE_FOR_PCT}"
+
+
+def _plausible_clause() -> str:
+    """
+    Schließt Preise aus, die zu weit vom Median des Items entfernt liegen.
+
+    price_median IS NULL bedeutet "keine Referenz" (neues Item ohne Historie) —
+    dann greift der Filter bewusst nicht: unbekannt ist nicht manipuliert.
+    """
+    return f"""AND (i.price_median IS NULL
+                    OR s.avg_price <= i.price_median * {PLAUSIBILITY_FACTOR})"""
+
+
+def _credibility(volume_expr: str = "SUM(s.volume)") -> str:
+    """Shrinkage-Faktor 0…1 aus dem Handelsvolumen."""
+    return f"({volume_expr}::numeric / ({volume_expr} + {CREDIBILITY_M}))"
+
+
+def _vw_avg(col: str) -> str:
+    """
+    Volumengewichtetes Mittel einer Preisspalte über die Zeilen eines Buckets.
+
+    Ein Bucket kann mehrere Zeilen enthalten (eine je mod_rank). Gewichtet wird
+    mit GREATEST(volume, 1), damit Buckets mit volume=0 nicht rausfallen.
+    Die CASE-Konstruktion im Nenner zählt nur Zeilen mit, in denen die Spalte
+    auch gefüllt ist — sonst würde ein einzelnes NULL das Mittel nach unten ziehen.
+    """
+    return f"""ROUND(
+                (SUM({col} * GREATEST(s.volume, 1))
+                 / NULLIF(SUM(CASE WHEN {col} IS NULL THEN 0 ELSE GREATEST(s.volume, 1) END), 0)
+                )::numeric, 2)"""
+
+
+def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
+    """
+    Erster und letzter Punkt eines Items im Zeitfenster — genau die beiden Enden
+    der Linie, die ItemChart zeichnet.
+
+    Vorgänger war ein Hälften-Vergleich (zweite Hälfte des Zeitraums gegen die
+    erste, beide volumengewichtet). Rechnerisch robuster, aber im Bild nirgends
+    nachvollziehbar: Meso E1 Relic lief über 7 Tage von 20 auf 70 ₱ und die
+    Kennzahl meldete +33, weil sie 68,75 (2. Hälfte) gegen 36 (1. Hälfte) stellte.
+    Daneben stand zugleich „Eröffnung 20 ₱" — Eröffnung 20, aktuell 70,
+    Veränderung +33 ergibt zusammen keinen Sinn.
+
+    Jetzt gilt: letzter Bucket gegen ersten. Dass ein Randbucket auf einem
+    einzigen Trade beruhen kann, bleibt wahr — dagegen wirken der
+    Glaubwürdigkeitsfaktor in der Sortierung und der Hinweis „dünne Datenlage",
+    nicht eine Glättung, die die Zahl vom Graphen ablöst.
+
+    Liefert `current_price` und `previous_price` mit den Spalten `price` und
+    `vol` (Handelsvolumen desselben Buckets, für die Volumen-Entwicklung).
+    Bei nur einem Bucket im Fenster bleibt die Vorperiode NULL — „keine
+    Vergleichsbasis" ist etwas anderes als „unverändert".
+
+    Die Bucket-Preise entstehen über _vw_avg, also identisch zu get_item_history:
+    ein Tag/eine Stunde kann mehrere Zeilen haben (eine je mod_rank).
+    """
+    rank_clause = _rank_clause(rank_mode)
     return f"""
-        latest AS (
-            SELECT MAX(ts) AS max_ts FROM market_stats_48h
+        buckets AS (
+            SELECT s.item_id, {bucket} AS b,
+                   {_vw_avg('s.avg_price')} AS price,
+                   SUM(s.volume)            AS vol
+            FROM {table} s
+            JOIN market_items i ON i.id = s.item_id
+            WHERE {window}
+              {rank_clause}
+              {_plausible_clause()}
+            GROUP BY s.item_id, {bucket}
         ),
-        current_price AS (
-            SELECT item_id, AVG(avg_price) AS price
-            FROM market_stats_48h, latest
-            WHERE ts >= latest.max_ts - INTERVAL '6 hours'
+        edges AS (
+            SELECT item_id,
+                   (array_agg(price ORDER BY b DESC))[1] AS c_price,
+                   (array_agg(vol   ORDER BY b DESC))[1] AS c_vol,
+                   CASE WHEN COUNT(*) > 1 THEN (array_agg(price ORDER BY b))[1] END AS p_price,
+                   CASE WHEN COUNT(*) > 1 THEN (array_agg(vol   ORDER BY b))[1] END AS p_vol
+            FROM buckets
             GROUP BY item_id
         ),
-        previous_price AS (
-            SELECT item_id, AVG(avg_price) AS price
-            FROM market_stats_48h, latest
-            WHERE ts >= latest.max_ts - INTERVAL '{hours} hours'
-              AND ts  < latest.max_ts - INTERVAL '6 hours'
-            GROUP BY item_id
-        )
+        current_price  AS (SELECT item_id, c_price AS price, c_vol AS vol FROM edges),
+        previous_price AS (SELECT item_id, p_price AS price, p_vol AS vol FROM edges)
     """
 
 
-def _change_pct_cte_90d(days: int) -> str:
-    return f"""
-        current_price AS (
-            SELECT item_id, AVG(avg_price) AS price
-            FROM market_stats_90d
-            WHERE day = (SELECT MAX(day) FROM market_stats_90d)
-            GROUP BY item_id
-        ),
-        previous_price AS (
-            SELECT item_id, AVG(avg_price) AS price
-            FROM market_stats_90d
-            WHERE day = (
-                SELECT MIN(day) FROM market_stats_90d
-                WHERE day >= (NOW() - INTERVAL '{days} days')::date
-            )
-            GROUP BY item_id
-        )
-    """
+def _change_pct_cte(hours: float, rank_mode: str = "max") -> str:
+    """Stündliche Variante. Fenster ab dem jüngsten Datenpunkt, nicht ab NOW() —
+    sonst wandert bei stehendem Sync das Fenster von den Daten weg."""
+    return _edge_cte(
+        table="market_stats_48h",
+        bucket="s.ts",
+        window=f"s.ts >= (SELECT MAX(ts) FROM market_stats_48h) - INTERVAL '{hours} hours'",
+        rank_mode=rank_mode,
+    )
+
+
+def _change_pct_cte_90d(days: int, rank_mode: str = "max") -> str:
+    """Tages-Variante von _change_pct_cte, gleiche Semantik."""
+    return _edge_cte(
+        table="market_stats_90d",
+        bucket="s.day",
+        window=f"s.day >= ((SELECT MAX(day) FROM market_stats_90d) - INTERVAL '{days} days')::date",
+        rank_mode=rank_mode,
+    )
 
 
 def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
                    order_by: str, tag_params: list, limit: int,
-                   having: str = "HAVING SUM(s.volume) >= 2") -> list:
-    # Für change_pct-Sortierung: volume-gewichteter Score als Ranking-Basis.
-    # change_pct wird unverändert zurückgegeben — nur die Reihenfolge ändert sich.
-    # Formel: change_pct * LN(volume + 1) → 300% bei 2 Trades < 45% bei 50 Trades
-    if "change_pct" in order_by:
+                   having: str = f"HAVING SUM(s.volume) >= {MIN_VOLUME}",
+                   rank_mode: str = "max", metric: str = "pct") -> list:
+    # Sortier-Basis ist der glaubwürdigkeitsgewichtete Score. Die Kennzahlen selbst
+    # werden unverändert zurückgegeben — nur die Reihenfolge ändert sich.
+    # Shrinkage v/(v+m) statt LN(volume+1): auf 0…1 begrenzt, schwächt dünne
+    # Einträge ab, statt sie zusätzlich zu verstärken.
+    metric_expr, metric_having = _metric_parts(metric)
+    if "change" in order_by:
         direction = "DESC" if "DESC" in order_by else "ASC"
-        effective_order = f"(ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) * LN(SUM(s.volume) + 1)) {direction} NULLS LAST"
+        effective_order = f"({metric_expr} * {_credibility()}) {direction} NULLS LAST"
+        if metric_having and metric_having not in having:
+            having = (having or "HAVING TRUE") + metric_having
     else:
         effective_order = order_by
     return query(f"""
-        WITH {_change_pct_cte_90d(days)}
+        WITH {_change_pct_cte_90d(days, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            i.slug,
             (SELECT MAX(day) FROM market_stats_90d)::timestamptz AS datetime,
             AVG(s.avg_price)                 AS avg_price,
             MIN(s.min_price)                 AS min_price,
@@ -117,17 +275,23 @@ def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
             i.max_rank                       AS max_rank,
             i.thumb_path,
             i.image_path,
-            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct
+            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct,
+            ROUND(c.price::numeric, 2)             AS current_price,
+            ROUND((c.price - p.price)::numeric, 2) AS change_abs,
+            (c.vol - p.vol)                        AS volume_change_abs,
+            ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_90d s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.day >= (NOW() - INTERVAL '{{days}} days')::date
-          {{tag_clause}}
-          {{rank_clause}}
-        GROUP BY i.id, i.thumb_path, i.image_path, c.price, p.price, i.max_rank
-        {{having}}
-        ORDER BY {{effective_order}}
+        WHERE s.day >= (NOW() - INTERVAL '{days} days')::date
+          {tag_clause}
+          {rank_clause}
+          {_plausible_clause()}
+        GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
+        {having}
+        ORDER BY {effective_order}
         LIMIT %s
     """, tag_params + [limit])
 
@@ -136,20 +300,24 @@ def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
 # TOP-LISTEN
 # ──────────────────────────────────────────────
 
-def get_top_performers(hours, limit, tag: str | None = None, rank_mode: str = "max"):
+def get_top_performers(hours, limit, tag: str | None = None, rank_mode: str = "max",
+                       metric: str = "pct"):
     tag_clause, tag_params = _tag_filter(tag)
     rank_clause = _rank_clause(rank_mode)
+    metric_expr, metric_having = _metric_parts(metric)
 
     if hours > 48:
         return _top_query_90d(
             days=hours // 24, tag_clause=tag_clause, rank_clause=rank_clause,
-            order_by="change_pct DESC NULLS LAST", tag_params=tag_params, limit=limit,
+            rank_mode=rank_mode, metric=metric,
+            order_by="change DESC NULLS LAST", tag_params=tag_params, limit=limit,
         )
 
     return query(f"""
-        WITH {_change_pct_cte(hours)}
+        WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            i.slug,
             MAX(s.ts)                        AS datetime,
             AVG(s.avg_price)                 AS avg_price,
             MIN(s.min_price)                 AS min_price,
@@ -158,7 +326,12 @@ def get_top_performers(hours, limit, tag: str | None = None, rank_mode: str = "m
             i.max_rank                       AS max_rank,
             i.thumb_path,
             i.image_path,
-            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct
+            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct,
+            ROUND(c.price::numeric, 2)             AS current_price,
+            ROUND((c.price - p.price)::numeric, 2) AS change_abs,
+            (c.vol - p.vol)                        AS volume_change_abs,
+            ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
@@ -166,9 +339,73 @@ def get_top_performers(hours, limit, tag: str | None = None, rank_mode: str = "m
         WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
           {tag_clause}
           {rank_clause}
-        GROUP BY i.id, i.thumb_path, i.image_path, c.price, p.price, i.max_rank
-        HAVING SUM(s.volume) >= 2
-        ORDER BY (ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) * LN(SUM(s.volume) + 1)) DESC NULLS LAST
+          {_plausible_clause()}
+        GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
+        HAVING SUM(s.volume) >= {MIN_VOLUME}{metric_having}
+        ORDER BY ({metric_expr} * {_credibility()}) DESC NULLS LAST
+        LIMIT %s
+    """, tag_params + [limit])
+
+
+def get_top_losers(hours, limit, tag: str | None = None, rank_mode: str = "max",
+                   metric: str = "pct"):
+    """
+    Spiegelbild zu get_top_performers: Items mit dem stärksten Preisverfall.
+
+    Die Dashboard-Karte "Verlierer" zog ihre Daten bisher aus top_performer und
+    nahm daraus den schwächsten Eintrag — bei steigendem Markt also einen Gewinner.
+    Echte Verlierer gibt es reichlich (792 Items im Minus über 24h), sie wurden
+    nur nie abgefragt.
+
+    Zwei Unterschiede zu get_top_performers:
+      • ASC statt DESC auf demselben volumengewichteten Score. Die Gewichtung
+        wirkt hier genauso richtig: ein stark gehandelter Verlierer rangiert vor
+        einem Einzeltrade mit -90%.
+      • HAVING ... change_pct < 0, damit bei reinem Aufwärtsmarkt lieber eine
+        leere Liste zurückkommt, als Gewinner als Verlierer auszugeben.
+    """
+    tag_clause, tag_params = _tag_filter(tag)
+    rank_clause = _rank_clause(rank_mode)
+    change_expr, metric_having = _metric_parts(metric)
+
+    if hours > 48:
+        return _top_query_90d(
+            days=hours // 24, tag_clause=tag_clause, rank_clause=rank_clause,
+            rank_mode=rank_mode, metric=metric,
+            order_by="change ASC NULLS LAST", tag_params=tag_params, limit=limit,
+            having=f"HAVING SUM(s.volume) >= {MIN_VOLUME} AND {change_expr} < 0",
+        )
+
+    return query(f"""
+        WITH {_change_pct_cte(hours, rank_mode)}
+        SELECT
+            (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            i.slug,
+            MAX(s.ts)                        AS datetime,
+            AVG(s.avg_price)                 AS avg_price,
+            MIN(s.min_price)                 AS min_price,
+            MAX(s.max_price)                 AS max_price,
+            SUM(s.volume)                    AS volume,
+            i.max_rank                       AS max_rank,
+            i.thumb_path,
+            i.image_path,
+            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct,
+            ROUND(c.price::numeric, 2)             AS current_price,
+            ROUND((c.price - p.price)::numeric, 2) AS change_abs,
+            (c.vol - p.vol)                        AS volume_change_abs,
+            ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            ROUND({_credibility()}, 2) AS confidence
+        FROM market_stats_48h s
+        JOIN market_items i        ON i.id = s.item_id
+        JOIN current_price c       ON c.item_id = s.item_id
+        LEFT JOIN previous_price p ON p.item_id = s.item_id
+        WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
+          {tag_clause}
+          {rank_clause}
+          {_plausible_clause()}
+        GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
+        HAVING SUM(s.volume) >= {MIN_VOLUME}{metric_having} AND {change_expr} < 0
+        ORDER BY ({change_expr} * {_credibility()}) ASC NULLS LAST
         LIMIT %s
     """, tag_params + [limit])
 
@@ -180,13 +417,15 @@ def get_top_sellers(hours, limit, tag: str | None = None, rank_mode: str = "max"
     if hours > 48:
         return _top_query_90d(
             days=hours // 24, tag_clause=tag_clause, rank_clause=rank_clause,
-            order_by="AVG(s.avg_price) DESC", tag_params=tag_params, limit=limit, having="",
+            rank_mode=rank_mode,
+            order_by="c.price DESC", tag_params=tag_params, limit=limit, having="",
         )
 
     return query(f"""
-        WITH {_change_pct_cte(hours)}
+        WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            i.slug,
             MAX(s.ts)                        AS datetime,
             AVG(s.avg_price)                 AS avg_price,
             MIN(s.min_price)                 AS min_price,
@@ -195,7 +434,12 @@ def get_top_sellers(hours, limit, tag: str | None = None, rank_mode: str = "max"
             i.max_rank                       AS max_rank,
             i.thumb_path,
             i.image_path,
-            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct
+            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct,
+            ROUND(c.price::numeric, 2)             AS current_price,
+            ROUND((c.price - p.price)::numeric, 2) AS change_abs,
+            (c.vol - p.vol)                        AS volume_change_abs,
+            ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
@@ -203,8 +447,9 @@ def get_top_sellers(hours, limit, tag: str | None = None, rank_mode: str = "max"
         WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
           {tag_clause}
           {rank_clause}
-        GROUP BY i.id, i.thumb_path, i.image_path, c.price, p.price, i.max_rank
-        ORDER BY avg_price DESC
+          {_plausible_clause()}
+        GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
+        ORDER BY c.price DESC
         LIMIT %s
     """, tag_params + [limit])
 
@@ -216,13 +461,15 @@ def get_most_traded(hours, limit, tag: str | None = None, rank_mode: str = "max"
     if hours > 48:
         return _top_query_90d(
             days=hours // 24, tag_clause=tag_clause, rank_clause=rank_clause,
+            rank_mode=rank_mode,
             order_by="SUM(s.volume) DESC", tag_params=tag_params, limit=limit, having="",
         )
 
     return query(f"""
-        WITH {_change_pct_cte(hours)}
+        WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            i.slug,
             MAX(s.ts)                        AS datetime,
             AVG(s.avg_price)                 AS avg_price,
             MIN(s.min_price)                 AS min_price,
@@ -231,7 +478,12 @@ def get_most_traded(hours, limit, tag: str | None = None, rank_mode: str = "max"
             i.max_rank                       AS max_rank,
             i.thumb_path,
             i.image_path,
-            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct
+            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct,
+            ROUND(c.price::numeric, 2)             AS current_price,
+            ROUND((c.price - p.price)::numeric, 2) AS change_abs,
+            (c.vol - p.vol)                        AS volume_change_abs,
+            ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
@@ -239,7 +491,8 @@ def get_most_traded(hours, limit, tag: str | None = None, rank_mode: str = "max"
         WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
           {tag_clause}
           {rank_clause}
-        GROUP BY i.id, i.thumb_path, i.image_path, c.price, p.price, i.max_rank
+          {_plausible_clause()}
+        GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
         ORDER BY volume DESC
         LIMIT %s
     """, tag_params + [limit])
@@ -259,7 +512,7 @@ def get_volume_leaders(
     if hours > 48:
         days = hours // 24
         return query(f"""
-            WITH {_change_pct_cte_90d(days)}
+            WITH {_change_pct_cte_90d(days, rank_mode)}
             SELECT
                 (i.raw->'i18n'->'en'->>'name')       AS item_name,
                 i.slug, i.tags, i.max_rank            AS max_rank,
@@ -274,15 +527,15 @@ def get_volume_leaders(
             JOIN current_price c       ON c.item_id = s.item_id
             LEFT JOIN previous_price p ON p.item_id = s.item_id
             WHERE s.day >= (NOW() - INTERVAL '{days} days')::date
-              {tag_clause} {rank_clause}
-            GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price
+              {tag_clause} {rank_clause} {_plausible_clause()}
+            GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
             HAVING SUM(s.volume) >= %s
             ORDER BY SUM(s.volume) DESC
             LIMIT %s
         """, tag_params + [min_volume, limit])
 
     return query(f"""
-        WITH {_change_pct_cte(hours)}
+        WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')       AS item_name,
             i.slug, i.tags, i.max_rank            AS max_rank,
@@ -291,14 +544,19 @@ def get_volume_leaders(
             MIN(s.min_price)                      AS min_price,
             MAX(s.max_price)                      AS max_price,
             SUM(s.volume)                         AS volume,
-            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct
+            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct,
+            ROUND(c.price::numeric, 2)             AS current_price,
+            ROUND((c.price - p.price)::numeric, 2) AS change_abs,
+            (c.vol - p.vol)                        AS volume_change_abs,
+            ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
-          {tag_clause} {rank_clause}
-        GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price
+          {tag_clause} {rank_clause} {_plausible_clause()}
+        GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
         HAVING SUM(s.volume) >= %s
         ORDER BY SUM(s.volume) DESC
         LIMIT %s
@@ -319,7 +577,7 @@ def get_value_leaders(
     if hours > 48:
         days = hours // 24
         return query(f"""
-            WITH {_change_pct_cte_90d(days)}
+            WITH {_change_pct_cte_90d(days, rank_mode)}
             SELECT
                 (i.raw->'i18n'->'en'->>'name')       AS item_name,
                 i.slug, i.tags, i.max_rank            AS max_rank,
@@ -334,15 +592,15 @@ def get_value_leaders(
             JOIN current_price c       ON c.item_id = s.item_id
             LEFT JOIN previous_price p ON p.item_id = s.item_id
             WHERE s.day >= (NOW() - INTERVAL '{days} days')::date
-              {tag_clause} {rank_clause}
-            GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price
+              {tag_clause} {rank_clause} {_plausible_clause()}
+            GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
             HAVING SUM(s.volume) >= %s AND MAX(s.max_price) <= AVG(s.avg_price) * 10
             ORDER BY AVG(s.avg_price) DESC
             LIMIT %s
         """, tag_params + [min_volume, limit])
 
     return query(f"""
-        WITH {_change_pct_cte(hours)}
+        WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')       AS item_name,
             i.slug, i.tags, i.max_rank            AS max_rank,
@@ -351,14 +609,19 @@ def get_value_leaders(
             MIN(s.min_price)                      AS min_price,
             MAX(s.max_price)                      AS max_price,
             SUM(s.volume)                         AS volume,
-            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct
+            ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1) AS change_pct,
+            ROUND(c.price::numeric, 2)             AS current_price,
+            ROUND((c.price - p.price)::numeric, 2) AS change_abs,
+            (c.vol - p.vol)                        AS volume_change_abs,
+            ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
-          {tag_clause} {rank_clause}
-        GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price
+          {tag_clause} {rank_clause} {_plausible_clause()}
+        GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
         HAVING SUM(s.volume) >= %s AND MAX(s.max_price) <= AVG(s.avg_price) * 10
         ORDER BY AVG(s.avg_price) DESC
         LIMIT %s
@@ -451,7 +714,7 @@ def get_most_stable(
         FROM market_stats_48h s
         JOIN market_items i ON i.id = s.item_id
         WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
-          {tag_clause} {rank_clause}
+          {tag_clause} {rank_clause} {_plausible_clause()}
         GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path
         HAVING SUM(s.volume) >= %s
         ORDER BY spread_ratio ASC NULLS LAST
@@ -551,24 +814,313 @@ def get_items_by_drop_filter(
 # KATEGORIE / SUCHE
 # ──────────────────────────────────────────────
 
-def search_items(search_term: str, limit: int = 10):
-    return query("""
+def search_items(search_term: str, limit: int = 8):
+    """
+    Autocomplete-Suche über market_items.
+
+    Bewusst OHNE wfpe-JOIN: 788 der 3.825 Market-Items (u.a. sämtliche Relics)
+    haben keinen game_ref-Match und wären sonst unauffindbar. Gesucht wird auf
+    dem Market-Namen und zusätzlich auf dem Slug (Unterstriche → Leerzeichen),
+    damit "ember prime set" und "ember_prime_set" beide treffen.
+
+    Ranking: exakter Treffer → Präfix-Treffer → Teiltreffer, dann Volumen.
+    Preisdaten per LEFT JOIN, damit Items ohne Trades trotzdem erscheinen.
+    """
+    term = search_term.strip()
+    like = f"%{term}%"
+    return query(f"""
+        WITH prices AS (
+            SELECT
+                s.item_id,
+                ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
+                SUM(s.volume)                       AS volume
+            FROM market_stats_48h s
+            JOIN market_items i ON i.id = s.item_id
+            WHERE s.ts >= NOW() - INTERVAL '48 hours'
+              {_rank_clause("max")}
+            GROUP BY s.item_id
+        )
         SELECT
             (i.raw->'i18n'->'en'->>'name') AS name,
-            i.slug, i.thumb_path,
-            ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
-            MIN(s.min_price) AS min_price,
-            MAX(s.max_price) AS max_price,
-            SUM(s.volume) AS volume
+            i.slug, i.thumb_path, i.tags, i.max_rank,
+            p.avg_price, p.volume
         FROM market_items i
-        JOIN market_stats_48h s ON s.item_id = i.id
-        JOIN wfpe_items w ON w.unique_name = i.game_ref
-        WHERE w.name_en ILIKE %s
-          AND s.ts >= NOW() - INTERVAL '48 hours'
-        GROUP BY i.id, i.slug, i.thumb_path
-        ORDER BY SUM(s.volume) DESC
+        LEFT JOIN prices p ON p.item_id = i.id
+        WHERE (i.raw->'i18n'->'en'->>'name') ILIKE %s
+           OR REPLACE(i.slug, '_', ' ') ILIKE %s
+        ORDER BY
+            CASE
+                WHEN LOWER(i.raw->'i18n'->'en'->>'name') = LOWER(%s)      THEN 0
+                WHEN (i.raw->'i18n'->'en'->>'name')      ILIKE %s         THEN 1
+                ELSE 2
+            END,
+            COALESCE(p.volume, 0) DESC,
+            LENGTH(i.raw->'i18n'->'en'->>'name')
         LIMIT %s
-    """, (f"%{search_term}%", limit))
+    """, (like, like, term, f"{term}%", limit))
+
+
+# ──────────────────────────────────────────────
+# ITEM-DETAILSEITE
+# ──────────────────────────────────────────────
+
+def get_item_detail(slug: str):
+    """
+    Stammdaten + Kennzahlen (24h/48h) für ein einzelnes Item.
+    Gibt None zurück, wenn der Slug unbekannt ist.
+    """
+    rows = query(f"""
+        WITH target AS (
+            SELECT id, slug, tags, ducats, max_rank, thumb_path, image_path,
+                   price_median,
+                   (raw->'i18n'->'en'->>'name') AS name
+            FROM market_items WHERE slug = %s
+        ),
+        w24 AS (
+            SELECT
+                ROUND(
+                    (SUM(s.avg_price * GREATEST(s.volume, 1))
+                     / NULLIF(SUM(GREATEST(s.volume, 1)), 0))::numeric, 2
+                )                AS avg_price,
+                MIN(s.min_price) AS min_price,
+                MAX(s.max_price) AS max_price,
+                SUM(s.volume)    AS volume,
+                MAX(s.ts)        AS last_ts
+            FROM market_stats_48h s, target i
+            WHERE s.item_id = i.id
+              AND s.ts >= NOW() - INTERVAL '24 hours'
+              {_rank_clause("max")}
+              {_plausible_clause()}
+        ),
+        w48 AS (
+            SELECT
+                ROUND(
+                    (SUM(s.avg_price * GREATEST(s.volume, 1))
+                     / NULLIF(SUM(GREATEST(s.volume, 1)), 0))::numeric, 2
+                )                AS avg_price,
+                MIN(s.min_price) AS min_price,
+                MAX(s.max_price) AS max_price,
+                SUM(s.volume)    AS volume
+            FROM market_stats_48h s, target i
+            WHERE s.item_id = i.id
+              AND s.ts >= NOW() - INTERVAL '48 hours'
+              {_rank_clause("max")}
+              {_plausible_clause()}
+        ),
+        prev24 AS (
+            -- Vergleichsfenster für change_pct: 24-48h vor jetzt
+            SELECT
+                ROUND(
+                    (SUM(s.avg_price * GREATEST(s.volume, 1))
+                     / NULLIF(SUM(GREATEST(s.volume, 1)), 0))::numeric, 2
+                ) AS avg_price
+            FROM market_stats_48h s, target i
+            WHERE s.item_id = i.id
+              AND s.ts >= NOW() - INTERVAL '48 hours'
+              AND s.ts <  NOW() - INTERVAL '24 hours'
+              {_rank_clause("max")}
+              {_plausible_clause()}
+        ),
+        ranks AS (
+            SELECT ARRAY_AGG(DISTINCT s.mod_rank ORDER BY s.mod_rank) AS mod_ranks
+            FROM market_stats_90d s, target i
+            WHERE s.item_id = i.id AND s.mod_rank IS NOT NULL
+        )
+        SELECT
+            i.id, i.name, i.slug, i.tags, i.ducats, i.max_rank,
+            i.thumb_path, i.image_path,
+            w24.avg_price AS avg_price_24h,
+            w24.min_price AS min_price_24h,
+            w24.max_price AS max_price_24h,
+            w24.volume    AS volume_24h,
+            w24.last_ts   AS last_trade,
+            w48.avg_price AS avg_price_48h,
+            w48.min_price AS min_price_48h,
+            w48.max_price AS max_price_48h,
+            w48.volume    AS volume_48h,
+            ROUND(
+                ((w24.avg_price - prev24.avg_price)
+                 / NULLIF(prev24.avg_price, 0) * 100)::numeric, 1
+            ) AS change_pct,
+            ranks.mod_ranks
+        FROM target i, w24, w48, prev24, ranks
+    """, (slug,))
+    return rows[0] if rows else None
+
+
+def get_item_history(slug: str, hours: int = 48, mod_rank: int | None = None):
+    """
+    Zeitreihe für den Preisgraphen.
+
+    hours <= 48 → market_stats_48h (stündlich), sonst market_stats_90d (täglich).
+    avg_price ist volumen-gewichtet, damit ein einzelner Ausreißer-Trade den
+    Punkt nicht dominiert.
+
+    mod_rank gesetzt → hart auf diesen Rang filtern; sonst greift _rank_clause("max"),
+    also dieselbe Rang-Semantik wie in den Top-Listen.
+    """
+    if mod_rank is not None:
+        rank_clause, rank_params = "AND s.mod_rank = %s", [mod_rank]
+    else:
+        rank_clause, rank_params = _rank_clause("max"), []
+
+    bucket = "s.ts" if hours <= 48 else "s.day"
+    table  = "market_stats_48h" if hours <= 48 else "market_stats_90d"
+    # Anker ist der jüngste Datenpunkt, nicht NOW(): steht der Sync, wäre der
+    # 24H-Graph sonst leer, während die Ranglisten weiter rechnen — und bei den
+    # Tagesdaten liefen Graph und Kennzahl um die Verzögerung auseinander.
+    if hours <= 48:
+        window = f"AND s.ts >= (SELECT MAX(ts) FROM market_stats_48h) - INTERVAL '{hours} hours'"
+    else:
+        window = (f"AND s.day >= ((SELECT MAX(day) FROM market_stats_90d)"
+                  f" - INTERVAL '{max(1, hours // 24)} days')::date")
+
+    return query(f"""
+        SELECT
+            {bucket} AS t,
+            {_vw_avg('s.avg_price')}    AS avg_price,
+            MIN(s.min_price)            AS min_price,
+            MAX(s.max_price)            AS max_price,
+            SUM(s.volume)               AS volume,
+            {_vw_avg('s.open_price')}   AS open_price,
+            {_vw_avg('s.closed_price')} AS closed_price,
+            {_vw_avg('s.median')}       AS median,
+            {_vw_avg('s.moving_avg')}   AS moving_avg,
+            MAX(s.donch_top)            AS donch_top,
+            MIN(s.donch_bot)            AS donch_bot
+        FROM {table} s
+        JOIN market_items i ON i.id = s.item_id
+        WHERE i.slug = %s
+          {window}
+          {rank_clause}
+        GROUP BY {bucket}
+        ORDER BY {bucket}
+    """, [slug] + rank_params)
+
+
+def get_drop_sources_for_slug(slug: str):
+    """
+    Drop-Quellen für ein Item, per Slug und dedupliziert.
+
+    item_drop_sources hält pro Relic vier Zeilen (eine je relic_quality) mit
+    identischen Chancen — DISTINCT ON wirft die Duplikate raus. Enthält alle
+    drei source_types (relic / enemy / mission).
+    """
+    return query("""
+        SELECT DISTINCT ON (ds.source_type, COALESCE(ds.relic_name, ds.droptable_path), ds.rarity)
+            ds.source_type, ds.relic_era, ds.relic_category, ds.relic_name,
+            ds.droptable_name, ds.droptable_path, ds.rarity,
+            ds.drop_chance_intact, ds.drop_chance_exceptional,
+            ds.drop_chance_flawless, ds.drop_chance_radiant,
+            ds.drop_chance_enemy, ds.drop_chance_best
+        FROM item_drop_sources ds
+        JOIN market_items i ON i.id = ds.item_id
+        WHERE i.slug = %s
+        ORDER BY ds.source_type, COALESCE(ds.relic_name, ds.droptable_path), ds.rarity,
+                 ds.drop_chance_best DESC
+    """, (slug,))
+
+
+def get_relic_contents(item_name: str):
+    """
+    Reverse-Lookup für Relic-Items: was steckt in diesem Relic?
+
+    Relics selbst haben keine Einträge in item_drop_sources — wohl aber alle
+    Items, die aus ihnen droppen. Der Relic-Name im Item-Namen ("Axi E1 Relic")
+    entspricht dabei item_drop_sources.relic_name ("Axi E1").
+    """
+    relic_name = item_name.replace(" Relic", "").strip()
+    return query(f"""
+        WITH prices AS (
+            SELECT
+                s.item_id,
+                ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
+                SUM(s.volume)                       AS volume
+            FROM market_stats_48h s
+            JOIN market_items i ON i.id = s.item_id
+            WHERE s.ts >= NOW() - INTERVAL '48 hours'
+              {_rank_clause("max")}
+            GROUP BY s.item_id
+        )
+        SELECT DISTINCT ON (ds.item_id)
+            (i.raw->'i18n'->'en'->>'name') AS name,
+            i.slug, i.thumb_path, i.ducats,
+            ds.rarity,
+            ds.drop_chance_intact, ds.drop_chance_exceptional,
+            ds.drop_chance_flawless, ds.drop_chance_radiant,
+            p.avg_price, p.volume
+        FROM item_drop_sources ds
+        JOIN market_items i     ON i.id = ds.item_id
+        LEFT JOIN prices p      ON p.item_id = ds.item_id
+        WHERE ds.relic_name = %s
+        ORDER BY ds.item_id, ds.drop_chance_intact DESC
+    """, (relic_name,))
+
+
+def get_set_parts(slug: str):
+    """
+    Set und zugehörige Einzelteile.
+
+    Zuordnung über das Slug-Präfix — alle 230 Set-Slugs enden auf '_set'.
+    Wichtig: das LÄNGSTE passende Präfix gewinnt, sonst würde z.B.
+    'velox_prime_barrel' (Präfix 'velox') fälschlich dem 'velox_set'
+    zugeschlagen statt dem 'velox_prime_set'.
+
+    Gibt None zurück, wenn das Item zu keinem Set gehört.
+    """
+    if slug.endswith("_set"):
+        set_slug = slug
+    else:
+        rows = query("""
+            SELECT slug FROM market_items
+            WHERE tags ? 'set'
+              AND %s LIKE LEFT(slug, LENGTH(slug) - 4) || '\\_%%'
+            ORDER BY LENGTH(slug) DESC
+            LIMIT 1
+        """, (slug,))
+        if not rows:
+            return None
+        set_slug = rows[0]["slug"]
+
+    prefix = set_slug[: -len("_set")]
+    parts = query(f"""
+        WITH prices AS (
+            SELECT
+                s.item_id,
+                ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price,
+                SUM(s.volume)                       AS volume
+            FROM market_stats_48h s
+            JOIN market_items i ON i.id = s.item_id
+            WHERE s.ts >= NOW() - INTERVAL '48 hours'
+              {_rank_clause("max")}
+            GROUP BY s.item_id
+        ),
+        candidates AS (
+            SELECT i.*
+            FROM market_items i
+            WHERE i.slug = %s
+               OR i.slug LIKE %s || '\\_%%'
+        )
+        SELECT
+            (c.raw->'i18n'->'en'->>'name') AS name,
+            c.slug, c.thumb_path, c.ducats,
+            (c.slug = %s) AS is_set,
+            p.avg_price, p.volume
+        FROM candidates c
+        LEFT JOIN prices p ON p.item_id = c.id
+        -- Teile, die zu einem längeren (spezifischeren) Set gehören, ausschließen
+        WHERE NOT EXISTS (
+            SELECT 1 FROM market_items o
+            WHERE o.tags ? 'set'
+              AND o.slug <> %s
+              AND LENGTH(o.slug) > LENGTH(%s)
+              AND c.slug LIKE LEFT(o.slug, LENGTH(o.slug) - 4) || '\\_%%'
+        )
+        ORDER BY is_set DESC, c.slug
+    """, (set_slug, prefix, set_slug, set_slug, set_slug))
+
+    # Ein Set ohne Teile ist keine sinnvolle Gegenüberstellung
+    return parts if len(parts) > 1 else None
 
 
 def get_item_combined(name: str, hours: int = 24):
