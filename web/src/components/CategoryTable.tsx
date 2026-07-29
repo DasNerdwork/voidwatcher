@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { SmallPlatIcon } from "./Icons";
+import { C, CATEGORY_COLORS, ItemThumb, MISC_SUB_COLORS, T, plat } from "./shared";
+import { A, itemPath, navigate } from "../router";
 
 interface CategoryItem {
   name:                  string;
@@ -32,25 +34,6 @@ interface CategoryTableProps {
 type SortKey = "name" | "category" | "volume" | "avg_price" | "min_price" | "max_price" | "best_drop_chance_pct";
 type SortDir = "asc" | "desc";
 
-export const CATEGORY_COLORS: Record<string, string> = {
-  Warframes: "#5ab4c8",
-  Waffen:    "#d45c5c",
-  Mods:      "#c8a84b",
-  Relics:    "#4dba7f",
-  Arcanes:   "#c89050",
-  Misc:      "#8a7eb8",
-};
-
-const MISC_SUB_COLORS: Record<string, string> = {
-  "Fish":             "#4a9ebb",
-  "Skins & Helmets":  "#b87ab8",
-  "Scenes":           "#7ab87a",
-  "Gems & Resources": "#b8a04a",
-  "Ayatan":           "#c87a50",
-  "Necramech":        "#8a9ab8",
-  "Sonstiges":        "#7a7a7a",
-};
-
 const CategoryBadge = ({ cat }: { cat: string }) => {
   const color = CATEGORY_COLORS[cat] || "#7a6e52";
   return (
@@ -65,7 +48,7 @@ const SubcategoryBadge = ({ sub }: { sub: string }) => {
   const color = MISC_SUB_COLORS[sub] || "#7a7a7a";
   return (
     <span style={{
-      fontSize: 10, padding: "1px 6px", borderRadius: 2, marginLeft: 5,
+      fontSize: 11, padding: "2px 7px", borderRadius: 2, marginLeft: 5,
       color, background: `${color}18`, fontWeight: 400, whiteSpace: "nowrap",
       border: `1px solid ${color}30`,
     }}>{sub}</span>
@@ -101,7 +84,7 @@ const TH = ({
       style={{
         padding: "9px 15px",
         textAlign: right ? "right" : "left",
-        fontSize: 11, color: isActive ? "#c8a84b" : "#7a6e52", fontWeight: 500,
+        fontSize: 11, color: isActive ? C.gold : C.t2, fontWeight: 600,
         borderBottom: "1px solid rgba(200,168,75,0.22)",
         whiteSpace: "nowrap", letterSpacing: "0.1em", textTransform: "uppercase",
         cursor: sortKey ? "pointer" : "default",
@@ -114,29 +97,6 @@ const TH = ({
         {sortKey && <SortIcon active={isActive} dir={sortDir} />}
       </span>
     </th>
-  );
-};
-
-// ─── Item Thumbnail ───────────────────────────────────────────────────────────
-
-const ItemThumb = ({ path, name }: { path?: string | null; name: string }) => {
-  const [failed, setFailed] = useState(false);
-  if (path && !failed) {
-    return (
-      <img src={path} width={28} height={28} onError={() => setFailed(true)}
-        style={{ borderRadius: 2, flexShrink: 0, objectFit: "contain", display: "block" }} />
-    );
-  }
-  const initials = name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
-  return (
-    <div style={{
-      width: 28, height: 28, borderRadius: 2, flexShrink: 0,
-      background: "rgba(200,168,75,0.12)", border: "1px solid rgba(200,168,75,0.22)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: 10, color: "#c8a84b", fontWeight: 700,
-    }}>
-      {initials}
-    </div>
   );
 };
 
@@ -209,7 +169,7 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
             <tr>
               <td colSpan={8 + (showCategoryCol || showSubcategoryCol ? 1 : 0)} style={{
                 textAlign: "center", padding: "32px 16px",
-                color: "#7a6e52", fontSize: 13, fontStyle: "italic",
+                color: C.t2, fontSize: 13, fontStyle: "italic",
               }}>
                 Keine Daten verfügbar für diese Kategorie
               </td>
@@ -217,12 +177,13 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
           ) : sorted.map((item, idx) => (
             <tr
               key={`${item.slug}-${idx}`}
-              style={{ borderBottom: "1px solid rgba(200,168,75,0.08)", transition: "background 0.08s" }}
+              onClick={() => navigate(itemPath(item.slug))}
+              style={{ borderBottom: "1px solid rgba(200,168,75,0.08)", transition: "background 0.08s", cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(200,168,75,0.07)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >
               {/* # */}
-              <td style={{ padding: "9px 15px", fontFamily: "monospace", fontSize: 11, color: "#7a6e52", minWidth: 36 }}>
+              <td style={{ padding: "9px 15px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2, minWidth: 36 }}>
                 {idx + 1}
               </td>
 
@@ -231,11 +192,12 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <ItemThumb path={item.thumb_path} name={item.name} />
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: "#e8dfc0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>
+                    <A href={itemPath(item.slug)}
+                      style={{ ...T.bodyStrong, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>
                       {item.name}
-                    </div>
+                    </A>
                     {item.max_rank != null && item.max_rank > 0 && (
-                      <div style={{ fontSize: 10, color: "#c8a84b", marginTop: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.gold, marginTop: 2 }}>
                         Rang {item.max_rank}
                       </div>
                     )}
@@ -262,29 +224,29 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
 
               {/* Avg Price */}
               <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: "#c8a84b", fontWeight: 700, whiteSpace: "nowrap" }}>
-                {item.avg_price != null ? item.avg_price.toFixed(1) : "—"}<SmallPlatIcon />
+                {plat(item.avg_price)}<SmallPlatIcon />
               </td>
 
               {/* Min */}
-              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: "#b8a97c" }}>
-                {item.min_price != null ? item.min_price : "—"}
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                {plat(item.min_price)}
               </td>
 
               {/* Max */}
-              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: "#b8a97c" }}>
-                {item.max_price != null ? item.max_price : "—"}
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                {plat(item.max_price)}
               </td>
 
               {/* Drop Chance */}
               <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12 }}>
                 {item.best_drop_chance_pct != null && item.best_drop_chance_pct > 0
                   ? <span style={{ color: "#4dba7f", fontWeight: 700 }}>{item.best_drop_chance_pct.toFixed(3)}%</span>
-                  : <span style={{ color: "#7a6e52" }}>—</span>
+                  : <span style={{ color: C.t2 }}>—</span>
                 }
               </td>
 
               {/* Volume */}
-              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: "#b8a97c" }}>
+              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
                 {item.volume?.toLocaleString("de-DE") ?? "—"}
               </td>
             </tr>

@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { SmallPlatIcon } from "./Icons";
-import { C, CardCorner, TagFilter, VitFlourish, segBtn } from "./shared";
+import { C, CardCorner, FilterLabel, ItemThumb, RARITY_COLORS, T, TagFilter, VitFlourish, plat, segBtn } from "./shared";
+import { A, itemPath, navigate } from "../router";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DropSource {
-  source_type:    "relic" | "enemy";
+  source_type:    "relic" | "enemy" | "mission";
   relic_name:     string | null;
   relic_quality:  string | null;
   droptable:      string | null;
@@ -50,12 +51,6 @@ const SOURCE_OPTIONS = [
   { value: "enemy", label: "Nur Enemies" },
 ];
 
-const RARITY_COLORS: Record<string, string> = {
-  COMMON:   C.t3,
-  UNCOMMON: C.cy,
-  RARE:     C.gold,
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // ─── Drop Sources Popover (inline expanded row) ───────────────────────────────
@@ -65,6 +60,8 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
     <div style={{ paddingLeft: 14, paddingBottom: 8 }}>
       {top.map((src, i) => {
         const isRelic  = src.source_type === "relic";
+        const srcLabel = isRelic ? "RELIC" : src.source_type === "mission" ? "MISSION" : "ENEMY";
+        const srcColor = isRelic ? C.gold : src.source_type === "mission" ? C.up : C.cy;
         const chance   = isRelic ? src.chance_intact : src.chance_enemy;
         const rarColor = src.rarity ? (RARITY_COLORS[src.rarity] ?? C.t3) : C.t3;
         return (
@@ -75,11 +72,11 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
           }}>
             {/* Source type icon */}
             <span style={{
-              fontFamily: "monospace", fontSize: 9, color: isRelic ? C.gold : C.cy,
-              padding: "1px 5px", border: `1px solid ${isRelic ? C.gold : C.cy}44`,
+              fontFamily: "monospace", fontSize: 11, fontWeight: 600, color: srcColor,
+              padding: "1px 5px", border: `1px solid ${srcColor}44`,
               borderRadius: 2, letterSpacing: "0.1em", flexShrink: 0,
             }}>
-              {isRelic ? "RELIC" : "ENEMY"}
+              {srcLabel}
             </span>
 
             {/* Name */}
@@ -89,7 +86,7 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
 
             {/* Rarity */}
             {src.rarity && (
-              <span style={{ fontFamily: "monospace", fontSize: 9, color: rarColor, flexShrink: 0 }}>
+              <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: rarColor, flexShrink: 0 }}>
                 {src.rarity}
               </span>
             )}
@@ -102,32 +99,10 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
         );
       })}
       {sources.length > 5 && (
-        <div style={{ fontSize: 10, color: C.t3, marginTop: 4 }}>
+        <div style={{ ...T.meta, marginTop: 5 }}>
           +{sources.length - 5} weitere Quellen
         </div>
       )}
-    </div>
-  );
-};
-
-// ─── Item Thumbnail ──────────────────────────────────────────────────────────
-const ItemThumb = ({ path, name }: { path?: string | null; name: string }) => {
-  const [failed, setFailed] = useState(false);
-  if (path && !failed) {
-    return (
-      <img src={path} width={28} height={28} onError={() => setFailed(true)}
-        style={{ borderRadius: 2, flexShrink: 0, objectFit: "contain", display: "block", background: "rgba(200,168,75,0.06)" }} />
-    );
-  }
-  const initials = name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
-  return (
-    <div style={{
-      width: 28, height: 28, borderRadius: 2, flexShrink: 0,
-      background: "rgba(200,168,75,0.12)", border: `1px solid ${C.b}`,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: 10, color: C.gold, fontWeight: 700, letterSpacing: "-0.02em",
-    }}>
-      {initials}
     </div>
   );
 };
@@ -186,7 +161,7 @@ export const FarmValuePage = () => {
         {/* Row 2: Refinement + Source + Sort */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 9, color: C.t3, letterSpacing: "0.18em", marginRight: 4 }}>REFINEMENT</span>
+            <FilterLabel>REFINEMENT</FilterLabel>
             {REFINEMENTS.map(({ value, label }) => (
               <button key={value} onClick={() => setRefinement(value)} style={segBtn(refinement === value, C.gold)}
                 onMouseEnter={e => { if (refinement !== value) e.currentTarget.style.color = C.t; }}
@@ -200,7 +175,7 @@ export const FarmValuePage = () => {
           <div style={{ width: 1, height: 18, background: C.b, flexShrink: 0 }} />
 
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 9, color: C.t3, letterSpacing: "0.18em", marginRight: 4 }}>QUELLE</span>
+            <FilterLabel>QUELLE</FilterLabel>
             {SOURCE_OPTIONS.map(({ value, label }) => (
               <button key={value} onClick={() => setSourceType(value)} style={segBtn(sourceType === value, C.cy)}
                 onMouseEnter={e => { if (sourceType !== value) e.currentTarget.style.color = C.t; }}
@@ -214,7 +189,7 @@ export const FarmValuePage = () => {
           <div style={{ width: 1, height: 18, background: C.b, flexShrink: 0 }} />
 
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 9, color: C.t3, letterSpacing: "0.18em", marginRight: 4 }}>SORTIERUNG</span>
+            <FilterLabel>SORTIERUNG</FilterLabel>
             {SORT_OPTIONS.map(({ value, label }) => (
               <button key={value} onClick={() => setSortBy(value)} style={segBtn(sortBy === value, C.up)}
                 onMouseEnter={e => { if (sortBy !== value) e.currentTarget.style.color = C.t; }}
@@ -240,24 +215,24 @@ export const FarmValuePage = () => {
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <div style={{ width: 2, height: 15, borderRadius: 1, background: C.up, flexShrink: 0 }} />
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.t }}>Farm Value</div>
-              <div style={{ fontSize: 11, color: C.t3, marginTop: 1 }}>
+              <div style={T.cardTitle}>Farm Value</div>
+              <div style={{ ...T.meta, marginTop: 2 }}>
                 Sortiert nach {sortLabel} · Refinement: {refLabel}
               </div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 11, color: C.t3 }}>{items.length} Items</span>
+            <span style={T.meta}>{items.length} Items</span>
             <VitFlourish />
           </div>
         </div>
 
         {loading ? (
-          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t3, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 11 }}>
+          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 12 }}>
             LADEN...
           </div>
         ) : items.length === 0 ? (
-          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t3, fontSize: 13, fontStyle: "italic" }}>
+          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 13, fontStyle: "italic" }}>
             Keine Items mit Drop-Daten für diese Filterung
           </div>
         ) : (
@@ -276,7 +251,7 @@ export const FarmValuePage = () => {
                   ].map(({ label, right }) => (
                     <th key={label} style={{
                       padding: "9px 14px", textAlign: right ? "right" : "left",
-                      fontSize: 9, color: C.t3, fontWeight: 600, letterSpacing: "0.14em",
+                      fontSize: 11, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
                     }}>
                       {label}
                     </th>
@@ -296,14 +271,14 @@ export const FarmValuePage = () => {
                         style={{
                           borderBottom: isExpanded ? "none" : `1px solid ${C.b}`,
                           transition: "background 0.12s",
-                          cursor: sources.length > 0 ? "pointer" : "default",
+                          cursor: "pointer",
                           background: isExpanded ? "rgba(200,168,75,0.05)" : "transparent",
                         }}
-                        onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                        onClick={() => navigate(itemPath(item.slug))}
                         onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = C.hov; }}
                         onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = "transparent"; }}
                       >
-                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 10, color: C.t3 }}>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2 }}>
                           {idx + 1}
                         </td>
 
@@ -311,11 +286,12 @@ export const FarmValuePage = () => {
                           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                             <ItemThumb path={item.thumb_path} name={item.item_name} />
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              <A href={itemPath(item.slug)}
+                                style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {item.item_name}
-                              </div>
+                              </A>
                               {topSource && (
-                                <div style={{ fontSize: 10, color: C.t3, marginTop: 2 }}>
+                                <div style={{ ...T.meta, marginTop: 3 }}>
                                   {isRelic
                                     ? `${topSource.relic_name ?? "?"} · ${topSource.rarity ?? "?"}`
                                     : topSource.droptable?.replace("DropTable", "").replace(/([A-Z])/g, " $1").trim()
@@ -327,7 +303,7 @@ export const FarmValuePage = () => {
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>
-                          <SmallPlatIcon />{item.avg_price.toFixed(1)}
+                          <SmallPlatIcon />{plat(item.avg_price)}
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right" }}>
@@ -344,9 +320,10 @@ export const FarmValuePage = () => {
                           {item.value_per_drop > 0 ? item.value_per_drop.toFixed(3) : "—"}
                         </td>
 
-                        <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right" }}
+                          onClick={e => { e.stopPropagation(); if (sources.length) setExpandedIdx(isExpanded ? null : idx); }}>
                           <span style={{
-                            fontFamily: "monospace", fontSize: 10, color: C.t3,
+                            fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2,
                             padding: "2px 6px", border: `1px solid ${C.b}`, borderRadius: 2,
                             cursor: sources.length > 0 ? "pointer" : "default",
                           }}>
@@ -354,7 +331,7 @@ export const FarmValuePage = () => {
                           </span>
                         </td>
 
-                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: C.t3 }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
                           {item.volume.toLocaleString("de-DE")}
                         </td>
                       </tr>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { SmallPlatIcon } from "./Icons";
-import { C, CardCorner, TagFilter, VitFlourish, segBtn } from "./shared";
+import { C, CardCorner, FilterLabel, T, TagFilter, VitFlourish, pctChange, plat, segBtn } from "./shared";
+import { A, itemPath, navigate } from "../router";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MoverItem {
@@ -42,7 +43,7 @@ const ChangeBadge = ({ pct }: { pct: number }) => {
       color, padding: "2px 6px", borderRadius: 2,
       background: `${color}18`, border: `1px solid ${color}44`,
     }}>
-      {up ? "+" : ""}{pct.toFixed(1)}%
+      {pctChange(pct)}
     </span>
   );
 };
@@ -70,18 +71,18 @@ const MoversTable = ({ title, subtitle, items, loading, accentColor }: MoversTab
         <div style={{ width: 2, height: 15, borderRadius: 1, background: accentColor, flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.t }}>{title}</div>
-          <div style={{ fontSize: 11, color: C.t3, marginTop: 1 }}>{subtitle}</div>
+          <div style={{ ...T.meta, marginTop: 2 }}>{subtitle}</div>
         </div>
       </div>
       <VitFlourish />
     </div>
 
     {loading ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t3, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 11 }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 12 }}>
         LADEN...
       </div>
     ) : items.length === 0 ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t3, fontSize: 13, fontStyle: "italic" }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 13, fontStyle: "italic" }}>
         Keine Daten für diesen Zeitraum
       </div>
     ) : (
@@ -92,7 +93,7 @@ const MoversTable = ({ title, subtitle, items, loading, accentColor }: MoversTab
               {["#", "ITEM", "START", "JETZT", "CHANGE", "VOL"].map((h, i) => (
                 <th key={h} style={{
                   padding: "9px 14px", textAlign: i >= 2 ? "right" : "left",
-                  fontSize: 9, color: C.t3, fontWeight: 600, letterSpacing: "0.14em",
+                  fontSize: 11, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
                 }}>
                   {h}
                 </th>
@@ -102,28 +103,29 @@ const MoversTable = ({ title, subtitle, items, loading, accentColor }: MoversTab
           <tbody>
             {items.map((item, idx) => (
               <tr key={idx}
-                style={{ borderBottom: `1px solid ${C.b}`, transition: "background 0.12s", cursor: "default" }}
+                onClick={() => navigate(itemPath(item.slug))}
+                style={{ borderBottom: `1px solid ${C.b}`, transition: "background 0.12s", cursor: "pointer" }}
                 onMouseEnter={e => (e.currentTarget.style.background = C.hov)}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
-                <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 10, color: C.t3, minWidth: 28 }}>
+                <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2, minWidth: 28 }}>
                   {idx + 1}
                 </td>
                 <td style={{ padding: "10px 14px", maxWidth: 200 }}>
-                  <div style={{ fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3 }}>
+                  <A href={itemPath(item.slug)} style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3 }}>
                     {item.item_name}
-                  </div>
+                  </A>
                 </td>
-                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: C.t3 }}>
-                  {item.start_price.toFixed(1)}<SmallPlatIcon />
+                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                  {plat(item.start_price)}<SmallPlatIcon />
                 </td>
                 <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>
-                  {item.current_price.toFixed(1)}<SmallPlatIcon />
+                  {plat(item.current_price)}<SmallPlatIcon />
                 </td>
                 <td style={{ padding: "10px 14px", textAlign: "right" }}>
                   <ChangeBadge pct={item.change_pct} />
                 </td>
-                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: C.t3 }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
                   {item.volume.toLocaleString("de-DE")}
                 </td>
               </tr>
@@ -150,18 +152,18 @@ const StableTable = ({ items, loading }: { items: StableItem[]; loading: boolean
         <div style={{ width: 2, height: 15, borderRadius: 1, background: C.cy, flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.t }}>Stabilste Items</div>
-          <div style={{ fontSize: 11, color: C.t3, marginTop: 1 }}>Niedrigster Preis-Spread (min/max vs avg)</div>
+          <div style={{ ...T.meta, marginTop: 2 }}>Niedrigster Preis-Spread (min/max vs avg)</div>
         </div>
       </div>
       <VitFlourish />
     </div>
 
     {loading ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t3, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 11 }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 12 }}>
         LADEN...
       </div>
     ) : items.length === 0 ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t3, fontSize: 13, fontStyle: "italic" }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 13, fontStyle: "italic" }}>
         Keine Daten verfügbar
       </div>
     ) : (
@@ -172,7 +174,7 @@ const StableTable = ({ items, loading }: { items: StableItem[]; loading: boolean
               {["#", "ITEM", "AVG PREIS", "MIN", "MAX", "SPREAD", "VOL"].map((h, i) => (
                 <th key={h} style={{
                   padding: "9px 14px", textAlign: i >= 2 ? "right" : "left",
-                  fontSize: 9, color: C.t3, fontWeight: 600, letterSpacing: "0.14em",
+                  fontSize: 11, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
                 }}>
                   {h}
                 </th>
@@ -185,22 +187,23 @@ const StableTable = ({ items, loading }: { items: StableItem[]; loading: boolean
               const spreadColor = item.spread_ratio < 0.1 ? C.up : item.spread_ratio < 0.3 ? C.gold : C.down;
               return (
                 <tr key={idx}
-                  style={{ borderBottom: `1px solid ${C.b}`, transition: "background 0.12s", cursor: "default" }}
+                  onClick={() => navigate(itemPath(item.slug))}
+                  style={{ borderBottom: `1px solid ${C.b}`, transition: "background 0.12s", cursor: "pointer" }}
                   onMouseEnter={e => (e.currentTarget.style.background = C.hov)}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
-                  <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 10, color: C.t3 }}>{idx + 1}</td>
+                  <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2 }}>{idx + 1}</td>
                   <td style={{ padding: "10px 14px", maxWidth: 200 }}>
-                    <div style={{ fontWeight: 600, color: C.t, fontSize: 13 }}>{item.item_name}</div>
+                    <A href={itemPath(item.slug)} style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 13 }}>{item.item_name}</A>
                   </td>
                   <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>
-                    {item.avg_price.toFixed(1)}<SmallPlatIcon />
+                    {plat(item.avg_price)}<SmallPlatIcon />
                   </td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: C.t2 }}>
-                    {item.min_price}
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                    {plat(item.min_price)}
                   </td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: C.t2 }}>
-                    {item.max_price}
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                    {plat(item.max_price)}
                   </td>
                   <td style={{ padding: "10px 14px", textAlign: "right" }}>
                     <span style={{
@@ -211,7 +214,7 @@ const StableTable = ({ items, loading }: { items: StableItem[]; loading: boolean
                       {spreadPct}%
                     </span>
                   </td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: C.t3 }}>
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
                     {item.volume.toLocaleString("de-DE")}
                   </td>
                 </tr>
@@ -268,7 +271,7 @@ export const MoversPage = () => {
       {/* Controls */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 9, color: C.t3, letterSpacing: "0.18em", marginRight: 4 }}>ZEITRAUM</span>
+          <FilterLabel>ZEITRAUM</FilterLabel>
           {DAYS_OPTIONS.map(({ value, label }) => (
             <button key={value} onClick={() => setDays(value)} style={segBtn(days === value)}
               onMouseEnter={e => { if (days !== value) e.currentTarget.style.color = C.t; }}

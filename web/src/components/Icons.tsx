@@ -14,6 +14,58 @@ export const SmallPlatIcon = () => (
   <img src={PlatinumSmall} style={{ display: "inline", marginLeft: 3, verticalAlign: "middle", flexShrink: 0 }} alt="" />
 );
 
+// ─── Ansichts-Icons ────────────────────────────────────────────────────────────
+// Für den Umschalter im Listenkopf des Dashboards. Erben die Farbe vom Button
+// (currentColor), Strichstärke 1.3 wie bei den übrigen Icons.
+
+const iconProps = {
+  width: 18, height: 18, viewBox: "0 0 16 16", fill: "none",
+  stroke: "currentColor", strokeWidth: 1.3,
+  strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+  style: { display: "block" },
+};
+
+/** Preisanstieg — Pfeil aufwärts */
+export const TrendUpIcon = () => (
+  <svg {...iconProps}>
+    <path d="M2 11.5L6 7L9 10L14 4.5" />
+    <path d="M10.5 4.5H14V8" />
+  </svg>
+);
+
+/** Preisrückgang — Pfeil abwärts */
+export const TrendDownIcon = () => (
+  <svg {...iconProps}>
+    <path d="M2 4.5L6 9L9 6L14 11.5" />
+    <path d="M10.5 11.5H14V8" />
+  </svg>
+);
+
+/** Meistgehandelt — zwei gegenläufige Pfeile */
+export const TradeIcon = () => (
+  <svg {...iconProps}>
+    <path d="M2.5 5.5H12" />
+    <path d="M9.5 3L12 5.5L9.5 8" />
+    <path d="M13.5 10.5H4" />
+    <path d="M6.5 8L4 10.5L6.5 13" />
+  </svg>
+);
+
+/** Teuerstes Item — Platin-Symbol (wie PlatIcon, aber ohne feste Farbe) */
+/**
+ * Edelstein im Brillantschliff — geläufiges Wertsymbol. Der frühere Kreis mit
+ * Spitze und Querstrich las sich als eingekreistes „A" und gab keinen Hinweis
+ * auf „teuer".
+ */
+export const ValueIcon = () => (
+  <svg {...iconProps}>
+    <path d="M5.5 3.5H10.5L13.2 6.6L8 13.3L2.8 6.6Z" />
+    <path d="M2.8 6.6H13.2" />
+    <path d="M5.5 3.5L6.5 6.6L8 13.3" />
+    <path d="M10.5 3.5L9.5 6.6L8 13.3" />
+  </svg>
+);
+
 // ─── LogoIcon ──────────────────────────────────────────────────────────────────
 export const LogoIcon = () => (
   <svg width="32" height="32" viewBox="0 0 32 32" fill="none">

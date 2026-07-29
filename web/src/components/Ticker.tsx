@@ -1,6 +1,8 @@
 import { memo } from "react";
 import type { TopItem } from "../types";
 import { SmallPlatIcon } from "./Icons";
+import { A, itemPath } from "../router";
+import { C, T, pctChange, plat } from "./shared";
 
 interface TickerBannerProps {
   items: TopItem[];
@@ -17,7 +19,7 @@ export const TickerBanner = memo(({ items }: TickerBannerProps) => {
 
   return (
     <div style={{
-      height: 32,
+      height: 36,
       background: "rgba(10,12,28,0.88)",
       borderBottom: "1px solid rgba(200,168,75,0.22)",
       display: "flex",
@@ -42,11 +44,10 @@ export const TickerBanner = memo(({ items }: TickerBannerProps) => {
           animation: "pulse 2s ease infinite",
         }} />
         <span style={{
-          fontSize: 10, fontWeight: 700, color: "#c8a84b",
-          letterSpacing: "0.12em", fontFamily: "system-ui, -apple-system, sans-serif",
-          whiteSpace: "nowrap",
+          ...T.label, color: C.gold, fontWeight: 700,
+          fontFamily: "system-ui, -apple-system, sans-serif", whiteSpace: "nowrap",
         }}>
-          SEIT SYNC
+          24 H
         </span>
       </div>
 
@@ -58,38 +59,43 @@ export const TickerBanner = memo(({ items }: TickerBannerProps) => {
             const up  = chg >= 0;
             const hasChange = item.change_pct !== null;
 
-            return (
-              <div key={idx} style={{
+            // Items ohne slug (Altbestand im Cache) bleiben unverlinkt
+            const wrap = (children: React.ReactNode, style: React.CSSProperties) =>
+              item.slug
+                ? <A key={idx} href={itemPath(item.slug)} style={style}>{children}</A>
+                : <div key={idx} style={style}>{children}</div>;
+
+            return wrap(
+              <>
+                <span style={{
+                  ...T.bodyStrong,
+                  fontFamily: "system-ui, -apple-system, sans-serif",
+                }}>
+                  {item.item_name}
+                </span>
+                <span style={{ ...T.num, color: C.gold }}>
+                  {plat(item.avg_price)}
+                </span>
+                <SmallPlatIcon />
+                {hasChange ? (
+                  <span style={{ ...T.num, color: up ? C.up : C.down }}>
+                    {pctChange(chg)}
+                  </span>
+                ) : (
+                  <span style={{ ...T.num, color: C.t2 }}>—</span>
+                )}
+              </>,
+              {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 8,
                 padding: "0 18px",
                 borderRight: "1px solid rgba(200,168,75,0.22)",
-                height: 32,
+                height: 36,
                 flexShrink: 0,
                 whiteSpace: "nowrap",
-              }}>
-                <span style={{
-                  fontFamily: "system-ui, -apple-system, sans-serif",
-                  fontSize: 12, fontWeight: 600, color: "#d4be8a",
-                }}>
-                  {item.item_name}
-                </span>
-                <span style={{ fontFamily: "monospace", fontSize: 12, color: "#c8a84b", fontWeight: 700 }}>
-                  {item.avg_price.toFixed(1)}
-                </span>
-                <SmallPlatIcon />
-                {hasChange ? (
-                  <span style={{
-                    fontFamily: "monospace", fontSize: 11, fontWeight: 700,
-                    color: up ? "#4dba7f" : "#d45c5c",
-                  }}>
-                    {up ? "▲" : "▼"}{Math.abs(chg).toFixed(1)}%
-                  </span>
-                ) : (
-                  <span style={{ fontFamily: "monospace", fontSize: 11, color: "#7a6e52" }}>—</span>
-                )}
-              </div>
+                cursor: item.slug ? "pointer" : "default",
+              },
             );
           })}
         </div>
