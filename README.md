@@ -59,8 +59,6 @@ letzten 48 h, täglich für 90 Tage), aktualisiert die Item-Metadaten aus dem Pu
 und berechnet die Drop-Quellen-Tabelle neu. Ein stündlicher Job prüft auf neue
 Warframe-Builds.
 
-Details zu Architektur, Schema und Konventionen: [AGENTS.md](AGENTS.md).
-
 ---
 
 Digital Extremes Ltd, Warframe and the logo Warframe are registered trademarks. All rights are

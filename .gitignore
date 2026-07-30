@@ -41,6 +41,8 @@ changes.md
 
 # Agents directory
 .agents/
+AGENTS.md
+CLAUDE.md
 
 # Test files
 test.json
