@@ -41,6 +41,7 @@ changes.md
 
 # Agents directory
 .agents/
+.claude/
 AGENTS.md
 CLAUDE.md
 
