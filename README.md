@@ -54,7 +54,7 @@ werden markiert.
 
 ## 🔄 Datenaktualisierung
 
-Ein täglicher Sync holt Statistiken für alle ~3.800 handelbaren Items (stündlich für die
+Ein täglicher Sync (08:00) holt Statistiken für alle ~3.800 handelbaren Items (stündlich für die
 letzten 48 h, täglich für 90 Tage), aktualisiert die Item-Metadaten aus dem Public Export
 und berechnet die Drop-Quellen-Tabelle neu. Ein stündlicher Job prüft auf neue
 Warframe-Builds.
