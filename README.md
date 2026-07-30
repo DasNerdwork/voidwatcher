@@ -2,12 +2,12 @@
 
 **VoidWatch** ist ein Dashboard für Warframe-Marktdaten. Es verfolgt Platinpreise und
 Handelsvolumen von warframe.market und verknüpft sie mit den Item- und Drop-Daten aus dem
-Warframe Public Export Plus — damit sichtbar wird, was ein Item wert ist *und* woher es kommt.
+Warframe Public Export Plus, damit sichtbar wird, was ein Item wert ist *und* woher es kommt.
 
 ## 🌐 Webzugriff
 
 - [voidwatch.dasnerdwork.net](https://voidwatch.dasnerdwork.net) — aktueller Build
-- [voidwatcher.pages.dev](https://voidwatcher.pages.dev) — Cloudflare Pages
+- [voidwatcher.pages.dev](https://voidwatcher.pages.dev) — Cloudflare Pages (Deprecated)
 
 ## 📦 Features
 
