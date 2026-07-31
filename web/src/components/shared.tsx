@@ -82,9 +82,41 @@ export const T: Record<
 export const plat = (v?: number | null): string =>
   v == null ? "—" : String(Math.max(1, Math.round(v)));
 
-/** Vorzeichenbehaftete Prozentangabe — hier bleiben Nachkommastellen sinnvoll. */
+/**
+ * Vorzeichenbehaftete Prozentangabe — hier bleiben Nachkommastellen sinnvoll.
+ *
+ * Dezimalkomma, nicht Punkt: die App zählt sonst durchgehend deutsch
+ * (toLocaleString("de-DE")), und in der Warframe-Tabelle steht dieselbe Zelle
+ * einmal als "1.850" (Tausenderpunkt) und einen Klick später als Abweichung da.
+ * Derselbe Punkt hätte dort zweierlei bedeutet.
+ */
 export const pctChange = (v?: number | null): string =>
-  v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}%`;
+  v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1).replace(".", decimalSep())}%`;
+
+// ─── Zahlen mit fester Nachkommastelle ────────────────────────────────────────
+// Für Spielwerte, die KEINE Platinpreise sind (Leben, Rüstung, Sprint …).
+// plat() ist dort verboten: es rundet auf ganze Zahlen mit Untergrenze 1 und
+// machte aus Inaros' 0 Schilden eine 1 und aus Sprint 1,15 eine 1.
+//
+// Die Formatter werden modulweit gehalten, nicht je Aufruf gebaut: die
+// Warframe-Tabelle rendert 117 × 11 Zellen auf einmal.
+// Zwischenspeicher je Sprache und Nachkommastelle: die Warframe-Tabelle rendert
+// über 1200 Zellen auf einmal, ein Formatter je Aufruf wäre Verschwendung.
+const NUM_FORMATS = new Map<string, Intl.NumberFormat>();
+
+const formatter = (digits: 0 | 1 | 2): Intl.NumberFormat => {
+  const loc = locale();
+  const key = `${loc}:${digits}`;
+  let f = NUM_FORMATS.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(loc, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    NUM_FORMATS.set(key, f);
+  }
+  return f;
+};
+
+export const num = (v?: number | null, digits: 0 | 1 | 2 = 0): string =>
+  v == null ? "—" : formatter(digits).format(v);
 
 // Diagramme bekommen bewusst KEINE eigene Fläche. Ein getönter Kasten war hier
 // schon einmal im Einsatz und war falsch: die Seite kennt sonst nur einen
@@ -228,15 +260,114 @@ export const ItemThumb = ({ path, name, size = 28 }: { path?: string | null; nam
 };
 
 // ─── CategoryBadge ────────────────────────────────────────────────────────────
+// Fällt eine Kategorie durch, trägt das Badge C.t2 und nicht C.t3: auf C.t3 wäre
+// es Text mit 3,8:1 und damit unter dem AA-Minimum. Vor der Vereinheitlichung
+// stand in CategoryTable.tsx eine zweite Fassung, die genau das tat.
 export const CategoryBadge = ({ cat }: { cat: string }) => {
-  const color = CATEGORY_COLORS[cat] || C.t3;
+  const color = CATEGORY_COLORS[cat] || C.t2;
   return (
     <span style={{
       fontSize: 12, padding: "1px 7px", borderRadius: C.rad,
       color, background: `${color}20`, fontWeight: 500, whiteSpace: "nowrap",
-    }}>{cat}</span>
+    }}>{t(cat)}</span>
   );
 };
+
+// ─── Sortierbare Tabellenköpfe ────────────────────────────────────────────────
+// Liegen hier und nicht in einer Tabelle, weil sie zwei Tabellen bedienen
+// (Category Browser und Warframe-Übersicht). Zwei Kopien desselben Verhaltens
+// laufen erfahrungsgemäß auseinander — genau wie es bei den Hover-Mustern
+// passiert war, bevor sie hierher wanderten.
+
+export type SortDir = "asc" | "desc";
+
+export const SortIcon = ({ active, dir }: { active: boolean; dir: SortDir }) => (
+  <svg width="8" height="10" viewBox="0 0 8 10" fill="none"
+    style={{ marginLeft: 4, opacity: active ? 1 : 0.25, flexShrink: 0 }}>
+    <path d="M4 1L4 9M4 1L1.5 3.5M4 1L6.5 3.5"
+      stroke={active && dir === "asc" ? C.gold : "currentColor"}
+      strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 9L1.5 6.5M4 9L6.5 6.5"
+      stroke={active && dir === "desc" ? C.gold : "currentColor"}
+      strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * Spaltenkopf mit Sortierauslöser.
+ *
+ * Der Auslöser ist ein echter <button> im <th>, nicht ein onClick am <th>: sonst
+ * ist die Sortierung nur mit der Maus erreichbar. `aria-sort` sagt außerdem
+ * vorlesenden Programmen, wonach die Tabelle gerade geordnet ist.
+ */
+export function SortableTH<K extends string>({
+  children, right, sortKey, activeSort, sortDir, onSort, title, style,
+}: {
+  children:   React.ReactNode;
+  right?:     boolean;
+  sortKey?:   K;
+  activeSort: K;
+  sortDir:    SortDir;
+  onSort:     (k: K) => void;
+  title?:     string;
+  style?:     React.CSSProperties;
+}) {
+  const active = sortKey === activeSort;
+  return (
+    <th
+      scope="col"
+      title={title}
+      aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+      style={{
+        padding: "9px 15px",
+        textAlign: right ? "right" : "left",
+        fontSize: 12, color: active ? C.gold : C.t2, fontWeight: 600,
+        borderBottom: `1px solid ${C.b}`,
+        letterSpacing: "0.1em", textTransform: "uppercase",
+        userSelect: "none", transition: "color 0.12s",
+        ...style,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => sortKey && onSort(sortKey)}
+        disabled={!sortKey}
+        style={{
+          all: "unset",
+          display: "inline-flex", alignItems: "center",
+          justifyContent: right ? "flex-end" : "flex-start",
+          gap: 2, width: "100%",
+          cursor: sortKey ? "pointer" : "default",
+          color: "inherit", font: "inherit", letterSpacing: "inherit",
+          textAlign: right ? "right" : "left",
+        }}
+      >
+        {children}
+        {sortKey && <SortIcon active={active} dir={sortDir} />}
+      </button>
+    </th>
+  );
+}
+
+/**
+ * Sortierzustand einer Tabelle.
+ *
+ * Semantik, unverändert aus dem Category Browser übernommen: derselbe Schlüssel
+ * kippt die Richtung, ein neuer startet bei Textspalten aufsteigend und bei
+ * Zahlenspalten absteigend — bei Zahlen will man zuerst die Spitze sehen, bei
+ * Namen den Anfang des Alphabets.
+ */
+export function useSortState<K extends string>(
+  initialKey: K, initialDir: SortDir, textKeys: readonly K[],
+): [K, SortDir, (k: K) => void] {
+  const [key, setKey] = useState<K>(initialKey);
+  const [dir, setDir] = useState<SortDir>(initialDir);
+  const sort = (k: K) => {
+    if (k === key) setDir(d => (d === "desc" ? "asc" : "desc"));
+    else { setKey(k); setDir(textKeys.includes(k) ? "asc" : "desc"); }
+  };
+  return [key, dir, sort];
+}
 
 // ─── Tag options ──────────────────────────────────────────────────────────────
 // Kategorien der Filterleisten — identisch auf Dashboard, Movers und Farm Value.

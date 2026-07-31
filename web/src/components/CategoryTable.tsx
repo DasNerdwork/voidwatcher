@@ -223,7 +223,7 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
               )}
 
               {/* Avg Price */}
-              <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 15, color: "#c8a84b", fontWeight: 700, whiteSpace: "nowrap" }}>
+              <td style={{ padding: "9px 15px", textAlign: "right", ...T.num, color: C.gold, whiteSpace: "nowrap" }}>
                 {plat(item.avg_price)}<SmallPlatIcon />
               </td>
 
@@ -240,14 +240,14 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
               {/* Drop Chance */}
               <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13 }}>
                 {item.best_drop_chance_pct != null && item.best_drop_chance_pct > 0
-                  ? <span style={{ color: "#4dba7f", fontWeight: 700 }}>{item.best_drop_chance_pct.toFixed(3)}%</span>
+                  ? <span style={{ color: C.up, fontWeight: 700 }}>{item.best_drop_chance_pct.toFixed(3)}%</span>
                   : <span style={{ color: C.t2 }}>—</span>
                 }
               </td>
 
               {/* Volume */}
               <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
-                {item.volume?.toLocaleString("de-DE") ?? "—"}
+                {item.volume?.toLocaleString(locale()) ?? "—"}
               </td>
             </tr>
           ))}
