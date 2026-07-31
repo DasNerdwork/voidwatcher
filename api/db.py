@@ -1653,6 +1653,77 @@ def classify_item_by_tags(tags: str) -> tuple[str, str | None]:
     if any(t in tag_set for t in ['focus', 'lens', 'kubrow', 'pet', 'imprint', 'key',
                                    'beacon', 'syndicate', 'sentinel', 'misc', 'blueprint',
                                    'component', 'collectible', 'fusion core']):
-        return ('Misc', 'Sonstiges')
+        return ('Misc', 'Other')
 
-    return ('Andere', None)
+    return ('Unsorted', None)
+
+
+# ──────────────────────────────────────────────
+# WARFRAME-ÜBERSICHT
+# ──────────────────────────────────────────────
+
+def get_warframe_rows():
+    """
+    Rohzeilen der Warframe-Übersicht — Basiswerte, Wiki-Ergänzung, Marktbezug.
+
+    Die ZEILEN kommen aus wfpe_items, nicht aus wiki_warframes: das Wiki-Modul
+    wird von Hand gepflegt, und ein Aussetzer dort darf keine Frames kosten.
+    Fehlt die Ergänzung, rechnet api/warframes.py mit dem Standardwachstum
+    weiter (siehe dort).
+
+    productCategory = 'Suits' schließt Archwings (SpaceSuits) und Necramechs
+    (MechSuits) aus. Die sind bewusst nicht Teil der Übersicht: sie spielen in
+    einer anderen Klasse und verzerrten jeden Median.
+
+    Der Preis ist der des Prime-Sets und existiert nur für 50 der 117 Frames.
+    Er folgt derselben Stufung wie die Suche: 48h-Handelsschnitt, sonst
+    niedrigstes Verkaufsangebot.
+
+    DIE ABFRAGE GEHT VON DEN 117 FRAMES AUS, nicht von den Markt-Items — und das
+    ist der ganze Unterschied zwischen 36 ms und 240 ms. In der ersten Fassung
+    stand `LEFT JOIN market_items i ON i.game_ref = w.unique_name` frei im
+    SELECT; `game_ref` hat keinen Index, und der Planer schätzte die Trefferzahl
+    auf 1. Ergebnis war ein Nested Loop, der für JEDEN Frame alle 3825 Items
+    sequentiell durchging: `Rows Removed by Join Filter: 447.475`.
+
+    Mit der `frames`-CTE als Ausgangspunkt fällt der Marktbezug auf ~50 Zeilen
+    zusammen, und die Preis-CTE muss nur noch deren Statistiken mitteln statt
+    die der ganzen Tabelle. Wer hier umbaut, prüft den Plan mit EXPLAIN ANALYZE
+    nach — die Zeile „Rows Removed by Join Filter" verrät den Rückfall sofort.
+    """
+    return query(f"""
+        WITH frames AS (
+            SELECT w.unique_name, w.name_en, w.raw
+            FROM wfpe_items w
+            WHERE w.export_type = 'ExportWarframes'
+              AND w.raw->>'productCategory' = 'Suits'
+        ),
+        mk AS (
+            SELECT i.id, i.game_ref, i.slug, i.thumb_path,
+                   i.sell_price_min, i.max_rank, i.price_median
+            FROM market_items i
+            JOIN frames f ON f.unique_name = i.game_ref
+        ),
+        prices AS (
+            SELECT s.item_id, ROUND(AVG(s.avg_price)::numeric, 2) AS avg_price
+            FROM market_stats_48h s
+            JOIN mk i ON i.id = s.item_id
+            WHERE {_window_48h(48)}
+              {_rank_clause("max")}
+              {_plausible_clause()}
+            GROUP BY s.item_id
+        )
+        SELECT
+            f.unique_name,
+            f.name_en,
+            f.raw,
+            k.payload,
+            mk.slug,
+            mk.thumb_path,
+            COALESCE(p.avg_price, mk.sell_price_min)                AS price,
+            (p.avg_price IS NULL AND mk.sell_price_min IS NOT NULL) AS price_is_offer
+        FROM frames f
+        LEFT JOIN wiki_warframes k ON k.internal_name = f.unique_name
+        LEFT JOIN mk                ON mk.game_ref    = f.unique_name
+        LEFT JOIN prices p          ON p.item_id      = mk.id
+    """)

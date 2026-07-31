@@ -20,10 +20,11 @@ Bestehende Endpoints bleiben unverändert.
 
 import json
 
-from fastapi import FastAPI, Query, Path, APIRouter
+from fastapi import FastAPI, Query, Path, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import api.db
+import api.warframes
 
 app = FastAPI(title="VoidWatcher API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -123,6 +124,61 @@ def top(
             "top_seller":     lst("seller"),
             "top_traded":     lst("traded"),
         })
+    except Exception as e:
+        return _err(e)
+
+
+# Zwischenspeicher der Warframe-Antwort.
+#
+# Die Basiswerte ändern sich mit einem Warframe-Update, also grob einmal im
+# Monat — sie bei jedem Aufruf neu zu berechnen ist Verschwendung, auch bei
+# 36 ms. Verworfen wird er über `metadata.last_updated`, denselben Stempel, an
+# dem auch `read_top_list()` seine Vorberechnung misst: der Sync setzt ihn, der
+# nächste Aufruf rechnet einmal neu.
+#
+# Kein Lock: kämen zwei Anfragen gleichzeitig durch, rechnete jede einmal — das
+# kostet 36 ms doppelt und ist billiger als der Apparat, der es verhindert.
+_WF_CACHE: dict = {"stamp": None, "body": None, "etag": None}
+
+
+@router.get("/warframes")
+def warframes(request: Request):
+    """
+    Basiswerte aller Warframes auf Rang 30, mit spaltenweisem Median.
+
+    Eine Antwort für die ganze Seite: 117 Zeilen sind zu wenig für eine
+    Paginierung, und Sortierung, Suche und Filter laufen ohnehin im Browser.
+    Drei Median-Sätze, weil die Oberfläche zwischen allen Frames, nur Prime und
+    nur Nicht-Prime umschaltet.
+
+    Antwort aus dem Zwischenspeicher (siehe oben), dazu ETag und ein kurzes
+    max-age: ein Neuladen innerhalb von zehn Minuten kostet gar keine Anfrage,
+    danach genügt eine Revalidierung mit 304. Bewusst KEINE Tage oder Wochen —
+    einen Browser-Cache kann niemand von außen leeren, und diese Seite dient dem
+    Zahlenvergleich. Der Zwischenspeicher, der die Arbeit spart, sitzt im Server.
+    """
+    try:
+        stamp = api.db.get_last_updated()
+
+        if _WF_CACHE["stamp"] != stamp or _WF_CACHE["body"] is None:
+            table = api.warframes.build_table(api.db.get_warframe_rows())
+            for w in table["warnings"]:
+                print(f"[warframes] {w}")     # ins Journal, nicht in die Antwort
+            _WF_CACHE["body"] = {
+                "last_updated": stamp,
+                "items":        _serialize(table["items"]),
+                "medians":      table["medians"],
+            }
+            _WF_CACHE["etag"] = f'W/"wf-{stamp}"'
+            _WF_CACHE["stamp"] = stamp
+
+        headers = {
+            "ETag": _WF_CACHE["etag"],
+            "Cache-Control": "private, max-age=600",
+        }
+        if request.headers.get("if-none-match") == _WF_CACHE["etag"]:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(content=_WF_CACHE["body"], headers=headers)
     except Exception as e:
         return _err(e)
 
