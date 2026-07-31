@@ -30,12 +30,24 @@ allen vier Ansichten zwischen Prozent und absolutem Wert — Platin bei den Prei
 Trades bei „Meistgehandelt". Die Listen kommen vorberechnet aus der Datenbank und antworten in
 wenigen Millisekunden.
 
-**Market** — Category Browser über alle gehandelten Items, sortierbar nach Preis, Volumen
-und Drop-Chance.
+**Markt** — Item-Katalog über alle gehandelten Items, sortierbar nach Preis, Volumen und
+Drop-Chance.
 
-**Movers** — stärkste Preisanstiege und -rückgänge sowie die stabilsten Items.
+**Farm-Effizienz** — Items sortiert nach Wert × Drop-Chance: was lohnt sich zu farmen.
 
-**Farm Value** — Items sortiert nach Wert × Drop-Chance: was lohnt sich zu farmen.
+**Warframe-Werte** (`/warframes`) — Basiswerte aller 117 Warframes auf Rang 30: Leben, Rüstung,
+Schadensreduktion, effektive Lebenspunkte, Schilde, Energie, Startenergie, Sprint, Überschilde
+und beide EHP-Werte mit Schilden. Suchbar, sortierbar, umschaltbar zwischen allen Frames, nur
+Prime und nur Nicht-Prime — mit einer angehefteten Medianzeile als Vergleichsmaßstab, die der
+Auswahl folgt. Werte über 10 % vom Median stehen grün, darunter rot. Ein Umschalter zeigt statt
+der Werte den Abstand zum Median, und der Hover hebt Zeile und Spalte zugleich hervor und rahmt
+die Zelle, in der sie sich treffen.
+
+**Zwei Sprachen** — Oberfläche und Item-Namen lassen sich über das Zahnrad im Header getrennt
+auf Deutsch oder Englisch stellen. Die Oberfläche folgt beim ersten Besuch der Browsersprache,
+Item-Namen bleiben englisch, weil unter diesen Namen gehandelt wird. Beide Namen kommen in
+derselben API-Antwort, das Umschalten lädt also nichts nach — und die Suche findet ein Item
+unter beiden Namen („Serration" wie „Einkerbung").
 
 ## 📊 Datenqualität
 
@@ -56,8 +68,11 @@ niedrigste Verkaufsangebot, getrennt gekennzeichnet: ein Angebot ist kein Handel
   eigener Mini-Router (keine Routing-Dependency)
 - **Backend**: Python + FastAPI
 - **Datenbank**: PostgreSQL
-- **Datenquellen**: [warframe.market](https://warframe.market) API und
+- **Datenquellen**: [warframe.market](https://warframe.market) API,
   [Warframe Public Export Plus](https://github.com/calamity-inc/warframe-public-export-plus)
+  und für die Warframe-Übersicht zusätzlich das Datenmodul des
+  [Warframe-Wikis](https://wiki.warframe.com/w/Module:Warframes/data) — das Wachstum bis Rang 30
+  und die Startenergie stehen in keinem der beiden Exporte
 
 ## 🔄 Datenaktualisierung
 
