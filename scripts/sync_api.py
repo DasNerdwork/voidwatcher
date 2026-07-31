@@ -224,6 +224,9 @@ def create_schema(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_slug      ON market_items (slug);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_tags      ON market_items USING GIN (tags);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_i18n_en_name ON market_items ((raw->'i18n'->'en'->>'name'));")
+        # Zweiter Sprachzweig, siehe migrations/010: die Suche filtert über beide
+        # Namen, damit „Einkerbung" dasselbe findet wie „Serration".
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_i18n_de_name ON market_items ((raw->'i18n'->'de'->>'name'));")
 
         # Vorberechnete Ranglisten — siehe migrations/008_precomputed_tops.sql.
         # payload als JSONB, damit ein neues Feld in der Rangliste keine Migration
@@ -591,7 +594,13 @@ def fetch_market_items():
     """
     try:
         logging.info(f"Fetching items from {MARKET_API_URL}")
-        r = market_get(MARKET_API_URL, timeout=30)
+        # Language: de → die Antwort enthält i18n.en UND i18n.de. Ohne den Header
+        # liefert die v2-API nur Englisch, und die Oberfläche könnte Item-Namen
+        # nicht umschalten. Ein Request für den ganzen Katalog, keine zweite
+        # Quelle: 3677 der 3837 Namen sind echt übersetzt, inklusive Relics
+        # („Requiem-Relikt: IV") und Sets („Frost Prime: Set").
+        r = market_get(MARKET_API_URL, timeout=30,
+                       headers={"accept": "application/json", "Language": "de"})
         r.raise_for_status()
         data = r.json()
         if isinstance(data, dict):

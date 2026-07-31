@@ -1,6 +1,9 @@
 // Used by /api/top — all three lists (top_performer, top_seller, top_traded)
 export interface TopItem {
   item_name:   string
+  /** Deutscher Item-Name. Die API liefert IMMER beide Sprachen (api/db.py),
+      damit die Oberfläche ohne neuen Abruf umschalten kann. */
+  item_name_de?: string | null
   slug?:       string
   datetime:    string
   avg_price:   number
@@ -55,6 +58,7 @@ export interface SearchResult {
 export interface ItemDetail {
   id:            string
   name:          string
+  name_de?:      string | null
   slug:          string
   tags:          string[]
   ducats:        number | null
@@ -100,6 +104,7 @@ export interface DropSource {
 
 export interface RelicContent {
   name:                    string
+  name_de?:                string | null
   slug:                    string
   thumb_path:              string | null
   ducats:                  number | null
@@ -114,6 +119,7 @@ export interface RelicContent {
 
 export interface SetPart {
   name:       string
+  name_de?:   string | null
   slug:       string
   thumb_path: string | null
   ducats:     number | null

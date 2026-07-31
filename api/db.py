@@ -300,6 +300,31 @@ def _sort_weight(metric: str) -> str:
     return _credibility()
 
 
+# ──────────────────────────────────────────────
+# ITEM-NAMEN, ZWEISPRACHIG
+# ──────────────────────────────────────────────
+# warframe.market liefert seine Items zweisprachig, sobald der Sync `Language: de`
+# schickt (siehe scripts/sync_api.py und migrations/010). Beide Namen liegen damit
+# in derselben Zeile.
+#
+# Jede Abfrage gibt BEIDE Namen zurück, statt einen `?lang=`-Parameter
+# durchzureichen. Drei Gründe: die Oberfläche schaltet ohne neuen Abruf um, die
+# vorberechneten Ranglisten in `top_lists` brauchen keine zweite Fassung je
+# Sprache, und ein Sprachwechsel kann keine halb gefüllten Caches erzeugen.
+#
+# Der deutsche Zweig fehlt, solange ein Item noch nicht neu gesynct wurde —
+# deshalb überall NULLIF/COALESCE, damit ein leerer Name auf Englisch zurückfällt
+# statt eine leere Zelle zu erzeugen.
+
+def _name_en(alias: str = "i") -> str:
+    return f"({alias}.raw->'i18n'->'en'->>'name')"
+
+
+def _name_de(alias: str = "i") -> str:
+    return (f"COALESCE(NULLIF({alias}.raw->'i18n'->'de'->>'name', ''), "
+            f"{alias}.raw->'i18n'->'en'->>'name')")
+
+
 def _vw_avg(col: str) -> str:
     """
     Volumengewichtetes Mittel einer Preisspalte über die Zeilen eines Buckets.
@@ -458,6 +483,7 @@ def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
         WITH {_change_pct_cte_90d(days, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')  AS item_name_de,
             i.slug,
             (SELECT MAX(day) FROM market_stats_90d)::timestamptz AS datetime,
             AVG(s.avg_price)                 AS avg_price,
@@ -514,6 +540,7 @@ def get_top_performers(hours, limit, tag: str | None = None, rank_mode: str = "m
         WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')  AS item_name_de,
             i.slug,
             MAX(s.ts)                        AS datetime,
             AVG(s.avg_price)                 AS avg_price,
@@ -578,6 +605,7 @@ def get_top_losers(hours, limit, tag: str | None = None, rank_mode: str = "max",
         WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')  AS item_name_de,
             i.slug,
             MAX(s.ts)                        AS datetime,
             AVG(s.avg_price)                 AS avg_price,
@@ -624,6 +652,7 @@ def get_top_sellers(hours, limit, tag: str | None = None, rank_mode: str = "max"
         WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')  AS item_name_de,
             i.slug,
             MAX(s.ts)                        AS datetime,
             AVG(s.avg_price)                 AS avg_price,
@@ -669,6 +698,7 @@ def get_most_traded(hours, limit, tag: str | None = None, rank_mode: str = "max"
         WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')  AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')  AS item_name_de,
             i.slug,
             MAX(s.ts)                        AS datetime,
             AVG(s.avg_price)                 AS avg_price,
@@ -772,6 +802,7 @@ def get_volume_leaders(
             WITH {_change_pct_cte_90d(days, rank_mode)}
             SELECT
                 (i.raw->'i18n'->'en'->>'name')       AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')       AS item_name_de,
                 i.slug, i.tags, i.max_rank            AS max_rank,
                 i.thumb_path, i.image_path,
                 ROUND(AVG(s.avg_price)::numeric, 2)  AS avg_price,
@@ -795,6 +826,7 @@ def get_volume_leaders(
         WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')       AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')       AS item_name_de,
             i.slug, i.tags, i.max_rank            AS max_rank,
             i.thumb_path, i.image_path,
             ROUND(AVG(s.avg_price)::numeric, 2)  AS avg_price,
@@ -837,6 +869,7 @@ def get_value_leaders(
             WITH {_change_pct_cte_90d(days, rank_mode)}
             SELECT
                 (i.raw->'i18n'->'en'->>'name')       AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')       AS item_name_de,
                 i.slug, i.tags, i.max_rank            AS max_rank,
                 i.thumb_path, i.image_path,
                 ROUND(AVG(s.avg_price)::numeric, 2)  AS avg_price,
@@ -860,6 +893,7 @@ def get_value_leaders(
         WITH {_change_pct_cte(hours, rank_mode)}
         SELECT
             (i.raw->'i18n'->'en'->>'name')       AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')       AS item_name_de,
             i.slug, i.tags, i.max_rank            AS max_rank,
             i.thumb_path, i.image_path,
             ROUND(AVG(s.avg_price)::numeric, 2)  AS avg_price,
@@ -926,6 +960,7 @@ def get_price_movers(
         )
         SELECT
             (i.raw->'i18n'->'en'->>'name')        AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')        AS item_name_de,
             i.slug, i.tags, i.max_rank             AS max_rank,
             i.thumb_path, i.image_path,
             ROUND(l.price::numeric, 2)             AS current_price,
@@ -959,6 +994,7 @@ def get_most_stable(
     return query(f"""
         SELECT
             (i.raw->'i18n'->'en'->>'name')        AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')        AS item_name_de,
             i.slug, i.tags, i.max_rank             AS max_rank,
             i.thumb_path, i.image_path,
             ROUND(AVG(s.avg_price)::numeric, 2)   AS avg_price,
@@ -1036,6 +1072,7 @@ def get_items_by_drop_filter(
     return query(f"""
         SELECT
             (i.raw->'i18n'->'en'->>'name')        AS item_name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name')        AS item_name_de,
             i.slug, i.tags, i.max_rank             AS max_rank,
             i.thumb_path, i.image_path,
             ROUND(AVG(s.avg_price)::numeric, 2)   AS avg_price,
@@ -1207,7 +1244,8 @@ def get_item_detail(slug: str):
             SELECT id, slug, tags, ducats, max_rank, thumb_path, image_path,
                    price_median,
                    sell_price_min, sell_price_rank, sell_price_status, sell_orders_at,
-                   (raw->'i18n'->'en'->>'name') AS name
+                   (raw->'i18n'->'en'->>'name') AS name,
+                   COALESCE(NULLIF(raw->'i18n'->'de'->>'name', ''), raw->'i18n'->'en'->>'name') AS name_de
             FROM market_items WHERE slug = %s
         ),
         w24 AS (
@@ -1382,6 +1420,7 @@ def get_relic_contents(item_name: str):
         )
         SELECT DISTINCT ON (ds.item_id)
             (i.raw->'i18n'->'en'->>'name') AS name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name') AS name_de,
             i.slug, i.thumb_path, i.ducats,
             ds.rarity,
             ds.drop_chance_intact, ds.drop_chance_exceptional,
@@ -1441,6 +1480,7 @@ def get_set_parts(slug: str):
         )
         SELECT
             (c.raw->'i18n'->'en'->>'name') AS name,
+            COALESCE(NULLIF(c.raw->'i18n'->'de'->>'name', ''), c.raw->'i18n'->'en'->>'name') AS name_de,
             c.slug, c.thumb_path, c.ducats,
             (c.slug = %s) AS is_set,
             p.avg_price, p.volume
@@ -1504,6 +1544,7 @@ def get_category_by_tag(tag: str, limit: int = 20):
         return query("""
             SELECT
                 (i.raw->'i18n'->'en'->>'name') AS name,
+                COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name') AS name_de,
                 (i.raw->>'slug') AS slug,
                 (i.raw->>'ducats') AS ducats,
                 (i.raw->>'tags') AS tags,
@@ -1529,6 +1570,7 @@ def get_category_by_tag(tag: str, limit: int = 20):
     return query("""
         SELECT
             (i.raw->'i18n'->'en'->>'name') AS name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name') AS name_de,
             (i.raw->>'slug') AS slug,
             (i.raw->>'ducats') AS ducats,
             (i.raw->>'tags') AS tags,
