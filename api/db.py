@@ -1102,9 +1102,19 @@ def search_items(search_term: str, limit: int = 8):
     Ranking: exakter Treffer → Präfix-Treffer → Teiltreffer, dann Volumen.
     Preisdaten per LEFT JOIN, damit Items ohne Trades trotzdem erscheinen.
 
-    Fehlt ein Handelspreis, tritt sell_price_min an seine Stelle und `is_offer`
-    sagt, dass es ein Angebot ist. Die Sortierung bleibt am Handelsvolumen —
-    ein Angebotspreis ändert die Anzeige, nicht die Rangfolge.
+    Preisquelle in drei Stufen, damit moeglichst jede Zeile eine Zahl traegt:
+    aktueller 48h-Schnitt → letzter Tag mit Handel aus market_stats_90d
+    (`price_day` nennt ihn) → niedrigstes Verkaufsangebot (`is_offer`).
+    Von 3825 Items bleiben damit 90 ohne Preis statt 844: 2421 haben frische
+    Handelsdaten, 1292 einen aelteren Handelstag, 22 nur ein Angebot.
+
+    Die verbleibenden 90 zerfallen in 38 ohne jede Statistikzeile und 52, deren
+    Zeilen an _rank_clause("max") scheitern — Mods, die nur ungerankt gehandelt
+    wurden. Deren Preis waere eine andere Ware als die angezeigte Rangstufe
+    ("Ward Recovery" Rang 0 statt Rang 3); lieber keine Zahl als die falsche.
+
+    Die Sortierung bleibt am 48h-Handelsvolumen — ein Ersatzpreis aendert die
+    Anzeige, nicht die Rangfolge.
     """
     term = search_term.strip()
     esc  = _like_escape(term)
@@ -1117,35 +1127,70 @@ def search_items(search_term: str, limit: int = 8):
                 SUM(s.volume)                       AS volume
             FROM market_stats_48h s
             JOIN market_items i ON i.id = s.item_id
-            WHERE s.ts >= NOW() - INTERVAL '48 hours'
+            -- Anker am juengsten Datenpunkt wie ueberall sonst, nicht NOW():
+            -- mit NOW() verlor ein Item seinen Preis, sobald sein letzter
+            -- Bucket aelter als 48h wurde — der Sync laeuft aber nur einmal
+            -- taeglich, und refresh_sell_offers hatte es zu seiner Laufzeit
+            -- noch als "hat Daten" eingestuft. 59 Items fielen so durch.
+            -- Der Plausibilitaetsfilter kostet hier nichts (kein Item verliert
+            -- dadurch alle Zeilen), haelt aber Ausreisser aus dem Schnitt.
+            WHERE {_window_48h(48)}
               {_rank_clause("max")}
+              {_plausible_clause()}
             GROUP BY s.item_id
         )
         SELECT
             (i.raw->'i18n'->'en'->>'name') AS name,
+            COALESCE(NULLIF(i.raw->'i18n'->'de'->>'name', ''), i.raw->'i18n'->'en'->>'name') AS name_de,
             i.slug, i.thumb_path, i.tags, i.max_rank,
-            -- Ohne Handel in den letzten 48h das niedrigste Verkaufsangebot
-            -- zeigen, statt die Zelle leer zu lassen. Hebt die Trefferquote der
-            -- Suche von rund 2360 auf rund 2980 der 3825 Items.
+            -- Ohne frischen Handel der letzte Handelstag, sonst das niedrigste
+            -- Verkaufsangebot, statt die Zelle leer zu lassen.
             -- KEIN Prozentzeichen in diesem Kommentar: psycopg2 liest jedes
             -- einzelne Prozentzeichen im Query-String als Platzhalter.
-            COALESCE(p.avg_price, i.sell_price_min)                   AS avg_price,
-            (p.avg_price IS NULL AND i.sell_price_min IS NOT NULL)    AS is_offer,
+            COALESCE(p.avg_price, d.avg_price, i.sell_price_min)     AS avg_price,
+            d.day                                                    AS price_day,
+            (p.avg_price IS NULL AND d.avg_price IS NULL
+             AND i.sell_price_min IS NOT NULL)                       AS is_offer,
             p.volume
         FROM market_items i
         LEFT JOIN prices p ON p.item_id = i.id
+        -- Letzter Tag MIT Handel. Die Bedingung auf p.avg_price steht INNEN,
+        -- damit der Zweig fuer Items mit frischem Preis gar nicht erst laeuft.
+        -- Gewichtung und Plausibilitaetsfilter wie in get_item_history bzw. den
+        -- Ranglisten — ohne den Filter meldete "Warm Coat" hier 500.067 ₱.
+        LEFT JOIN LATERAL (
+            SELECT s.day, {_vw_avg('s.avg_price')} AS avg_price
+            FROM market_stats_90d s
+            WHERE p.avg_price IS NULL
+              AND s.item_id = i.id
+              {_rank_clause("max")}
+              {_plausible_clause()}
+            GROUP BY s.day
+            HAVING {_vw_avg('s.avg_price')} IS NOT NULL
+            ORDER BY s.day DESC
+            LIMIT 1
+        ) d ON TRUE
+        -- Gesucht wird in BEIDEN Sprachen, unabhängig davon, welche gerade
+        -- angezeigt wird: „Einkerbung" muss dasselbe Item finden wie
+        -- „Serration", sonst läuft die Suche im Deutsch-Modus ins Leere und im
+        -- Englisch-Modus findet niemand ein Item, dessen deutschen Namen er aus
+        -- dem Spiel kennt. Beide Namen liegen in derselben Zeile, es kommt kein
+        -- JOIN dazu — und beide Pfade sind indiziert (migrations/010).
         WHERE (i.raw->'i18n'->'en'->>'name') ILIKE %s ESCAPE '\\'
+           OR (i.raw->'i18n'->'de'->>'name') ILIKE %s ESCAPE '\\'
            OR REPLACE(i.slug, '_', ' ') ILIKE %s ESCAPE '\\'
         ORDER BY
             CASE
                 WHEN LOWER(i.raw->'i18n'->'en'->>'name') = LOWER(%s)      THEN 0
+                WHEN LOWER(i.raw->'i18n'->'de'->>'name') = LOWER(%s)      THEN 0
                 WHEN (i.raw->'i18n'->'en'->>'name')      ILIKE %s ESCAPE '\\' THEN 1
+                WHEN (i.raw->'i18n'->'de'->>'name')      ILIKE %s ESCAPE '\\' THEN 1
                 ELSE 2
             END,
             COALESCE(p.volume, 0) DESC,
             LENGTH(i.raw->'i18n'->'en'->>'name')
         LIMIT %s
-    """, (like, like, term, f"{esc}%", limit))
+    """, (like, like, like, term, term, f"{esc}%", f"{esc}%", limit))
 
 
 # ──────────────────────────────────────────────

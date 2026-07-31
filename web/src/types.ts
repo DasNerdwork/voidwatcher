@@ -35,15 +35,19 @@ export interface TopItem {
 
 export interface SearchResult {
   name:        string
+  name_de?:    string | null
   slug:        string
   thumb_path?: string | null
   tags?:       string[] | null
   max_rank?:   number | null
   avg_price?:  number | null
   volume?:     number | null
-  // true, wenn avg_price aus sell_price_min stammt (kein Handel in 48h).
-  // Optisch nicht unterschieden — nur als Tooltip am Preis.
+  // true, wenn avg_price aus sell_price_min stammt (weder frischer Handel noch
+  // ein aelterer Handelstag). Optisch nicht unterschieden — nur als Tooltip.
   is_offer?:   boolean | null
+  // gesetzt, wenn avg_price der letzte Tag MIT Handel ist statt des 48h-Fensters
+  // (ISO-Datum). Ebenfalls nur als Tooltip.
+  price_day?:  string | null
 }
 
 // ─── Item-Detailseite (/api/item/{slug}/detail) ───────────────────────────────
