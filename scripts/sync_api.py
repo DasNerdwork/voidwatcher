@@ -9,11 +9,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import requests
 import psycopg2
 from psycopg2.extras import execute_values, Json
 from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
+
+# Aller ausgehende Verkehr läuft über dieses Modul: User-Agent und die 3/s-Grenze
+# von warframe.market sind dort einmal geregelt statt an neun Aufrufstellen.
+from wfm_http import market_get, plain_get
 
 # -------------------------
 # Logging setup
@@ -202,6 +205,18 @@ def create_schema(conn):
                 ducats     INT,
                 max_rank   INT,
                 price_median NUMERIC,
+                -- Bildpfade: kamen über sync_images dazu und fehlten hier, eine
+                -- Neuinstallation wich dadurch von der migrierten DB ab.
+                thumb_path  TEXT,
+                thumb_hash  TEXT,
+                image_path  TEXT,
+                -- Niedrigstes Verkaufsangebot für Items ohne Handelsdaten,
+                -- siehe migrations/008. Ein Angebot ist kein Handelspreis und
+                -- wird in der Oberfläche getrennt ausgewiesen.
+                sell_price_min    NUMERIC,
+                sell_price_rank   INTEGER,
+                sell_price_status TEXT,
+                sell_orders_at    TIMESTAMPTZ,
                 raw        JSONB,
                 created_at TIMESTAMPTZ DEFAULT now()
             );
@@ -209,6 +224,23 @@ def create_schema(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_slug      ON market_items (slug);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_tags      ON market_items USING GIN (tags);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_i18n_en_name ON market_items ((raw->'i18n'->'en'->>'name'));")
+
+        # Vorberechnete Ranglisten — siehe migrations/008_precomputed_tops.sql.
+        # payload als JSONB, damit ein neues Feld in der Rangliste keine Migration
+        # erzwingt; source_updated ist der Frischeschutz gegen veraltete Stände.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS top_lists (
+                hours          INTEGER     NOT NULL,
+                tag            TEXT,
+                metric         TEXT        NOT NULL,
+                list_kind      TEXT        NOT NULL,
+                rank           INTEGER     NOT NULL,
+                payload        JSONB       NOT NULL,
+                source_updated TIMESTAMPTZ NOT NULL
+            );
+        """)
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS top_lists_key ON top_lists (hours, COALESCE(tag, ''), metric, list_kind, rank);")
+        cur.execute("CREATE INDEX IF NOT EXISTS top_lists_lookup ON top_lists (hours, metric, list_kind, rank);")
 
         # 48h stats
         cur.execute("""
@@ -230,6 +262,9 @@ def create_schema(conn):
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_stats_48h_item_ts ON market_stats_48h (item_id, ts);")
+        # Einzelspalte: SELECT MAX(ts) verankert jedes Fenster und lief ohne
+        # diesen Index als voller Seq Scan, zweimal je Abfrage.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_stats_48h_ts ON market_stats_48h (ts);")
         # Kein PK auf (item_id, ts): die API liefert je Zeitpunkt mehrere Zeilen —
         # eine pro mod_rank (Mods) bzw. subtype (z.B. Fischgrößen). Beide sind für
         # die meisten Items NULL und können deshalb nicht in einen PK → Unique-Index
@@ -259,6 +294,7 @@ def create_schema(conn):
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_stats_90d_item_day ON market_stats_90d (item_id, day);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_market_stats_90d_day ON market_stats_90d (day);")
         cur.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS market_stats_90d_item_day_variant_uk
             ON market_stats_90d (item_id, day, COALESCE(mod_rank, -1), COALESCE(subtype, ''));
@@ -321,7 +357,7 @@ def fetch_wfpe_file(filename: str, timeout: int = 30, max_retries: int = 4) -> l
     url = f"{WFPE_BASE_URL}/{filename}.json"
     for attempt in range(1, max_retries + 1):
         try:
-            r = requests.get(url, timeout=timeout)
+            r = plain_get(url, timeout=timeout)
             if r.status_code == 429:
                 wait = 2 ** attempt  # 2, 4, 8, 16 s
                 logging.warning(f"Rate-limited fetching {filename} (attempt {attempt}/{max_retries}), waiting {wait}s…")
@@ -555,7 +591,7 @@ def fetch_market_items():
     """
     try:
         logging.info(f"Fetching items from {MARKET_API_URL}")
-        r = requests.get(MARKET_API_URL, timeout=30)
+        r = market_get(MARKET_API_URL, timeout=30)
         r.raise_for_status()
         data = r.json()
         if isinstance(data, dict):
@@ -633,22 +669,36 @@ def upsert_items(conn, items):
 # Statistics fetch & store (unchanged)
 # -------------------------
 def fetch_single_statistics(slug, max_retries=3, delay=2):
-    """Fetch statistics for a given slug. Returns (slug, stats_48h_list, stats_90d_list)"""
+    """
+    Fetch statistics for a given slug. Returns (slug, stats_48h_list, stats_90d_list)
+
+    Zur v2-URL wird nur bei 404 auf v1 gewechselt, also wenn der Endpunkt dort
+    wirklich nicht existiert. Früher lief jeder Slug nach drei erschöpften
+    Versuchen komplett neu auf v2 — sechs Anfragen pro Item, bei einer Störung
+    rund 22.800 statt 3.800. Gegen ein überlastetes Backend hilft dieselbe
+    Anfrage unter anderer Versionsnummer ohnehin nicht.
+
+    Gedrosselt wird zentral in wfm_http.market_get; das frühere time.sleep(0.5)
+    an dieser Stelle wirkte pro Thread und ließ sich durch --workers teilen.
+    """
     candidates = [
         f"https://api.warframe.market/v1/items/{slug}/statistics",
         f"https://api.warframe.market/v2/items/{slug}/statistics",
     ]
     for url in candidates:
+        saw_404 = False
         for attempt in range(1, max_retries + 1):
             try:
-                time.sleep(0.5)
-                r = requests.get(url, headers={"accept": "application/json"}, timeout=30)
+                r = market_get(url, headers={"accept": "application/json"}, timeout=30)
                 if r.status_code == 429:
+                    # market_get hat den gesamten Pool bereits gebremst.
                     logging.warning(f"429 for {url} (attempt {attempt}/{max_retries})")
                     if attempt == max_retries:
                         return None
-                    time.sleep(delay)
                     continue
+                if r.status_code == 404:
+                    saw_404 = True
+                    break
                 r.raise_for_status()
                 payload = r.json().get("payload") or r.json().get("data") or r.json()
                 stats_closed = None
@@ -669,8 +719,12 @@ def fetch_single_statistics(slug, max_retries=3, delay=2):
                 logging.warning(f"Error fetching stats for {slug} on {url} (attempt {attempt}): {e}")
                 if attempt == max_retries:
                     logging.warning(f"Giving up on {slug} for {url}")
-                    break
+                    return None
                 time.sleep(delay)
+        if not saw_404:
+            # Kein 404 → der Endpunkt existiert, die Anfrage ist anders
+            # gescheitert. Dann bringt die andere Version nichts.
+            return None
     return None
 
 
@@ -885,6 +939,77 @@ def refresh_price_reference(conn):
     return updated
 
 
+def refresh_sell_offers(conn, workers: int = 6):
+    """
+    Niedrigstes Verkaufsangebot für Items OHNE frische Handelsdaten.
+
+    1290 von 3825 Items (33,7 %) haben kein 48h-Fenster und zeigten deshalb
+    überall „—", obwohl Angebote existieren — für „Warm Coat" sind es 107.
+
+    Geholt wird /v2/orders/item/{slug}/top: fünf beste Kauf- und Verkaufsangebote,
+    bereits auf online/ingame gefiltert, EIN Request statt 107 Orders zu parsen.
+    Läuft über market_get, teilt sich also das 3/s-Budget mit allem anderen.
+
+    Nur für Items ohne 48h-Zeile: für alle 3825 wären es +22 min Sync statt +7,
+    und wo ein Handelspreis existiert, ist er die bessere Angabe.
+
+    Der Rang wird mitgespeichert, weil /top die Ränge MISCHT: bei warm_coat
+    stehen Rang 0 für 1 ₱ und Rang 3 für 7 ₱ in derselben Liste. Ohne die Angabe
+    wäre die Zahl irreführend.
+    """
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT i.id, i.slug
+            FROM market_items i
+            WHERE i.slug IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM market_stats_48h s WHERE s.item_id = i.id)
+        """)
+        targets = cur.fetchall()
+
+    logging.info(f"Angebotspreise: {len(targets)} Items ohne 48h-Daten")
+    if not targets:
+        return 0
+
+    def fetch(row):
+        item_id, slug = row
+        try:
+            r = market_get(f"https://api.warframe.market/v2/orders/item/{slug}/top",
+                           timeout=20, headers={"accept": "application/json"})
+            if r.status_code != 200:
+                return None
+            sells = (r.json().get("data") or {}).get("sell") or []
+            if not sells:
+                return None
+            best = min(sells, key=lambda o: o.get("platinum", 10**9))
+            return (item_id, best.get("platinum"), best.get("rank"),
+                    (best.get("user") or {}).get("status"))
+        except Exception as e:
+            logging.debug(f"Angebote für {slug} fehlgeschlagen: {e}")
+            return None
+
+    results = []
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for res in ex.map(fetch, targets):
+            if res:
+                results.append(res)
+
+    if results:
+        with conn.cursor() as cur:
+            execute_values(cur, """
+                UPDATE market_items i SET
+                    sell_price_min    = v.price,
+                    sell_price_rank   = v.rank,
+                    sell_price_status = v.status,
+                    sell_orders_at    = now()
+                FROM (VALUES %s) AS v(id, price, rank, status)
+                WHERE i.id = v.id
+            """, results)
+            conn.commit()
+
+    logging.info(f"Angebotspreise gespeichert: {len(results)} von {len(targets)}")
+    return len(results)
+
+
 def update_last_updated_timestamp(conn):
     with conn.cursor() as cur:
         now = datetime.now(timezone.utc).isoformat()
@@ -978,6 +1103,14 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
             except Exception as e:
                 logging.error(f"refresh_price_reference fehlgeschlagen: {e}")
 
+        # Angebotspreise nur im Volllauf: bei --slug fehlt der Gesamtüberblick,
+        # welche Items ohne Handelsdaten dastehen.
+        if not dry_run and not skip_market and not slugs:
+            try:
+                refresh_sell_offers(conn)
+            except Exception as e:
+                logging.error(f"refresh_sell_offers fehlgeschlagen: {e}", exc_info=True)
+
         if slugs:
             logging.info("--slug gesetzt: Housekeeping und Nachlauf-Skripte übersprungen.")
         else:
@@ -1006,6 +1139,20 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
                 update_last_updated_timestamp(conn)
             except Exception as e:
                 logging.error(f"Failed to update metadata timestamp: {e}")
+
+            # NACH dem Zeitstempel: precompute_tops prägt source_updated aus
+            # metadata.last_updated. Liefe es davor, trüge die Vorberechnung den
+            # alten Stand und die API verwürfe sie sofort als veraltet.
+            #
+            # Ein Fehlschlag ist nicht fatal: die API rechnet dann live weiter,
+            # langsam aber richtig.
+            if not dry_run:
+                try:
+                    import precompute_tops
+                    logging.info("Starte precompute_tops...")
+                    precompute_tops.run(conn)
+                except Exception as e:
+                    logging.error(f"precompute_tops fehlgeschlagen: {e}", exc_info=True)
     except Exception as e:
         logging.exception(f"Fatal error in main sync: {e}")
     finally:
