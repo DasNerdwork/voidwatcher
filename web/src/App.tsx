@@ -55,16 +55,23 @@ interface CategoriesOverview {
 
 const API_CATEGORIES_URL = "/api/category?tag=all";
 
-const CATEGORIES = ["Alle", "Warframes", "Mods", "Waffen", "Relics", "Arcanes", "Misc"];
-const MISC_SUBS  = ["Fish", "Skins & Helmets", "Scenes", "Gems & Resources", "Ayatan", "Necramech", "Sonstiges"];
+// Werte, keine Beschriftungen: dieselben Zeichenketten kommen aus
+// classify_item_by_tags (api/db.py), stehen im Filterzustand und sind Schlüssel
+// in CATEGORY_COLORS. Übersetzt wird erst beim Rendern über t().
+const CATEGORIES = ["All", "Warframes", "Mods", "Weapons", "Relics", "Arcanes", "Misc"];
+const MISC_SUBS  = ["Fish", "Skins & Helmets", "Scenes", "Gems & Resources", "Ayatan", "Necramech", "Other"];
 
-type Page = "dashboard" | "market" | "movers" | "farmvalue";
+type Page = "dashboard" | "market" | "farmvalue";
 
 const isHours  = oneOf<number>(HOURS_OPTIONS);
 const isTag    = oneOf<string | null>(TAG_OPTIONS.map(o => o.value));
 const isMetric = oneOf<ChangeMetric>(["pct", "abs"]);
 
 const App: React.FC = () => {
+  // Am Sprach-Context hängen, damit ein Umschalten sofort durchschlägt: t()
+  // liest die Sprache aus einer Modulvariablen und löst von sich aus kein
+  // Neuzeichnen aus.
+  useI18n();
   // Zeitraum und Kategorie überdauern das Neuladen: wer sich einmal für einen
   // Ausschnitt entschieden hat, will ihn nicht bei jedem Aufruf neu einstellen.
   // 48H als Vorgabe, weil ein Tagesfenster für die meisten Items zu wenige
@@ -87,10 +94,11 @@ const App: React.FC = () => {
   const route    = useRoute();
   const itemSlug = itemSlugFromPath(route);
 
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  // Eine Weiche statt einer !itemSlug-Kette an jedem Block. Die Reihenfolge
+  // trägt: die Item-Seite gewinnt gegen alles, damit die Kopfsuche auch von
+  // /warframes aus funktioniert.
+  const view: "item" | "warframes" | "pages" =
+    itemSlug ? "item" : isWarframesPath(route) ? "warframes" : "pages";
 
   useEffect(() => {
     if (!miscOpen) return;
@@ -196,12 +204,20 @@ const App: React.FC = () => {
     padding: "5px 13px",
   });
 
-  const NAV: { key: Page; label: string }[] = [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "market",    label: "Market"    },
-    { key: "movers",    label: "Movers"    },
-    { key: "farmvalue", label: "Farm Value"},
+  // Zwei Arten von Reitern, und der Unterschied steht bewusst im Datenmodell
+  // statt in verstreuten Abfragen: die vier Marktsichten sind Zustand unter "/",
+  // die Warframe-Übersicht ist ein Ort mit eigener URL.
+  type NavTab = { label: string } & ({ page: Page } | { path: string });
+
+  const NAV: NavTab[] = [
+    { page: "dashboard", label: t("Home")            },
+    { page: "market",    label: t("Market")          },
+    { page: "farmvalue", label: t("Farm Efficiency") },
+    { path: WARFRAMES_PATH, label: t("Warframe Stats") },
   ];
+
+  const isTabActive = (t: NavTab) =>
+    "path" in t ? view === "warframes" : view === "pages" && page === t.page;
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", fontFamily: "system-ui, -apple-system, sans-serif", position: "relative", zIndex: 1 }}>
@@ -366,8 +382,7 @@ const App: React.FC = () => {
           </>
         )}
 
-        {!itemSlug && page === "movers"    && <MoversPage />}
-        {!itemSlug && page === "farmvalue" && <FarmValuePage />}
+        {view === "pages" && page === "farmvalue" && <FarmValuePage />}
       </main>
 
       <Footer status={status} />
