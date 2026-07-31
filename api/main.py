@@ -405,7 +405,12 @@ def category(tag: str | None = None, limit: int = Query(20, ge=1, le=500)):
                 item["volume"]               = int(item["volume"])                 if item.get("volume")               else None
                 item["best_drop_chance_pct"] = float(item["best_drop_chance_pct"]) if item.get("best_drop_chance_pct") else None
 
-                if cat != "Andere":
+                # Die rohe Tag-Liste hat ihren Zweck mit der Einordnung oben
+                # erfüllt und wird im Browser nirgends gerendert. Bei 2550 Items
+                # ist sie rund ein Viertel der Antwort — raus damit.
+                item.pop("tags", None)
+
+                if cat != "Unsorted":
                     categories.setdefault(cat, []).append(item)
 
             categorized_items = [

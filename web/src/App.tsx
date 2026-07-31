@@ -6,13 +6,15 @@ import type { ChangeMetric } from "./components/DashboardPage";
 import { CategoryTable } from "./components/CategoryTable";
 import { SearchBox } from "./components/SearchBox";
 import { Footer } from "./components/Footer";
-import { MoversPage } from "./components/MoversPage";
 import { FarmValuePage } from "./components/FarmValuePage";
 import { ItemPage } from "./components/ItemPage";
+import { WarframesPage, prefetchWarframes } from "./components/WarframesPage";
 import type { TopItem } from "./types";
-import { C, CardCorner, FilterLabel, HOURS_LABELS, HOURS_OPTIONS, T, TAG_OPTIONS, TextLink, VitFlourish, segBtn, segBtnHover } from "./components/shared";
-import { A, itemSlugFromPath, navigate, useRoute } from "./router";
+import { C, CardCorner, FilterLabel, HOURS_LABELS, HOURS_OPTIONS, HeaderClock, T, TAG_OPTIONS, TextLink, VitFlourish, hoverSurface, segBtn, segBtnHover } from "./components/shared";
+import { A, WARFRAMES_PATH, isWarframesPath, itemSlugFromPath, navigate, useRoute } from "./router";
 import { oneOf, usePersistentState } from "./prefs";
+import { locale, t, useI18n } from "./i18n";
+import { SettingsMenu } from "./components/SettingsMenu";
 
 interface ApiResponse {
   last_updated: string;
@@ -255,16 +257,15 @@ const App: React.FC = () => {
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           {status?.wf_build_label && (
             <span style={{ ...T.meta }}>
-              Last Update: <TextLink href={status.wf_update_url ?? "#"} color={C.gold}
+              {t("Last Update:")} <TextLink href={status.wf_update_url ?? "#"} color={C.gold}
                 style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 600 }}>
                 {status.wf_update_name} ({status.wf_update_version})
               </TextLink>
             </span>
           )}
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.up, flexShrink: 0, animation: "pulse 2s ease infinite" }} />
-          <span style={{ ...T.num, color: C.t, letterSpacing: "0.05em" }}>
-            {now.toLocaleTimeString("de-DE")}
-          </span>
+          <HeaderClock locale={locale()} />
+          <SettingsMenu />
         </div>
       </header>
 
@@ -312,11 +313,15 @@ const App: React.FC = () => {
           </>
         )}
 
-        {!itemSlug && page === "market" && (
+        {view === "pages" && page === "market" && (
           <>
+            {/* Kein backdropFilter auf dieser Karte: sie umschließt die ganze
+                Tabelle und wird bei „Alle" über 100.000 px hoch. Der Compositor
+                müsste diesen Hintergrund bei jedem Scroll-Frame neu weichzeichnen.
+                Die anderen Karten der App bleiben bildschirmhoch und behalten ihn. */}
             <section style={{
               background: C.card, border: `1px solid ${C.b}`, borderRadius: C.rad,
-              marginBottom: 18, overflow: "visible", backdropFilter: "blur(10px)", position: "relative",
+              marginBottom: 18, overflow: "visible", position: "relative",
             }}>
               <CardCorner />
               <div style={{
@@ -357,13 +362,13 @@ const App: React.FC = () => {
                           <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "rgba(10,12,28,0.97)", border: `1px solid ${C.b2}`, borderRadius: C.rad, padding: "5px", zIndex: 200, display: "flex", flexDirection: "column", gap: 1, minWidth: 170, backdropFilter: "blur(14px)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
                             <button onClick={() => { setCategory("Misc"); setMiscSub(null); setMiscOpen(false); }}
                               style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 13, background: miscSub === null ? C.hov : "none", color: miscSub === null ? C.gold : C.t2, fontWeight: miscSub === null ? 600 : 400 }}>
-                              Alle Misc
+                              {t("All Misc")}
                             </button>
                             <div style={{ height: 1, background: C.b, margin: "3px 4px" }} />
                             {MISC_SUBS.map(sub => (
                               <button key={sub} onClick={() => { setCategory("Misc"); setMiscSub(sub); setMiscOpen(false); }}
                                 style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 13, background: miscSub === sub ? C.hov : "none", color: miscSub === sub ? C.gold : C.t2, fontWeight: miscSub === sub ? 600 : 500 }}>
-                                {sub}
+                                {t(sub)}
                               </button>
                             ))}
                           </div>

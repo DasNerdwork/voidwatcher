@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { memo, useMemo } from "react";
 import { SmallPlatIcon } from "./Icons";
-import { C, CATEGORY_COLORS, ItemThumb, MISC_SUB_COLORS, T, plat } from "./shared";
+import {
+  C, CategoryBadge, ItemThumb, MISC_SUB_COLORS, SortableTH, T,
+  hoverRow, plat, useSortState,
+} from "./shared";
 import { A, itemPath, navigate } from "../router";
+import { itemName, locale, t, useI18n } from "../i18n";
 
 interface CategoryItem {
   name:                  string;
@@ -32,103 +36,57 @@ interface CategoryTableProps {
 }
 
 type SortKey = "name" | "category" | "volume" | "avg_price" | "min_price" | "max_price" | "best_drop_chance_pct";
-type SortDir = "asc" | "desc";
-
-const CategoryBadge = ({ cat }: { cat: string }) => {
-  const color = CATEGORY_COLORS[cat] || "#7a6e52";
-  return (
-    <span style={{
-      fontSize: 12, padding: "1px 7px", borderRadius: 2,
-      color, background: `${color}20`, fontWeight: 500, whiteSpace: "nowrap",
-    }}>{cat}</span>
-  );
-};
 
 const SubcategoryBadge = ({ sub }: { sub: string }) => {
-  const color = MISC_SUB_COLORS[sub] || "#7a7a7a";
+  const color = MISC_SUB_COLORS[sub] || C.t2;
   return (
     <span style={{
-      fontSize: 12, padding: "2px 7px", borderRadius: 2, marginLeft: 5,
+      fontSize: 12, padding: "2px 7px", borderRadius: C.rad, marginLeft: 5,
       color, background: `${color}18`, fontWeight: 400, whiteSpace: "nowrap",
       border: `1px solid ${color}30`,
-    }}>{sub}</span>
+    }}>{t(sub)}</span>
   );
 };
 
-const SortIcon = ({ active, dir }: { active: boolean; dir: SortDir }) => (
-  <svg width="8" height="10" viewBox="0 0 8 10" fill="none"
-    style={{ marginLeft: 4, opacity: active ? 1 : 0.25, flexShrink: 0 }}>
-    <path d="M4 1L4 9M4 1L1.5 3.5M4 1L6.5 3.5"
-      stroke={active && dir === "asc"  ? "#c8a84b" : "currentColor"}
-      strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M4 9L1.5 6.5M4 9L6.5 6.5"
-      stroke={active && dir === "desc" ? "#c8a84b" : "currentColor"}
-      strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
+/**
+ * Die Tabelle des Category Browsers — bis zu 2550 Zeilen auf einmal.
+ *
+ * memo() und die beiden useMemo sind hier kein Feinschliff, sondern der
+ * Unterschied zwischen flüssig und hakelig: die Uhr im Header ließ App früher
+ * sekündlich neu rendern, und weil beides fehlte, entstanden dabei jedes Mal
+ * 2550 neue Objekte plus eine vollständige Sortierung (bei Namenssortierung
+ * ~29.000 localeCompare-Aufrufe). Gemessen: 100–130 ms Blockade pro Sekunde.
+ * Die Uhr liegt inzwischen in ihrer eigenen Komponente — memo hält die Tabelle
+ * auch von der nächsten Zustandsänderung in App fern.
+ */
+export const CategoryTable = memo(({ category, allCategories, miscSub }: CategoryTableProps) => {
+  // SortIcon, Kopfzelle und Sortiersemantik liegen in shared.tsx — dieselbe
+  // Mechanik trägt die Warframe-Übersicht.
+  const [sortKey, sortDir, handleSort] =
+    useSortState<SortKey>("volume", "desc", ["name", "category"]);
+  // Sprachwechsel muss die Sortierung neu anwerfen (Namen ändern sich) und die
+  // Tabelle trotz memo() neu zeichnen.
+  const { items: lang } = useI18n();
 
-const TH = ({
-  children, right, sortKey, activeSort, sortDir, onSort,
-}: {
-  children:   React.ReactNode;
-  right?:     boolean;
-  sortKey?:   SortKey;
-  activeSort: SortKey;
-  sortDir:    SortDir;
-  onSort:     (k: SortKey) => void;
-}) => {
-  const isActive = sortKey === activeSort;
-  return (
-    <th
-      onClick={() => sortKey && onSort(sortKey)}
-      style={{
-        padding: "9px 15px",
-        textAlign: right ? "right" : "left",
-        fontSize: 12, color: isActive ? C.gold : C.t2, fontWeight: 600,
-        borderBottom: "1px solid rgba(200,168,75,0.22)",
-        whiteSpace: "nowrap", letterSpacing: "0.1em", textTransform: "uppercase",
-        cursor: sortKey ? "pointer" : "default",
-        userSelect: "none", transition: "color 0.12s",
-      }}
-    >
-      <span style={{ display: "inline-flex", alignItems: "center",
-        justifyContent: right ? "flex-end" : "flex-start", gap: 2 }}>
-        {children}
-        {sortKey && <SortIcon active={isActive} dir={sortDir} />}
-      </span>
-    </th>
-  );
-};
-
-export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTableProps) => {
-  const [sortKey, setSortKey] = useState<SortKey>("volume");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-
-  const handleSort = (key: SortKey) => {
-    if (key === sortKey) {
-      setSortDir(d => d === "desc" ? "asc" : "desc");
-    } else {
-      setSortKey(key);
-      setSortDir(key === "name" || key === "category" ? "asc" : "desc");
+  const items = useMemo<CategoryItem[]>(() => {
+    if (category === "All") {
+      return allCategories.flatMap(c =>
+        c.items.map(it => ({ ...it, category: it.category ?? c.name }))
+      );
     }
-  };
+    if (category === "Misc") {
+      const miscItems = allCategories.find(c => c.name === "Misc")?.items ?? [];
+      return miscSub ? miscItems.filter(it => it.subcategory === miscSub) : miscItems;
+    }
+    return allCategories.find(c => c.name === category)?.items ?? [];
+  }, [category, allCategories, miscSub]);
 
-  let items: CategoryItem[] = [];
-  if (category === "Alle") {
-    items = allCategories.flatMap(c =>
-      c.items.map(it => ({ ...it, category: it.category ?? c.name }))
-    );
-  } else if (category === "Misc") {
-    const miscItems = allCategories.find(c => c.name === "Misc")?.items ?? [];
-    items = miscSub ? miscItems.filter(it => it.subcategory === miscSub) : miscItems;
-  } else {
-    items = allCategories.find(c => c.name === category)?.items ?? [];
-  }
-
-  const sorted = [...items].sort((a, b) => {
+  const sorted = useMemo(() => [...items].sort((a, b) => {
     if (sortKey === "name") {
-      const av = a.name?.toLowerCase() ?? "";
-      const bv = b.name?.toLowerCase() ?? "";
+      // Sortiert wird nach dem ANGEZEIGTEN Namen — sonst steht die Liste im
+      // Deutsch-Modus in englischer Reihenfolge da.
+      const av = itemName(a).toLowerCase();
+      const bv = itemName(b).toLowerCase();
       return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     }
     if (sortKey === "category") {
@@ -142,45 +100,47 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
     if (an == null) return 1;
     if (bn == null) return -1;
     return sortDir === "desc" ? bn - an : an - bn;
-  });
+  }), [items, sortKey, sortDir, lang]);
 
-  const showCategoryCol    = category === "Alle";
+  const showCategoryCol    = category === "All";
   const showSubcategoryCol = category === "Misc" && !miscSub;
   const thProps = { activeSort: sortKey, sortDir, onSort: handleSort };
+  // Grundspalten: #, Item, Avg, Min, Max, Drop%, Vol. Der frühere Literal stand
+  // auf 8 und war schon damals um eins daneben.
+  const COLS = 7;
 
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+      <table className="cat-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
         <thead>
           <tr style={{ background: "rgba(0,0,0,0.12)" }}>
-            <TH {...thProps}>#</TH>
-            <TH {...thProps} sortKey="name">Item</TH>
-            {showCategoryCol    && <TH {...thProps} sortKey="category">Kategorie</TH>}
-            {showSubcategoryCol && <TH {...thProps} sortKey="category">Typ</TH>}
-            <TH {...thProps} right sortKey="avg_price">Avg</TH>
-            <TH {...thProps} right sortKey="min_price">Min</TH>
-            <TH {...thProps} right sortKey="max_price">Max</TH>
-            <TH {...thProps} right sortKey="best_drop_chance_pct">Drop%</TH>
-            <TH {...thProps} right sortKey="volume">Vol</TH>
+            <SortableTH {...thProps}>#</SortableTH>
+            <SortableTH {...thProps} sortKey="name">{t("Item")}</SortableTH>
+            {showCategoryCol    && <SortableTH {...thProps} sortKey="category">{t("Category")}</SortableTH>}
+            {showSubcategoryCol && <SortableTH {...thProps} sortKey="category">{t("Type")}</SortableTH>}
+            <SortableTH {...thProps} right sortKey="avg_price">{t("Avg")}</SortableTH>
+            <SortableTH {...thProps} right sortKey="min_price">{t("Min")}</SortableTH>
+            <SortableTH {...thProps} right sortKey="max_price">{t("Max")}</SortableTH>
+            <SortableTH {...thProps} right sortKey="best_drop_chance_pct">{t("Drop%")}</SortableTH>
+            <SortableTH {...thProps} right sortKey="volume">{t("Vol")}</SortableTH>
           </tr>
         </thead>
         <tbody>
           {sorted.length === 0 ? (
             <tr>
-              <td colSpan={8 + (showCategoryCol || showSubcategoryCol ? 1 : 0)} style={{
+              <td colSpan={COLS + (showCategoryCol || showSubcategoryCol ? 1 : 0)} style={{
                 textAlign: "center", padding: "32px 16px",
                 color: C.t2, fontSize: 14, fontStyle: "italic",
               }}>
-                Keine Daten verfügbar für diese Kategorie
+                {t("No data available for this category")}
               </td>
             </tr>
           ) : sorted.map((item, idx) => (
             <tr
-              key={`${item.slug}-${idx}`}
+              key={item.slug}
               onClick={() => navigate(itemPath(item.slug))}
-              style={{ borderBottom: "1px solid rgba(200,168,75,0.08)", transition: "background 0.08s", cursor: "pointer" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(200,168,75,0.07)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              style={{ borderBottom: `1px solid ${C.b}`, transition: "background 0.08s", cursor: "pointer" }}
+              {...hoverRow}
             >
               {/* # */}
               <td style={{ padding: "9px 15px", fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.t2, minWidth: 36 }}>
@@ -255,4 +215,6 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
       </table>
     </div>
   );
-};
+});
+
+CategoryTable.displayName = "CategoryTable";

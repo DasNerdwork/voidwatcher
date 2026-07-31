@@ -238,7 +238,11 @@ export const ItemThumb = ({ path, name, size = 28 }: { path?: string | null; nam
 
   if (path && !failed) {
     return (
-      <img src={path} width={size} height={size} alt="" onError={() => setFailed(true)}
+      // loading="lazy": der Category Browser zeigt 2550 Zeilen auf einmal und
+      // holte dafür 2550 AVIF-Thumbnails (~20 MB) samt Dekodierung, obwohl 30
+      // davon sichtbar sind. Breite und Höhe stehen fest, es springt also nichts.
+      <img src={path} width={size} height={size} alt=""
+        loading="lazy" decoding="async" onError={() => setFailed(true)}
         style={{
           borderRadius: C.rad, flexShrink: 0, objectFit: "contain", display: "block",
           background: "rgba(200,168,75,0.06)",
@@ -508,6 +512,27 @@ export const FilterLabel = ({ children }: { children: React.ReactNode }) => (
 );
 
 // ─── CardCorner ───────────────────────────────────────────────────────────────
+/**
+ * Uhr im Header — eigene Komponente, und das ist keine Kosmetik.
+ *
+ * Der Sekundentakt lag als State in `App`. Damit rendert die GANZE Seite jede
+ * Sekunde neu, und auf dem Markt-Reiter hängen daran 2550 Tabellenzeilen: im
+ * Leerlauf gemessen ein Long Task von 100–130 ms pro Sekunde, der das Scrollen
+ * hakelig machte. Als eigene Komponente rendert nur noch diese Zeile neu.
+ */
+export const HeaderClock = ({ locale = "de-DE" }: { locale?: string }) => {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span style={{ ...T.num, color: C.t, letterSpacing: "0.05em" }}>
+      {now.toLocaleTimeString(locale)}
+    </span>
+  );
+};
+
 export const CardCorner = () => (
   <svg width="14" height="14" viewBox="0 0 14 14"
     style={{ position: "absolute", top: 6, right: 6, pointerEvents: "none" }}>
