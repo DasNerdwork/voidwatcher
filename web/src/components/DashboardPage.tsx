@@ -17,17 +17,7 @@ interface ApiResponse {
   top_traded:    TopItem[];
 }
 
-interface FarmItem {
-  name:     string;
-  cat:      string;
-  icon:     string;
-  source:   string;
-  src_type: "relic" | "enemy";
-  price:    number;
-  drop_pct: number;
-  ratio:    number;
-  vol:      number;
-}
+
 
 export type ChangeMetric = "pct" | "abs";
 
@@ -118,16 +108,7 @@ interface DashboardPageProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MOCK_FARM: FarmItem[] = [
-  { name: "Adaptation",         cat: "Mods",    icon: "⚡", source: "Demolyst (Disruption)", src_type: "enemy",  price: 38.9, drop_pct: 6.67, ratio: 2.59, vol: 147 },
-  { name: "Primed Flow",        cat: "Mods",    icon: "⚡", source: "Orokin Vault",           src_type: "enemy",  price: 44.0, drop_pct: 2.23, ratio: 0.98, vol: 29  },
-  { name: "Condition Overload", cat: "Mods",    icon: "⚡", source: "Violacyst (Isolok)",     src_type: "enemy",  price: 31.0, drop_pct: 3.33, ratio: 1.03, vol: 62  },
-  { name: "Blind Rage",         cat: "Mods",    icon: "⚡", source: "Orokin Vault",           src_type: "enemy",  price: 15.4, drop_pct: 4.45, ratio: 0.69, vol: 29  },
-  { name: "Hunter Command",     cat: "Mods",    icon: "⚡", source: "Drahk Master",           src_type: "enemy",  price: 9.5,  drop_pct: 4.45, ratio: 0.42, vol: 54  },
-  { name: "Arcane Energize R5", cat: "Arcanes", icon: "🔮", source: "Axi A6 Intact",          src_type: "relic",  price: 427,  drop_pct: 0.11, ratio: 0.47, vol: 12  },
-  { name: "Umbral Fiber",       cat: "Mods",    icon: "⚡", source: "Sentient (Eidolon)",     src_type: "enemy",  price: 22.5, drop_pct: 1.67, ratio: 0.38, vol: 21  },
-  { name: "Arcane Fury R5",     cat: "Arcanes", icon: "🔮", source: "Neo F1 Intact",          src_type: "relic",  price: 142,  drop_pct: 0.11, ratio: 0.16, vol: 18  },
-];
+
 
 // ─── Item Icon ────────────────────────────────────────────────────────────────
 // Uses thumb_path from API if available, falls back to initials placeholder.
@@ -455,99 +436,6 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
   );
 };
 
-// ─── Farm Value Table ─────────────────────────────────────────────────────────
-
-const FarmValueTable = () => {
-  const [refinement, setRefinement] = useState("Intact");
-  const [srcFilter, setSrcFilter]   = useState("Alle");
-  const maxRatio = Math.max(...MOCK_FARM.map(d => d.ratio));
-  const filtered = MOCK_FARM
-    .filter(d => srcFilter === "Alle" ? true : srcFilter === "Relics" ? d.src_type === "relic" : d.src_type === "enemy")
-    .sort((a, b) => b.ratio - a.ratio);
-
-  return (
-    <div style={{ background: C.card, border: `1px solid ${C.b}`, borderRadius: 2, overflow: "hidden" }}>
-      <div style={{
-        padding: "12px 18px", borderBottom: `1px solid ${C.b}`, background: "rgba(0,0,0,0.2)",
-        display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10,
-      }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.t }}>Farm Value Ranking (WIP)</div>
-          <div style={{ ...T.meta, marginTop: 2 }}>Preis × Drop-Chance — Effizienz-Ratio</div>
-        </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={T.label}>REFINEMENT</span>
-          {["Intact", "Flawless", "Radiant"].map(r => (
-            <button key={r} onClick={() => setRefinement(r)} style={segBtn(refinement === r)}>{r}</button>
-          ))}
-          <div style={{ width: 1, height: 16, background: C.b, margin: "0 2px" }} />
-          {["Alle", "Enemies", "Relics"].map(s => (
-            <button key={s} onClick={() => setSrcFilter(s)} style={segBtn(srcFilter === s, C.cy)}>{s}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ borderBottom: `1px solid ${C.b}` }}>
-              {["#", "ITEM", "QUELLE", "PREIS", "DROP%", "RATIO (WERT×CHANCE)", "VOL"].map((h, i) => (
-                <th key={h} style={{ padding: "9px 16px", fontSize: 12, letterSpacing: "0.1em", color: C.t2, fontWeight: 600, textAlign: i >= 3 ? "right" : "left" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((d, i) => {
-              const barW = (d.ratio / maxRatio) * 100;
-              return (
-                <tr key={d.name} style={{ borderTop: `1px solid ${C.b}`, transition: "background 0.1s" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = C.hov)}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                  <td style={{ padding: "10px 16px", fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.t2 }}>{i + 1}</td>
-                  <td style={{ padding: "10px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      {/* Placeholder — Farm Value wird später auf echte API-Daten umgestellt */}
-                      <div style={{ width: 28, height: 28, borderRadius: 2, flexShrink: 0, background: "rgba(200,168,75,0.10)", border: `1px solid ${C.b}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
-                        {d.icon}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, color: C.t, fontSize: 14 }}>{d.name}</div>
-                        <div style={T.meta}>{d.cat}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ fontSize: 12, padding: "2px 7px", borderRadius: 2, fontWeight: 700, color: d.src_type === "relic" ? C.gold : C.cy, background: d.src_type === "relic" ? "rgba(200,168,75,0.12)" : "rgba(90,180,200,0.12)", border: `1px solid ${d.src_type === "relic" ? "rgba(200,168,75,0.3)" : "rgba(90,180,200,0.3)"}` }}>
-                        {d.src_type === "relic" ? "RELIC" : "ENEMY"}
-                      </span>
-                      <span style={{ ...T.body, fontWeight: 500 }}>{d.source}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: C.gold, fontWeight: 700 }}>{plat(d.price)}<SmallPlatIcon /></td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 14, fontWeight: 700, color: C.up }}>{d.drop_pct.toFixed(2)}%</td>
-                  <td style={{ padding: "10px 16px", minWidth: 180 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ flex: 1, height: 4, background: C.b, borderRadius: 2, position: "relative" }}>
-                        <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${barW}%`, borderRadius: 2, background: C.up, opacity: 0.75 }} />
-                      </div>
-                      <span style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 700, color: C.up, minWidth: 32, textAlign: "right" }}>{d.ratio.toFixed(2)}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: C.t2, fontWeight: 600 }}>{d.vol}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 16px", borderTop: `1px solid ${C.b}`, background: "rgba(0,0,0,0.1)", fontSize: 13, color: C.t2, fontFamily: "monospace" }}>
-        <span>Mock-Daten · {filtered.length} Items · /api/market/drops wird als nächstes eingebunden</span>
-        <TextLink href="#" style={{ fontSize: 13 }} onClick={e => e.preventDefault()}>Farm Value →</TextLink>
-      </div>
-    </div>
-  );
-};
-
 // ─── DashboardPage ────────────────────────────────────────────────────────────
 
 type ViewKey = "gainers" | "losers" | "traded" | "value";
@@ -746,14 +634,11 @@ export const DashboardPage = ({ data, hours, metric, onMetricChange }: Dashboard
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           {selectedItem
             ? <DetailPanel key={selectedItem.item_name} item={selectedItem} hours={hours} metric={metric} />
-            : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", ...T.meta, fontStyle: "italic" }}>Item auswählen</div>
+            : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", ...T.meta, fontStyle: "italic" }}>{t("Select an item")}</div>
           }
         </div>
       </div>
 
-      {/* Farm Value */}
-      <div style={{ fontSize: 12, letterSpacing: "0.12em", color: C.t2, fontWeight: 600, padding: "2px 0 10px" }}>FARM VALUE · WERT × DROP-CHANCE</div>
-      <FarmValueTable />
     </>
   );
 };
