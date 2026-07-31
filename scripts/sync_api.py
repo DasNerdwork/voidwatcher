@@ -323,6 +323,22 @@ def create_schema(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_wfpe_name_de     ON wfpe_items (name_de);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_wfpe_raw_gin     ON wfpe_items USING GIN (raw);")
 
+        # Ergänzungen aus dem Wiki-Datenmodul für die Warframe-Übersicht, siehe
+        # migrations/009 und scripts/sync_warframes.py. Enthält NUR, was der
+        # Export nicht hat: das Wachstum bis Rang 30 (33 der 117 Frames weichen
+        # von der Standardregel ab), die Startenergie und die Textfelder für die
+        # aufklappbare Detailzeile. Die Zeilen der Übersicht kommen aus
+        # wfpe_items — ein Frame ohne Eintrag hier fällt auf das
+        # Standardwachstum zurück, fehlt aber nie.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS wiki_warframes (
+                internal_name TEXT PRIMARY KEY,
+                name          TEXT NOT NULL,
+                payload       JSONB NOT NULL,
+                updated_at    TIMESTAMPTZ DEFAULT now()
+            );
+        """)
+
         # metadata table for last update tracking
         cur.execute("""
             CREATE TABLE IF NOT EXISTS metadata (
@@ -1142,6 +1158,16 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
                 precompute_drops.run(conn)
             except Exception as e:
                 logging.error(f"precompute_drops fehlgeschlagen: {e}", exc_info=True)
+        if not skip_wfpe and not dry_run and not slugs:
+            # Ergänzt die Warframe-Übersicht um das, was der Export nicht kennt:
+            # Rang-30-Wachstum und Startenergie. Fehlschlag ist nicht fatal — die
+            # Seite rechnet dann mit dem alten Stand aus wiki_warframes weiter.
+            try:
+                import sync_warframes
+                logging.info("Starte sync_warframes...")
+                sync_warframes.run(conn)
+            except Exception as e:
+                logging.error(f"sync_warframes fehlgeschlagen: {e}", exc_info=True)
         if not dry_run and not slugs:
             try:
                 import sync_images
