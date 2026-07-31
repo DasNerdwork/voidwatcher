@@ -250,9 +250,15 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
         </div>
         <div style={{ ...T.meta, marginTop: 2 }}>
           {/* Mit Einheit statt „Vol 860": das Kürzel nennt nicht, was gezählt wird.
-              Tausendertrennung wie an jeder anderen Volumen-Stelle der App. */}
+              Tausendertrennung wie an jeder anderen Volumen-Stelle der App.
+
+              Bei „Meistgehandelt" stehen hier stattdessen die Platin — dort ist
+              die Handelsaktivität die Leitgröße und gehört nach rechts, damit die
+              Veränderung darunter sich auf sie bezieht und nicht auf den Preis. */}
           {item.max_rank != null && item.max_rank > 0 ? `R${item.max_rank} · ` : ""}
-          {item.volume.toLocaleString("de-DE")} Trades
+          {showVolumeChange
+            ? <>{plat(price(item))}<SmallPlatIcon /></>
+            : <>{item.volume.toLocaleString("de-DE")} Trades</>}
           {/* Der angezeigte Wert bleibt immer der echte — hier steht nur, worauf
               er beruht. Schwelle 0,25 entspricht bei m = 30 rund zehn Trades.
               (Mit dem früheren m = 10 stand hier 0,5 für dieselben zehn Trades;
@@ -273,8 +279,14 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
           auf und nicht ChangeValue: die Komponente hängt im Platin-Modus ein
           zweites Icon an. Die Einheit steht in der Zeile darüber. */}
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div style={{ ...T.num, color: C.gold, whiteSpace: "nowrap" }}>
-          {plat(price(item))}<SmallPlatIcon />
+        {/* Leitgröße der Ansicht: bei „Meistgehandelt" die Trades in C.cy (die
+            Akzentfarbe dieser Ansicht), sonst der Preis in Gold. Gold bleibt so
+            durchgehend dem Platinwert vorbehalten — und es steht weiterhin genau
+            EIN Platin-Icon je Zeile, hier nur links. */}
+        <div style={{ ...T.num, color: showVolumeChange ? C.cy : C.gold, whiteSpace: "nowrap" }}>
+          {showVolumeChange
+            ? <>{item.volume.toLocaleString("de-DE")} Trades</>
+            : <>{plat(price(item))}<SmallPlatIcon /></>}
         </div>
         {showVolumeChange ? (
           <div style={{ ...T.numSmall, marginTop: 2, color: volumeChangeColor(item), whiteSpace: "nowrap" }}
