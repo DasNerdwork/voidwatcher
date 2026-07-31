@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LogoIcon } from "./components/Icons";
 import { TickerBanner } from "./components/Ticker";
-import { DashboardPage, loadMetric, saveMetric } from "./components/DashboardPage";
+import { DashboardPage } from "./components/DashboardPage";
 import type { ChangeMetric } from "./components/DashboardPage";
 import { CategoryTable } from "./components/CategoryTable";
 import { SearchBox } from "./components/SearchBox";
@@ -10,8 +10,9 @@ import { MoversPage } from "./components/MoversPage";
 import { FarmValuePage } from "./components/FarmValuePage";
 import { ItemPage } from "./components/ItemPage";
 import type { TopItem } from "./types";
-import { C, CardCorner, FilterLabel, T, TAG_OPTIONS, TextLink, VitFlourish, segBtn, segBtnHover } from "./components/shared";
+import { C, CardCorner, FilterLabel, HOURS_LABELS, HOURS_OPTIONS, T, TAG_OPTIONS, TextLink, VitFlourish, segBtn, segBtnHover } from "./components/shared";
 import { A, itemSlugFromPath, navigate, useRoute } from "./router";
+import { oneOf, usePersistentState } from "./prefs";
 
 interface ApiResponse {
   last_updated: string;
@@ -59,9 +60,17 @@ const MISC_SUBS  = ["Fish", "Skins & Helmets", "Scenes", "Gems & Resources", "Ay
 
 type Page = "dashboard" | "market" | "movers" | "farmvalue";
 
+const isHours  = oneOf<number>(HOURS_OPTIONS);
+const isTag    = oneOf<string | null>(TAG_OPTIONS.map(o => o.value));
+const isMetric = oneOf<ChangeMetric>(["pct", "abs"]);
+
 const App: React.FC = () => {
-  const [hours, setHours]                         = useState(24);
-  const [activeTag, setActiveTag]                 = useState<string | null>(null);
+  // Zeitraum und Kategorie überdauern das Neuladen: wer sich einmal für einen
+  // Ausschnitt entschieden hat, will ihn nicht bei jedem Aufruf neu einstellen.
+  // 48H als Vorgabe, weil ein Tagesfenster für die meisten Items zu wenige
+  // Buckets hat, um eine Bewegung zu zeigen.
+  const [hours, setHours]                         = usePersistentState("vw:hours", 48, isHours);
+  const [activeTag, setActiveTag]                 = usePersistentState<string | null>("vw:tag", null, isTag);
   const [data, setData]                           = useState<ApiResponse | null>(null);
   const [status, setStatus]                       = useState<StatusResponse | null>(null);
   const [tickerItems, setTickerItems]             = useState<TopItem[]>([]);
@@ -73,7 +82,7 @@ const App: React.FC = () => {
   const [miscSub, setMiscSub]                     = useState<string | null>(null);
   const [miscOpen, setMiscOpen]                   = useState(false);
   // Einheit der Veränderungs-Ansichten: prozentual oder Platin-Differenz.
-  const [metric, setMetric]                       = useState<ChangeMetric>(loadMetric);
+  const [metric, setMetric]                       = usePersistentState<ChangeMetric>("vw:change-metric", "pct", isMetric);
   const miscRef                                   = useRef<HTMLDivElement>(null);
 
   const route    = useRoute();
@@ -93,25 +102,43 @@ const App: React.FC = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, [miscOpen]);
 
-  const fetchMarketData = async (h: number, tag: string | null, m: ChangeMetric) => {
-    try {
-      const tagParam = tag ? `&tag=${tag}` : "";
-      const res  = await fetch(`/api/top?hours=${h}&limit=10&metric=${m}${tagParam}`);
-      const json = await res.json();
-      setData(json);
-    } catch { /* keep */ }
-  };
-  useEffect(() => { fetchMarketData(hours, activeTag, metric); }, [hours, activeTag, metric]);
+  // cancelled-Flag: beim schnellen Wechsel von Zeitraum oder Kategorie kann eine
+  // ältere Antwort nach der aktuellen eintreffen und die Listen mit den Daten des
+  // vorherigen Filters füllen.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const tagParam = activeTag ? `&tag=${activeTag}` : "";
+        const res  = await fetch(`/api/top?hours=${hours}&limit=10&metric=${metric}${tagParam}`);
+        const json = await res.json();
+        if (!cancelled) setData(json);
+      } catch { /* keep */ }
+    })();
+    return () => { cancelled = true; };
+  }, [hours, activeTag, metric]);
 
   // Ticker: eigene, ungefilterte Datenquelle (fest 24H) — bewusst entkoppelt
   // von hours/activeTag, damit Dashboard-Filter den Ticker nicht neu starten.
   // State wird nur ersetzt wenn sich der Inhalt wirklich ändert, damit die
   // CSS-Animation auch beim 60s-Refresh nicht springt.
+  //
+  // Gewinner und Verlierer im Wechsel, je 5 — ein Laufband, das nur steigende
+  // Werte zeigt, beschreibt den Markt nicht. Die Zahl 10 ist keine Willkür:
+  // .ticker-track läuft mit fester Dauer über translateX(-50%), mehr Einträge
+  // bedeuten also proportional schnelleres Scrollen.
   const fetchTicker = async () => {
     try {
       const res  = await fetch("/api/top?hours=24&limit=10");
       const json = await res.json();
-      const next: TopItem[] = json.top_performer ?? [];
+      const gainers: TopItem[] = (json.top_performer ?? []).slice(0, 5);
+      const losers:  TopItem[] = (json.top_loser ?? []).slice(0, 5);
+      // Reißverschluss; ist eine Liste kürzer, hängt der Rest der anderen an.
+      const next: TopItem[] = [];
+      for (let i = 0; i < Math.max(gainers.length, losers.length); i++) {
+        if (gainers[i]) next.push(gainers[i]);
+        if (losers[i])  next.push(losers[i]);
+      }
       setTickerItems(prev =>
         JSON.stringify(prev) === JSON.stringify(next) ? prev : next
       );
@@ -161,7 +188,7 @@ const App: React.FC = () => {
     border: active ? `1px solid ${C.b2}` : "1px solid transparent",
     background: active ? C.hov : "none",
     color: active ? C.t : C.t2,
-    fontSize: 13, fontWeight: active ? 700 : 500,
+    fontSize: 14, fontWeight: active ? 700 : 500,
     letterSpacing: "0.03em", cursor: "pointer", transition: "all 0.12s",
   });
 
@@ -189,8 +216,8 @@ const App: React.FC = () => {
         <A href="/" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <LogoIcon />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.gold, letterSpacing: "0.16em", lineHeight: 1.1 }}>VOIDWATCH</div>
-            <div style={{ fontSize: 11, color: C.t2, letterSpacing: "0.04em" }}>Platinum Market</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, letterSpacing: "0.16em", lineHeight: 1.1 }}>VOIDWATCH</div>
+            <div style={{ fontSize: 12, color: C.t2, letterSpacing: "0.04em" }}>Platinum Market</div>
           </div>
         </A>
 
@@ -214,7 +241,7 @@ const App: React.FC = () => {
           {status?.wf_build_label && (
             <span style={{ ...T.meta }}>
               Last Update: <TextLink href={status.wf_update_url ?? "#"} color={C.gold}
-                style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 600 }}>
+                style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 600 }}>
                 {status.wf_update_name} ({status.wf_update_version})
               </TextLink>
             </span>
@@ -240,13 +267,12 @@ const App: React.FC = () => {
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <FilterLabel>ZEITRAUM</FilterLabel>
-                {([24, 48, 168, 336, 720, 2160] as const).map(h => {
-                  const labels: Record<number, string> = { 24: "24H", 48: "48H", 168: "7T", 336: "14T", 720: "30T", 2160: "90T" };
+                {HOURS_OPTIONS.map(h => {
                   const active = hours === h;
                   return (
                     <button key={h} onClick={() => setHours(h)}
                       style={segBtn(active)} {...segBtnHover(active)}>
-                      {labels[h]}
+                      {HOURS_LABELS[h]}
                     </button>
                   );
                 })}
@@ -265,7 +291,7 @@ const App: React.FC = () => {
                 })}
               </div>
             </div>
-            <DashboardPage data={data} hours={hours} metric={metric} onMetricChange={m => { saveMetric(m); setMetric(m); }} />
+            <DashboardPage data={data} hours={hours} metric={metric} onMetricChange={setMetric} />
           </>
         )}
 
@@ -286,7 +312,7 @@ const App: React.FC = () => {
                   <span style={T.cardTitle}>Category Browser</span>
                   <span style={T.meta}>· {visibleItemCount()} Items</span>
                   {category === "Misc" && miscSub && (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: C.gold, background: "rgba(200,168,75,0.12)", border: `1px solid rgba(200,168,75,0.25)`, borderRadius: C.radBtn, padding: "2px 8px" }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.gold, background: "rgba(200,168,75,0.12)", border: `1px solid rgba(200,168,75,0.25)`, borderRadius: C.radBtn, padding: "2px 8px" }}>
                       {miscSub}
                     </span>
                   )}
@@ -313,13 +339,13 @@ const App: React.FC = () => {
                         {miscOpen && (
                           <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "rgba(10,12,28,0.97)", border: `1px solid ${C.b2}`, borderRadius: C.rad, padding: "5px", zIndex: 200, display: "flex", flexDirection: "column", gap: 1, minWidth: 170, backdropFilter: "blur(14px)", boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
                             <button onClick={() => { setCategory("Misc"); setMiscSub(null); setMiscOpen(false); }}
-                              style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 12, background: miscSub === null ? C.hov : "none", color: miscSub === null ? C.gold : C.t2, fontWeight: miscSub === null ? 600 : 400 }}>
+                              style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 13, background: miscSub === null ? C.hov : "none", color: miscSub === null ? C.gold : C.t2, fontWeight: miscSub === null ? 600 : 400 }}>
                               Alle Misc
                             </button>
                             <div style={{ height: 1, background: C.b, margin: "3px 4px" }} />
                             {MISC_SUBS.map(sub => (
                               <button key={sub} onClick={() => { setCategory("Misc"); setMiscSub(sub); setMiscOpen(false); }}
-                                style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 12, background: miscSub === sub ? C.hov : "none", color: miscSub === sub ? C.gold : C.t2, fontWeight: miscSub === sub ? 600 : 500 }}>
+                                style={{ padding: "6px 10px", borderRadius: C.radBtn, border: "none", textAlign: "left", cursor: "pointer", fontSize: 13, background: miscSub === sub ? C.hov : "none", color: miscSub === sub ? C.gold : C.t2, fontWeight: miscSub === sub ? 600 : 500 }}>
                                 {sub}
                               </button>
                             ))}
@@ -331,7 +357,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               {categoriesLoading ? (
-                <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", fontSize: 12, letterSpacing: "0.15em" }}>KATEGORIEN LADEN...</div>
+                <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em" }}>KATEGORIEN LADEN...</div>
               ) : (
                 <CategoryTable category={category} allCategories={allCategories} miscSub={miscSub} />
               )}

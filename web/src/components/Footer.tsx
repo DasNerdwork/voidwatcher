@@ -30,7 +30,7 @@ export const Footer = ({ status }: FooterProps) => (
 
       {/* Version info row */}
       {status && (
-        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 12, color: C.t2, fontFamily: "monospace", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 13, color: C.t2, fontFamily: "monospace", flexWrap: "wrap" }}>
           {status.wf_build_label && (
             <span>WF <span style={{ color: C.t, fontWeight: 600 }}>{status.wf_build_label}</span></span>
           )}

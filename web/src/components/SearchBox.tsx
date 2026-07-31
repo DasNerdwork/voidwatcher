@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { SmallPlatIcon } from "./Icons";
 import { C, CategoryBadge, ItemThumb, T, plat } from "./shared";
 import { A, itemPath, navigate } from "../router";
+import { readPref, writePref } from "../prefs";
 import type { SearchResult } from "../types";
 
 // ─── Recently Searched (localStorage) ─────────────────────────────────────────
@@ -9,19 +10,17 @@ import type { SearchResult } from "../types";
 const RECENT_KEY = "vw:recent-items";
 const RECENT_MAX = 6;
 
-const loadRecent = (): SearchResult[] => {
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.slice(0, RECENT_MAX) : [];
-  } catch {
-    return [];
-  }
-};
+// Kein usePersistentState: die Liste wird auch außerhalb des Renders fortgeschrieben
+// (Deckel und Dedupe in pushRecent). Lesen und Schreiben laufen trotzdem über
+// dieselben Helfer wie alle übrigen Einstellungen.
+const isResultList = (v: unknown): v is SearchResult[] => Array.isArray(v);
+
+const loadRecent = (): SearchResult[] =>
+  readPref<SearchResult[]>(RECENT_KEY, [], isResultList).slice(0, RECENT_MAX);
 
 const pushRecent = (item: SearchResult): SearchResult[] => {
   const next = [item, ...loadRecent().filter(r => r.slug !== item.slug)].slice(0, RECENT_MAX);
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* Quota/Private Mode */ }
+  writePref(RECENT_KEY, next);
   return next;
 };
 
@@ -156,7 +155,7 @@ export const SearchBox = () => {
 
   const sectionLabel = (text: string) => (
     <div style={{
-      fontSize: 11, letterSpacing: "0.12em", color: C.t2, fontWeight: 600,
+      fontSize: 12, letterSpacing: "0.12em", color: C.t2, fontWeight: 600,
       padding: "6px 10px 4px",
     }}>
       {text}
@@ -184,7 +183,7 @@ export const SearchBox = () => {
         style={{
           width: "100%", background: "rgba(0,0,0,0.3)", border: `1px solid ${C.b}`,
           borderRadius: C.rad, padding: "7px 12px 7px 32px", color: C.t,
-          fontSize: 13, fontWeight: 500, outline: "none", transition: "border-color 0.15s",
+          fontSize: 14, fontWeight: 500, outline: "none", transition: "border-color 0.15s",
         }}
       />
 
@@ -213,7 +212,7 @@ export const SearchBox = () => {
           ) : loading && results.length === 0 ? (
             <div style={{
               padding: "14px 10px", textAlign: "center", color: C.t2,
-              fontFamily: "monospace", fontSize: 12, letterSpacing: "0.15em",
+              fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em",
             }}>
               SUCHE...
             </div>

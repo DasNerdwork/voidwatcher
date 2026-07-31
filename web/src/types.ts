@@ -25,6 +25,10 @@ export interface TopItem {
   // Glaubwürdigkeit 0…1 aus dem Handelsvolumen, v/(v+30). Beeinflusst die
   // Sortierung im Backend; im Frontend nur als Hinweis bei dünner Datenlage.
   confidence?: number | null
+  // Volumengewichtetes Mittel der Bucket-Mediane von warframe.market — dieselbe
+  // Aggregation, die der Chart als Median-Linie zeichnet. Ein Mittel von Medianen,
+  // kein Quantil über alle Trades; die Kachel sagt deshalb „typischer Preis".
+  median?: number | null
 }
 
 // ─── Suche (/api/item/search) ─────────────────────────────────────────────────
@@ -61,6 +65,12 @@ export interface ItemDetail {
   volume_48h:    number | null
   change_pct:    number | null
   mod_ranks:     number[] | null   // vorhandene mod_rank-Werte → Rang-Umschalter
+  // Niedrigstes Verkaufsangebot, nur gefüllt bei Items ohne Handelsdaten.
+  // Ein Angebot ist kein Handelspreis und wird getrennt ausgewiesen.
+  sell_price_min:    number | null
+  sell_price_rank:   number | null
+  sell_price_status: string | null
+  sell_orders_at:    string | null
   category:      string
   subcategory:   string | null
 }

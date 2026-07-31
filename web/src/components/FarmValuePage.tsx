@@ -68,11 +68,11 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
           <div key={i} style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "4px 0", borderBottom: i < top.length - 1 ? `1px solid ${C.b}` : "none",
-            fontSize: 11,
+            fontSize: 12,
           }}>
             {/* Source type icon */}
             <span style={{
-              fontFamily: "monospace", fontSize: 11, fontWeight: 600, color: srcColor,
+              fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: srcColor,
               padding: "1px 5px", border: `1px solid ${srcColor}44`,
               borderRadius: 2, letterSpacing: "0.1em", flexShrink: 0,
             }}>
@@ -86,13 +86,13 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
 
             {/* Rarity */}
             {src.rarity && (
-              <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: rarColor, flexShrink: 0 }}>
+              <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: rarColor, flexShrink: 0 }}>
                 {src.rarity}
               </span>
             )}
 
             {/* Chance */}
-            <span style={{ fontFamily: "monospace", fontSize: 11, color: C.up, fontWeight: 700, flexShrink: 0, minWidth: 52, textAlign: "right" }}>
+            <span style={{ fontFamily: "monospace", fontSize: 12, color: C.up, fontWeight: 700, flexShrink: 0, minWidth: 52, textAlign: "right" }}>
               {chance != null ? `${(chance * 100).toFixed(2)}%` : "—"}
             </span>
           </div>
@@ -228,16 +228,16 @@ export const FarmValuePage = () => {
         </div>
 
         {loading ? (
-          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 12 }}>
+          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 13 }}>
             LADEN...
           </div>
         ) : items.length === 0 ? (
-          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 13, fontStyle: "italic" }}>
+          <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 14, fontStyle: "italic" }}>
             Keine Items mit Drop-Daten für diese Filterung
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.b}` }}>
                   {[
@@ -251,7 +251,7 @@ export const FarmValuePage = () => {
                   ].map(({ label, right }) => (
                     <th key={label} style={{
                       padding: "9px 14px", textAlign: right ? "right" : "left",
-                      fontSize: 11, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
+                      fontSize: 12, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
                     }}>
                       {label}
                     </th>
@@ -278,7 +278,7 @@ export const FarmValuePage = () => {
                         onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = C.hov; }}
                         onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = "transparent"; }}
                       >
-                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2 }}>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.t2 }}>
                           {idx + 1}
                         </td>
 
@@ -287,7 +287,7 @@ export const FarmValuePage = () => {
                             <ItemThumb path={item.thumb_path} name={item.item_name} />
                             <div style={{ minWidth: 0 }}>
                               <A href={itemPath(item.slug)}
-                                style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 14, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {item.item_name}
                               </A>
                               {topSource && (
@@ -302,13 +302,13 @@ export const FarmValuePage = () => {
                           </div>
                         </td>
 
-                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: C.gold, fontWeight: 700 }}>
                           <SmallPlatIcon />{plat(item.avg_price)}
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right" }}>
                           <span style={{
-                            fontFamily: "monospace", fontSize: 12, fontWeight: 700,
+                            fontFamily: "monospace", fontSize: 13, fontWeight: 700,
                             color: C.up, padding: "2px 6px", borderRadius: 2,
                             background: `${C.up}18`, border: `1px solid ${C.up}44`,
                           }}>
@@ -316,14 +316,14 @@ export const FarmValuePage = () => {
                           </span>
                         </td>
 
-                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, color: C.cy }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.cy }}>
                           {item.value_per_drop > 0 ? item.value_per_drop.toFixed(3) : "—"}
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right" }}
                           onClick={e => { e.stopPropagation(); if (sources.length) setExpandedIdx(isExpanded ? null : idx); }}>
                           <span style={{
-                            fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2,
+                            fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2,
                             padding: "2px 6px", border: `1px solid ${C.b}`, borderRadius: 2,
                             cursor: sources.length > 0 ? "pointer" : "default",
                           }}>
@@ -331,7 +331,7 @@ export const FarmValuePage = () => {
                           </span>
                         </td>
 
-                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
                           {item.volume.toLocaleString("de-DE")}
                         </td>
                       </tr>

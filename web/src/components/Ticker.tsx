@@ -73,10 +73,12 @@ export const TickerBanner = memo(({ items }: TickerBannerProps) => {
                 }}>
                   {item.item_name}
                 </span>
-                <span style={{ ...T.num, color: C.gold }}>
-                  {plat(item.avg_price)}
+                {/* Zahl und Icon als eine Einheit: sonst addiert sich der
+                    gap: 8 der Zeile zum marginLeft: 3 des Icons auf 11px. */}
+                <span style={{ ...T.num, color: C.gold, display: "inline-flex", alignItems: "center" }}>
+                  {plat(item.current_price ?? item.avg_price)}
+                  <SmallPlatIcon />
                 </span>
-                <SmallPlatIcon />
                 {hasChange ? (
                   <span style={{ ...T.num, color: up ? C.up : C.down }}>
                     {pctChange(chg)}

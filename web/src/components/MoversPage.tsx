@@ -39,7 +39,7 @@ const ChangeBadge = ({ pct }: { pct: number }) => {
   const color = up ? C.up : C.down;
   return (
     <span style={{
-      fontFamily: "monospace", fontSize: 12, fontWeight: 700,
+      fontFamily: "monospace", fontSize: 13, fontWeight: 700,
       color, padding: "2px 6px", borderRadius: 2,
       background: `${color}18`, border: `1px solid ${color}44`,
     }}>
@@ -70,7 +70,7 @@ const MoversTable = ({ title, subtitle, items, loading, accentColor }: MoversTab
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <div style={{ width: 2, height: 15, borderRadius: 1, background: accentColor, flexShrink: 0 }} />
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.t }}>{title}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.t }}>{title}</div>
           <div style={{ ...T.meta, marginTop: 2 }}>{subtitle}</div>
         </div>
       </div>
@@ -78,22 +78,22 @@ const MoversTable = ({ title, subtitle, items, loading, accentColor }: MoversTab
     </div>
 
     {loading ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 12 }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 13 }}>
         LADEN...
       </div>
     ) : items.length === 0 ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 13, fontStyle: "italic" }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 14, fontStyle: "italic" }}>
         Keine Daten für diesen Zeitraum
       </div>
     ) : (
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${C.b}` }}>
               {["#", "ITEM", "START", "JETZT", "CHANGE", "VOL"].map((h, i) => (
                 <th key={h} style={{
                   padding: "9px 14px", textAlign: i >= 2 ? "right" : "left",
-                  fontSize: 11, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
+                  fontSize: 12, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
                 }}>
                   {h}
                 </th>
@@ -108,24 +108,24 @@ const MoversTable = ({ title, subtitle, items, loading, accentColor }: MoversTab
                 onMouseEnter={e => (e.currentTarget.style.background = C.hov)}
                 onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
               >
-                <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2, minWidth: 28 }}>
+                <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.t2, minWidth: 28 }}>
                   {idx + 1}
                 </td>
                 <td style={{ padding: "10px 14px", maxWidth: 200 }}>
-                  <A href={itemPath(item.slug)} style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 13, lineHeight: 1.3 }}>
+                  <A href={itemPath(item.slug)} style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 14, lineHeight: 1.3 }}>
                     {item.item_name}
                   </A>
                 </td>
-                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
                   {plat(item.start_price)}<SmallPlatIcon />
                 </td>
-                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: C.gold, fontWeight: 700 }}>
                   {plat(item.current_price)}<SmallPlatIcon />
                 </td>
                 <td style={{ padding: "10px 14px", textAlign: "right" }}>
                   <ChangeBadge pct={item.change_pct} />
                 </td>
-                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
                   {item.volume.toLocaleString("de-DE")}
                 </td>
               </tr>
@@ -151,7 +151,7 @@ const StableTable = ({ items, loading }: { items: StableItem[]; loading: boolean
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
         <div style={{ width: 2, height: 15, borderRadius: 1, background: C.cy, flexShrink: 0 }} />
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.t }}>Stabilste Items</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.t }}>Stabilste Items</div>
           <div style={{ ...T.meta, marginTop: 2 }}>Niedrigster Preis-Spread (min/max vs avg)</div>
         </div>
       </div>
@@ -159,22 +159,22 @@ const StableTable = ({ items, loading }: { items: StableItem[]; loading: boolean
     </div>
 
     {loading ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 12 }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 13 }}>
         LADEN...
       </div>
     ) : items.length === 0 ? (
-      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 13, fontStyle: "italic" }}>
+      <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 14, fontStyle: "italic" }}>
         Keine Daten verfügbar
       </div>
     ) : (
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${C.b}` }}>
               {["#", "ITEM", "AVG PREIS", "MIN", "MAX", "SPREAD", "VOL"].map((h, i) => (
                 <th key={h} style={{
                   padding: "9px 14px", textAlign: i >= 2 ? "right" : "left",
-                  fontSize: 11, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
+                  fontSize: 12, color: C.t2, fontWeight: 600, letterSpacing: "0.1em",
                 }}>
                   {h}
                 </th>
@@ -192,29 +192,29 @@ const StableTable = ({ items, loading }: { items: StableItem[]; loading: boolean
                   onMouseEnter={e => (e.currentTarget.style.background = C.hov)}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                 >
-                  <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2 }}>{idx + 1}</td>
+                  <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.t2 }}>{idx + 1}</td>
                   <td style={{ padding: "10px 14px", maxWidth: 200 }}>
-                    <A href={itemPath(item.slug)} style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 13 }}>{item.item_name}</A>
+                    <A href={itemPath(item.slug)} style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 14 }}>{item.item_name}</A>
                   </td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: C.gold, fontWeight: 700 }}>
                     {plat(item.avg_price)}<SmallPlatIcon />
                   </td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
                     {plat(item.min_price)}
                   </td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
                     {plat(item.max_price)}
                   </td>
                   <td style={{ padding: "10px 14px", textAlign: "right" }}>
                     <span style={{
-                      fontFamily: "monospace", fontSize: 11, fontWeight: 700,
+                      fontFamily: "monospace", fontSize: 12, fontWeight: 700,
                       color: spreadColor, padding: "2px 6px", borderRadius: 2,
                       background: `${spreadColor}18`, border: `1px solid ${spreadColor}44`,
                     }}>
                       {spreadPct}%
                     </span>
                   </td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 12, fontWeight: 600, color: C.t2 }}>
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
                     {item.volume.toLocaleString("de-DE")}
                   </td>
                 </tr>

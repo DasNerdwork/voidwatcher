@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { SmallPlatIcon } from "./Icons";
+import { useEffect, useState } from "react";
+import { ExternalLinkIcon, SmallPlatIcon } from "./Icons";
 import { ItemChart } from "./ItemChart";
 import {
   C, CardCorner, CategoryBadge, FilterLabel, ItemThumb, MISC_SUB_COLORS, RARITY_COLORS,
-  T, VitFlourish, plat, pctChange, segBtn,
+  T, TextLink, VitFlourish, marketUrl, plat, pctChange, segBtn,
 } from "./shared";
 import { A, itemPath, navigate } from "../router";
 import type {
@@ -87,7 +87,7 @@ const Card = ({
 const TH = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
   <th style={{
     padding: "9px 14px", textAlign: right ? "right" : "left",
-    fontSize: 11, color: C.t2, fontWeight: 500, letterSpacing: "0.1em",
+    fontSize: 12, color: C.t2, fontWeight: 500, letterSpacing: "0.1em",
     borderBottom: `1px solid ${C.b}`, whiteSpace: "nowrap",
   }}>
     {children}
@@ -111,7 +111,7 @@ const LinkedRow = ({ slug, children }: { slug: string; children: React.ReactNode
 
 const RelicTable = ({ sources }: { sources: DropSource[] }) => (
   <div style={{ overflowX: "auto" }}>
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
       <thead>
         <tr>
           <TH>RELIC</TH>
@@ -128,7 +128,7 @@ const RelicTable = ({ sources }: { sources: DropSource[] }) => (
               <td style={TD_BASE}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{
-                    fontFamily: "monospace", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
+                    fontFamily: "monospace", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em",
                     color: eraColor, background: `${eraColor}18`,
                     border: `1px solid ${eraColor}44`, borderRadius: C.rad, padding: "1px 6px",
                   }}>
@@ -137,7 +137,7 @@ const RelicTable = ({ sources }: { sources: DropSource[] }) => (
                   <span style={{ ...T.bodyStrong }}>{s.relic_name}</span>
                 </div>
               </td>
-              <td style={{ ...TD_BASE, fontFamily: "monospace", fontSize: 11, color: rarColor, fontWeight: 700, letterSpacing: "0.04em" }}>
+              <td style={{ ...TD_BASE, fontFamily: "monospace", fontSize: 12, color: rarColor, fontWeight: 700, letterSpacing: "0.04em" }}>
                 {s.rarity ?? "—"}
               </td>
               {REFINEMENTS.map(r => (
@@ -158,7 +158,7 @@ const RelicTable = ({ sources }: { sources: DropSource[] }) => (
 
 const TableSourceList = ({ sources, accent }: { sources: DropSource[]; accent: string }) => (
   <div style={{ overflowX: "auto" }}>
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
       <thead>
         <tr>
           <TH>QUELLE</TH>
@@ -230,7 +230,7 @@ const RelicContentsCard = ({ contents }: { contents: RelicContent[] }) => {
   return (
     <Card title="Relic-Inhalt" accent={C.cy} sub={`${contents.length} mögliche Belohnungen`} right={<VitFlourish />}>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr>
               <TH>ITEM</TH>
@@ -251,7 +251,7 @@ const RelicContentsCard = ({ contents }: { contents: RelicContent[] }) => {
                       <A href={itemPath(c.slug)} style={T.bodyStrong}>{c.name}</A>
                     </div>
                   </td>
-                  <td style={{ ...TD_BASE, fontFamily: "monospace", fontSize: 11, color: rarColor, fontWeight: 700, letterSpacing: "0.04em" }}>
+                  <td style={{ ...TD_BASE, fontFamily: "monospace", fontSize: 12, color: rarColor, fontWeight: 700, letterSpacing: "0.04em" }}>
                     {c.rarity ?? "—"}
                   </td>
                   <td style={{ ...TD_BASE, textAlign: "right", ...T.numSmall, color: C.t2 }}>
@@ -277,9 +277,9 @@ const RelicContentsCard = ({ contents }: { contents: RelicContent[] }) => {
             borderRight: i < arr.length - 1 ? `1px solid ${C.b}` : "none",
           }}>
             <div style={{ ...T.label, marginBottom: 5 }}>
-              ⌀ WERT {e.label.toUpperCase()}
+              DURCHSCHNITTSWERT {e.label.toUpperCase()}
             </div>
-            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: C.cy }}>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: C.cy }}>
               {plat(e.value)}<SmallPlatIcon />
             </div>
           </div>
@@ -303,7 +303,7 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
   return (
     <Card title="Set & Einzelteile" accent="#8a7eb8" sub={`${pieces.length} Teile`} right={<VitFlourish />}>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr>
               <TH>ITEM</TH>
@@ -328,7 +328,7 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
                       </A>
                       {p.is_set && (
                         <span style={{
-                          fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", color: C.t2,
+                          fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", color: C.t2,
                           border: `1px solid ${C.b}`, borderRadius: C.rad, padding: "1px 5px",
                         }}>
                           SET
@@ -371,7 +371,7 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
             <div style={{ ...T.label, marginBottom: 5 }}>
               {s.label}
             </div>
-            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: s.color }}>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: s.color }}>
               {s.value}
             </div>
           </div>
@@ -419,19 +419,24 @@ export const ItemPage = ({ slug }: { slug: string }) => {
     return () => { cancelled = true; };
   }, [slug]);
 
-  const fetchHistory = useCallback(async () => {
+  // cancelled-Flag wie beim Detail-Effekt darüber: beim schnellen Durchklicken
+  // der Zeiträume kann eine ältere Antwort nach der aktuellen eintreffen und sie
+  // überschreiben. Sichtbar wurde das als springende Punktzahl im Chart.
+  useEffect(() => {
+    let cancelled = false;
     setHistLoading(true);
-    try {
-      const params = new URLSearchParams({ hours: String(hours) });
-      if (modRank != null) params.set("mod_rank", String(modRank));
-      const res  = await fetch(`/api/item/${encodeURIComponent(slug)}/history?${params}`);
-      const json = await res.json();
-      setHistory(json);
-    } catch { /* keep */ }
-    finally { setHistLoading(false); }
+    (async () => {
+      try {
+        const params = new URLSearchParams({ hours: String(hours) });
+        if (modRank != null) params.set("mod_rank", String(modRank));
+        const res  = await fetch(`/api/item/${encodeURIComponent(slug)}/history?${params}`);
+        const json = await res.json();
+        if (!cancelled) setHistory(json);
+      } catch { /* keep */ }
+      finally { if (!cancelled) setHistLoading(false); }
+    })();
+    return () => { cancelled = true; };
   }, [slug, hours, modRank]);
-
-  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const backLink = (
     <A href="/" style={{ ...T.meta, display: "inline-block", marginBottom: 12 }}>
@@ -446,7 +451,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
         <div style={{
           background: C.card, border: `1px solid ${C.b}`, borderRadius: C.rad,
           padding: "60px 16px", textAlign: "center", color: C.t2,
-          fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 12,
+          fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 13,
         }}>
           LADEN...
         </div>
@@ -462,7 +467,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
           background: C.card, border: `1px solid ${C.b}`, borderRadius: C.rad,
           padding: "50px 16px", textAlign: "center",
         }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: C.t, marginBottom: 6 }}>Item nicht gefunden</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: C.t, marginBottom: 6 }}>Item nicht gefunden</div>
           <div style={{ ...T.meta, fontFamily: "monospace" }}>{slug}</div>
         </div>
       </>
@@ -481,16 +486,29 @@ export const ItemPage = ({ slug }: { slug: string }) => {
     ? headlinePrice / item.ducats
     : null;
 
+  // Ohne jeden Handel bleibt nur das Orderbuch. Bewusst mit eigenem Label statt
+  // unter „AKTUELLER PREIS": ein Angebot ist kein Handelspreis — es sagt, was
+  // jemand verlangt, nicht was jemand gezahlt hat. Beides unter derselben
+  // Überschrift zu zeigen, wäre genau die stille Vermischung, die die
+  // Datenqualitätsregeln des Projekts untersagen.
+  const offerOnly = headlinePrice == null && item.sell_price_min != null;
+
   const kpis: { label: string; value: React.ReactNode; sub: React.ReactNode; color: string }[] = [
-    {
+    offerOnly ? {
+      label: "ANGEBOT AB", color: C.cy,
+      value: <>{plat(item.sell_price_min)}<SmallPlatIcon /></>,
+      sub: item.sell_price_rank != null
+        ? `Niedrigstes Angebot, Rang ${item.sell_price_rank}`
+        : "Niedrigstes Angebot",
+    } : {
       label: "AKTUELLER PREIS", color: C.gold,
       value: <>{plat(headlinePrice)}<SmallPlatIcon /></>,
-      sub: priceIs48h ? "⌀ der letzten 48h" : "⌀ der letzten 24h",
+      sub: priceIs48h ? "Durchschnitt der letzten 48h" : "Durchschnitt der letzten 24h",
     },
     {
       label: "VERÄNDERUNG 24 H", color: up ? C.up : C.down,
       value: changed,
-      sub: "vs. 24–48h davor",
+      sub: "Gegenüber 24–48h davor",
     },
     {
       label: "PREISSPANNE 48 H", color: C.t,
@@ -529,14 +547,14 @@ export const ItemPage = ({ slug }: { slug: string }) => {
           <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
             <ItemThumb path={item.image_path ?? item.thumb_path} name={item.name} size={72} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: C.t, lineHeight: 1.2 }}>
+              <div style={{ fontSize: 26, fontWeight: 700, color: C.t, lineHeight: 1.2 }}>
                 {item.name}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 <CategoryBadge cat={item.category} />
                 {item.subcategory && (
                   <span style={{
-                    fontSize: 11, padding: "2px 7px", borderRadius: C.rad,
+                    fontSize: 12, padding: "2px 7px", borderRadius: C.rad,
                     color: MISC_SUB_COLORS[item.subcategory] ?? C.t3,
                     background: `${MISC_SUB_COLORS[item.subcategory] ?? C.t3}18`,
                     border: `1px solid ${MISC_SUB_COLORS[item.subcategory] ?? C.t3}30`,
@@ -546,7 +564,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
                 )}
                 {item.max_rank != null && item.max_rank > 0 && (
                   <span style={{
-                    fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: C.rad,
+                    fontSize: 13, fontWeight: 700, padding: "2px 8px", borderRadius: C.rad,
                     border: `1px solid ${C.b2}`, color: C.gold,
                     background: "rgba(200,168,75,0.1)",
                   }}>
@@ -555,25 +573,40 @@ export const ItemPage = ({ slug }: { slug: string }) => {
                 )}
                 {item.ducats != null && item.ducats > 0 && (
                   <span style={{
-                    fontSize: 12, fontWeight: 500, padding: "2px 8px", borderRadius: C.rad,
+                    fontSize: 13, fontWeight: 500, padding: "2px 8px", borderRadius: C.rad,
                     border: "1px solid #c8905044", color: "#c89050", background: "#c8905014",
                   }}>
                     {item.ducats} Ducats
                   </span>
                 )}
               </div>
+              <div style={{ ...T.meta, marginTop: 8 }}>
+                <TextLink href={marketUrl(slug)} target="_blank" rel="noopener noreferrer"
+                  title="Auf warframe.market ansehen — öffnet einen neuen Tab">
+                  warframe.market<ExternalLinkIcon />
+                </TextLink>
+              </div>
             </div>
           </div>
 
+          {/* Bewusst OHNE „AKTUELLER PREIS"-Label, anders als im Dashboard-
+              Detailpanel: die KPI-Leiste direkt darunter trägt genau dieses Label
+              bereits, auf denselben Wert (headlinePrice). Zweimal dasselbe Wort
+              auf 100px erklärt nichts, es verdoppelt nur. Im Dashboard fehlt eine
+              solche Kachel, dort trägt das Label Information. */}
           <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <div style={{ fontSize: 30, fontWeight: 700, fontFamily: "monospace", color: C.gold, lineHeight: 1 }}>
-              {plat(headlinePrice)}<SmallPlatIcon />
+            {/* Bei Items ohne Handel steht hier das Angebot — in C.cy statt Gold,
+                damit schon die Farbe sagt, dass es eine andere Größe ist. */}
+            <div style={{ ...T.hero, color: offerOnly ? C.cy : C.gold }}>
+              {plat(offerOnly ? item.sell_price_min : headlinePrice)}<SmallPlatIcon />
             </div>
-            <div style={{ fontSize: 14, fontFamily: "monospace", fontWeight: 700, marginTop: 4, color: up ? C.up : C.down }}>
-              {changed}
-            </div>
+            {!offerOnly && (
+              <div style={{ fontSize: 16, fontFamily: "monospace", fontWeight: 700, marginTop: 4, color: up ? C.up : C.down }}>
+                {changed}
+              </div>
+            )}
             <div style={{ ...T.meta, marginTop: 5 }}>
-              {lastTradeLabel(item.last_trade)}
+              {offerOnly ? "kein Handel, niedrigstes Angebot" : lastTradeLabel(item.last_trade)}
             </div>
           </div>
         </div>
@@ -588,7 +621,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
               <div style={{ ...T.label, marginBottom: 6 }}>
                 {s.label}
               </div>
-              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: s.color, lineHeight: 1.1 }}>
+              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: s.color, lineHeight: 1.1 }}>
                 {s.value}
               </div>
               <div style={{ ...T.meta, marginTop: 4 }}>{s.sub}</div>
@@ -631,7 +664,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
           {histLoading && !history ? (
             <div style={{
               height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-              color: C.t2, fontFamily: "monospace", fontSize: 12, letterSpacing: "0.15em",
+              color: C.t2, fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em",
             }}>
               LADEN...
             </div>

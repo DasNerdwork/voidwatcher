@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { SmallPlatIcon, TradeIcon, TrendDownIcon, TrendUpIcon, ValueIcon } from "./Icons";
+import { ExternalLinkIcon, SmallPlatIcon, TradeIcon, TrendDownIcon, TrendUpIcon, ValueIcon } from "./Icons";
 import { ItemChart } from "./ItemChart";
-import { C, T, TextLink, hoverSurface, plat, pctChange, segBtn, segBtnHover } from "./shared";
+import { C, HOURS_PHRASE, T, TextLink, hoverSurface, marketUrl, plat, pctChange, segBtn } from "./shared";
 import { A, itemPath } from "../router";
+import { oneOf, usePersistentState } from "../prefs";
 import type { HistoryResponse, TopItem } from "../types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,20 +29,6 @@ interface FarmItem {
 }
 
 export type ChangeMetric = "pct" | "abs";
-
-const METRIC_KEY = "vw:change-metric";
-
-export const saveMetric = (m: ChangeMetric) => {
-  try { localStorage.setItem(METRIC_KEY, m); } catch { /* Privatmodus */ }
-};
-
-export const loadMetric = (): ChangeMetric => {
-  try {
-    return localStorage.getItem(METRIC_KEY) === "abs" ? "abs" : "pct";
-  } catch {
-    return "pct";
-  }
-};
 
 /**
  * Veränderung in der gewählten Einheit. Prozent bei günstigen Items ist
@@ -90,25 +77,29 @@ const ChangeValue = ({ item, metric }: { item: TopItem; metric: ChangeMetric }) 
 );
 
 /**
- * Volumen-Entwicklung: erster gegen letzten Balken des Volumen-Graphen, flach
- * und prozentual zugleich — „+14 (+1400 %)". Bei „Meistgehandelt" ersetzt sie die
- * Preisveränderung, denn dort ist die Handelsaktivität die Messgröße; der
- * %/₱-Umschalter wirkt hier bewusst nicht.
+ * Volumen-Entwicklung: erster gegen letzten Balken des Volumen-Graphen. Bei
+ * „Meistgehandelt" ersetzt sie die Preisveränderung, denn dort ist die
+ * Handelsaktivität die Messgröße.
+ *
+ * Folgt dem Einheiten-Umschalter wie die Preisansichten — vorher stand hier
+ * beides gleichzeitig („+14 (+1400 %)"), was die Zeile überlud und dem Schalter
+ * in dieser Ansicht jede Wirkung nahm. „Absolut" heißt hier Anzahl Trades, nicht
+ * Platin; der Umschalter zeigt deshalb „#" statt des Platin-Icons.
  *
  * Ab 100 % ohne Nachkommastelle: „+1400,0 %" täuscht eine Genauigkeit vor, die
  * ein Vergleich zweier Tageszahlen nicht hat.
  */
-const formatVolumeChange = (item: TopItem): string => {
+const formatVolumeChange = (item: TopItem, metric: ChangeMetric): string => {
+  if (metric === "pct") {
+    const p = item.volume_change_pct;
+    if (p == null) return "—";
+    const ps = Math.abs(p) >= 100 ? Math.round(Math.abs(p)).toLocaleString("de-DE") : Math.abs(p).toFixed(1);
+    return `${p >= 0 ? "+" : "−"}${ps} %`;
+  }
   const v = item.volume_change_abs;
   if (v == null) return "—";
   const sign = v > 0 ? "+" : v < 0 ? "−" : "";
-  const flat = `${sign}${Math.abs(v).toLocaleString("de-DE")}`;
-  const p    = item.volume_change_pct;
-  // „Trades" dazu, weil in den übrigen Ansichten an derselben Stelle ein
-  // Platinwert steht — ohne Einheit läse sich „−61" dort als Platin.
-  if (p == null) return `${flat} Trades`;
-  const ps = Math.abs(p) >= 100 ? Math.round(Math.abs(p)).toLocaleString("de-DE") : Math.abs(p).toFixed(1);
-  return `${flat} Trades (${p >= 0 ? "+" : "−"}${ps} %)`;
+  return `${sign}${Math.abs(v).toLocaleString("de-DE")}`;
 };
 
 const volumeChangeColor = (item: TopItem): string => {
@@ -125,10 +116,6 @@ interface DashboardPageProps {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const HOURS_LABELS: Record<number, string> = {
-  24: "24H", 48: "48H", 168: "7T", 336: "14T", 720: "30T", 2160: "90T",
-};
 
 const MOCK_FARM: FarmItem[] = [
   { name: "Adaptation",         cat: "Mods",    icon: "⚡", source: "Demolyst (Disruption)", src_type: "enemy",  price: 38.9, drop_pct: 6.67, ratio: 2.59, vol: 147 },
@@ -228,10 +215,10 @@ const MEDAL = {
 } as const;
 
 const rankStyle = (rank: number): React.CSSProperties => {
-  if (rank === 1) return { color: MEDAL.platinum, fontSize: 17 };
-  if (rank === 2) return { color: MEDAL.gold,     fontSize: 15 };
-  if (rank === 3) return { color: MEDAL.silver,   fontSize: 14 };
-  return { color: MEDAL.bronze, fontSize: 12 };
+  if (rank === 1) return { color: MEDAL.platinum, fontSize: 18 };
+  if (rank === 2) return { color: MEDAL.gold,     fontSize: 16 };
+  if (rank === 3) return { color: MEDAL.silver,   fontSize: 15 };
+  return { color: MEDAL.bronze, fontSize: 13 };
 };
 
 
@@ -262,7 +249,10 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
           {item.item_name}
         </div>
         <div style={{ ...T.meta, marginTop: 2 }}>
-          {item.max_rank != null && item.max_rank > 0 ? `R${item.max_rank} · ` : ""}Vol {item.volume}
+          {/* Mit Einheit statt „Vol 860": das Kürzel nennt nicht, was gezählt wird.
+              Tausendertrennung wie an jeder anderen Volumen-Stelle der App. */}
+          {item.max_rank != null && item.max_rank > 0 ? `R${item.max_rank} · ` : ""}
+          {item.volume.toLocaleString("de-DE")} Trades
           {/* Der angezeigte Wert bleibt immer der echte — hier steht nur, worauf
               er beruht. Schwelle 0,25 entspricht bei m = 30 rund zehn Trades.
               (Mit dem früheren m = 10 stand hier 0,5 für dieselben zehn Trades;
@@ -275,22 +265,27 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
           )}
         </div>
       </div>
+      {/* Zweizeilig wie die linke Spalte: Preis oben, Veränderung darunter.
+          Zuvor waren es zwei Layouts für dieselbe Sache — „Meistgehandelt" schon
+          zweizeilig, alle anderen Ansichten einzeilig mit Klammerwert.
+
+          Genau EIN Platin-Icon je Zeile. Zeile 2 ruft deshalb formatChange roh
+          auf und nicht ChangeValue: die Komponente hängt im Platin-Modus ein
+          zweites Icon an. Die Einheit steht in der Zeile darüber. */}
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        {/* Preis und Veränderung in einer Zeile: zuvor trug jede der beiden
-            Zeilen ein eigenes Platin-Icon, was den Blick verdoppelte. */}
         <div style={{ ...T.num, color: C.gold, whiteSpace: "nowrap" }}>
-          {plat(price(item))}
-          {!showVolumeChange && (
-            <span style={{ ...T.numSmall, marginLeft: 5, color: changeColor(item, metric) }}>
-              ({formatChange(item, metric)})
-            </span>
-          )}
-          <SmallPlatIcon />
+          {plat(price(item))}<SmallPlatIcon />
         </div>
-        {showVolumeChange && (
+        {showVolumeChange ? (
           <div style={{ ...T.numSmall, marginTop: 2, color: volumeChangeColor(item), whiteSpace: "nowrap" }}
-            title="Trades am letzten gegen Trades am ersten Punkt des Zeitraums">
-            {formatVolumeChange(item)}
+            title={metric === "abs"
+              ? "Trades am letzten gegen Trades am ersten Punkt des Zeitraums"
+              : "Veränderung der Trades, letzter gegen ersten Punkt des Zeitraums"}>
+            {formatVolumeChange(item, metric)}
+          </div>
+        ) : (
+          <div style={{ ...T.numSmall, marginTop: 2, color: changeColor(item, metric), whiteSpace: "nowrap" }}>
+            {formatChange(item, metric)}
           </div>
         )}
       </div>
@@ -310,12 +305,6 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
 
   const changeCol = changeColor(item, metric);
   const pct = <ChangeValue item={item} metric={metric} />;
-  const spread = item.max_price - item.min_price;
-  const spreadPct = ((spread / item.avg_price) * 100).toFixed(0);
-  // Startwert der gezeichneten Linie, also avg_price des ersten Punktes — nicht
-  // dessen open_price. Nur so gilt Eröffnung + Preisveränderung = aktueller Preis;
-  // open_price ist der erste Trade des Tages und weicht davon ab.
-  const openPrice = history?.points?.find(p => p.avg_price != null)?.avg_price ?? null;
 
   useEffect(() => {
     if (!item.slug) { setHistory(null); setHistLoading(false); return; }
@@ -353,27 +342,40 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
             <ItemIcon item={item} size={52} />
           )}
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: C.t, lineHeight: 1.2, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: C.t, lineHeight: 1.15, display: "flex", alignItems: "center", gap: 10 }}>
               {item.slug
                 ? <A href={itemPath(item.slug)}>{item.item_name}</A>
                 : <span>{item.item_name}</span>}
               {item.max_rank != null && item.max_rank > 0 && (
-                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 2, border: `1px solid rgba(200,168,75,0.4)`, color: C.gold, background: "rgba(200,168,75,0.1)", fontWeight: 700 }}>
+                <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 2, border: `1px solid rgba(200,168,75,0.4)`, color: C.gold, background: "rgba(200,168,75,0.1)", fontWeight: 700 }}>
                   R{item.max_rank}
                 </span>
               )}
             </div>
-            <div style={{ ...T.meta, marginTop: 6 }}>
-              {new Date(item.datetime).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+            {/* Stand der Daten stand hier vorher als Datum — das war MAX(ts), der
+                jüngste Datenpunkt im Fenster, und nicht der Sync-Zeitpunkt, als
+                den man es las. Die Angabe steht als „Last Update" im Seitenkopf.
+                An dieser Stelle ist die Herkunft der Daten das Nützlichere. */}
+            <div style={{ ...T.meta, marginTop: 2 }}>
+              {item.slug && (
+                <TextLink href={marketUrl(item.slug)} target="_blank" rel="noopener noreferrer"
+                  title="Auf warframe.market ansehen — öffnet einen neuen Tab">
+                  warframe.market<ExternalLinkIcon />
+                </TextLink>
+              )}
             </div>
           </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ fontSize: 30, fontWeight: 700, fontFamily: "monospace", color: C.gold, lineHeight: 1 }}>
+          {/* Als einziger Wert der Seite stand die Leitkennzahl bisher ohne Label
+              da, während jede Kachel darunter eines trägt. „AKTUELLER PREIS" wie
+              in der KPI-Leiste der Item-Seite — und trennscharf gegen
+              „ERÖFFNUNG" in der Kachelzeile direkt darunter. */}
+          <div style={{ ...T.label, marginBottom: 6 }}>AKTUELLER PREIS</div>
+          {/* Ohne Veränderungszeile: die stand hier wortgleich und in derselben
+              Farbe wie die Kachel „PREISVERÄNDERUNG" zwei Zentimeter darunter. */}
+          <div style={{ ...T.hero, color: C.gold }}>
             {plat(price(item))}<SmallPlatIcon />
-          </div>
-          <div style={{ fontSize: 14, fontFamily: "monospace", fontWeight: 700, marginTop: 4, color: changeCol }}>
-            {pct} über {HOURS_LABELS[hours]}
           </div>
         </div>
       </div>
@@ -381,39 +383,49 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
       {/* Stats row */}
       <div style={{ display: "flex", borderBottom: `1px solid ${C.b}`, flexShrink: 0 }}>
         {([
-          { label: "ERÖFFNUNG",       value: <>{plat(openPrice)}<SmallPlatIcon /></>, sub: "zu Beginn des Zeitraums", color: C.t2 },
-          { label: "PREISSPANNE",     value: <>{plat(item.min_price)} – {plat(item.max_price)}<SmallPlatIcon /></>, sub: <>{plat(spread)}<SmallPlatIcon /> Differenz ({spreadPct}%)</>, color: C.t },
-          { label: "HANDELSVOLUMEN",  value: item.volume.toLocaleString("de-DE"), sub: "Trades im Zeitraum", color: C.cy },
-          { label: "PREISVERÄNDERUNG", value: pct, sub: <>gegenüber Eröffnung ({HOURS_LABELS[hours]})</>, color: changeCol },
+          // Median statt Eröffnung: der Startwert des Fensters trug nichts bei,
+          // den Ausgangspunkt zeigt die Kurve. Der Median dagegen sagt, was ein
+          // Item üblicherweise kostet, und ist gegen Ausreißer unempfindlich —
+          // bei Nutzerangaben ohne Trade-Zwang die belastbarere Größe.
+          // „typischer Preis", nicht „Hälfte der Trades darunter": der Wert ist
+          // ein volumengewichtetes Mittel der Bucket-Mediane (siehe _vw_avg in
+          // api/db.py), kein Quantil über alle Einzeltrades.
+          { label: "MEDIAN",          value: <>{plat(item.median)}<SmallPlatIcon /></>, sub: "Typischer Preis", color: C.t2 },
+          // Der Durchschnitt zieht als Unterzeile hierher. Die frühere Unterzeile
+          // nannte die Differenz samt Prozentzahl (spread/avg) — eine Größe ohne
+          // Namen, aus der sich nichts ablesen ließ: „111 %" bei 3–9 ₱.
+          { label: "PREISSPANNE",     value: <>{plat(item.min_price)} – {plat(item.max_price)}<SmallPlatIcon /></>, sub: <>Durchschnittspreis {plat(item.avg_price)}<SmallPlatIcon /></>, color: C.t },
+          { label: "TRADES",          value: item.volume.toLocaleString("de-DE"), sub: HOURS_PHRASE[hours], color: C.cy },
+          // „Beginn des Zeitraums" statt „Eröffnung": die gleichnamige Kachel gibt
+          // es nicht mehr, der Bezugspunkt ist jetzt der Start der Kurve.
+          { label: "PREISVERÄNDERUNG", value: pct, sub: "Seit Zeitraumbeginn", color: changeCol },
         ] as { label: string; value: React.ReactNode; sub: React.ReactNode; color: string }[]).map((s, i, arr) => (
           <div key={s.label} style={{ flex: 1, padding: "13px 20px", borderRight: i < arr.length - 1 ? `1px solid ${C.b}` : "none" }}>
             <div style={{ ...T.label, marginBottom: 6 }}>{s.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: s.color, lineHeight: 1.1 }}>{s.value}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: s.color, lineHeight: 1.1 }}>{s.value}</div>
             <div style={{ ...T.meta, marginTop: 4 }}>{s.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Chart-Kopf — der Zeitraum kommt vom Seiten-Selektor, hier steht nur noch,
-          worauf sich der Verlauf bezieht. */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 22px", borderBottom: `1px solid ${C.b}`, gap: 10, flexWrap: "wrap", flexShrink: 0,
-      }}>
-        <span style={{ fontSize: 11, letterSpacing: "0.12em", color: C.t2, fontWeight: 600 }}>
+      {/* Chart-Kopf — nur noch die Überschrift, ohne Unterkante und ohne eigene
+          Tönung. Der Zusatz „48H · stündlich" ist entfallen: den Zeitraum nennen
+          der ZEITRAUM-Umschalter, die Zeile unter dem Preis („über 48H") und die
+          Kachel „PREISVERÄNDERUNG"; die Auflösung liest man an der Zeitachse ab.
+          (Der Listenkopf zählte hier früher mit — dort steht der Zeitraum
+          inzwischen ebenfalls nicht mehr.) */}
+      <div style={{ padding: "14px 22px 0", flexShrink: 0 }}>
+        <span style={{ fontSize: 12, letterSpacing: "0.12em", color: C.t2, fontWeight: 600 }}>
           PREISVERLAUF
-        </span>
-        <span style={T.meta}>
-          {HOURS_LABELS[hours]} · {history?.resolution === "hour" ? "stündlich" : "täglich"}
         </span>
       </div>
 
       {/* Chart */}
-      <div style={{ flex: 1, minHeight: 0, padding: "12px 16px 8px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minHeight: 0, padding: "6px 16px 8px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
         {histLoading && !history ? (
           <div style={{
             height: "100%", minHeight: 260, display: "flex", alignItems: "center", justifyContent: "center",
-            color: C.t2, fontFamily: "monospace", fontSize: 12, letterSpacing: "0.15em",
+            color: C.t2, fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em",
           }}>
             LADEN...
           </div>
@@ -442,7 +454,7 @@ const FarmValueTable = () => {
         display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10,
       }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.t }}>Farm Value Ranking (WIP)</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.t }}>Farm Value Ranking (WIP)</div>
           <div style={{ ...T.meta, marginTop: 2 }}>Preis × Drop-Chance — Effizienz-Ratio</div>
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -461,7 +473,7 @@ const FarmValueTable = () => {
           <thead>
             <tr style={{ borderBottom: `1px solid ${C.b}` }}>
               {["#", "ITEM", "QUELLE", "PREIS", "DROP%", "RATIO (WERT×CHANCE)", "VOL"].map((h, i) => (
-                <th key={h} style={{ padding: "9px 16px", fontSize: 11, letterSpacing: "0.1em", color: C.t2, fontWeight: 600, textAlign: i >= 3 ? "right" : "left" }}>{h}</th>
+                <th key={h} style={{ padding: "9px 16px", fontSize: 12, letterSpacing: "0.1em", color: C.t2, fontWeight: 600, textAlign: i >= 3 ? "right" : "left" }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -472,47 +484,47 @@ const FarmValueTable = () => {
                 <tr key={d.name} style={{ borderTop: `1px solid ${C.b}`, transition: "background 0.1s" }}
                   onMouseEnter={e => (e.currentTarget.style.background = C.hov)}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                  <td style={{ padding: "10px 16px", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.t2 }}>{i + 1}</td>
+                  <td style={{ padding: "10px 16px", fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.t2 }}>{i + 1}</td>
                   <td style={{ padding: "10px 16px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                       {/* Placeholder — Farm Value wird später auf echte API-Daten umgestellt */}
-                      <div style={{ width: 28, height: 28, borderRadius: 2, flexShrink: 0, background: "rgba(200,168,75,0.10)", border: `1px solid ${C.b}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 2, flexShrink: 0, background: "rgba(200,168,75,0.10)", border: `1px solid ${C.b}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
                         {d.icon}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: C.t, fontSize: 13 }}>{d.name}</div>
+                        <div style={{ fontWeight: 600, color: C.t, fontSize: 14 }}>{d.name}</div>
                         <div style={T.meta}>{d.cat}</div>
                       </div>
                     </div>
                   </td>
                   <td style={{ padding: "10px 16px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 2, fontWeight: 700, color: d.src_type === "relic" ? C.gold : C.cy, background: d.src_type === "relic" ? "rgba(200,168,75,0.12)" : "rgba(90,180,200,0.12)", border: `1px solid ${d.src_type === "relic" ? "rgba(200,168,75,0.3)" : "rgba(90,180,200,0.3)"}` }}>
+                      <span style={{ fontSize: 12, padding: "2px 7px", borderRadius: 2, fontWeight: 700, color: d.src_type === "relic" ? C.gold : C.cy, background: d.src_type === "relic" ? "rgba(200,168,75,0.12)" : "rgba(90,180,200,0.12)", border: `1px solid ${d.src_type === "relic" ? "rgba(200,168,75,0.3)" : "rgba(90,180,200,0.3)"}` }}>
                         {d.src_type === "relic" ? "RELIC" : "ENEMY"}
                       </span>
                       <span style={{ ...T.body, fontWeight: 500 }}>{d.source}</span>
                     </div>
                   </td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.gold, fontWeight: 700 }}>{plat(d.price)}<SmallPlatIcon /></td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.up }}>{d.drop_pct.toFixed(2)}%</td>
+                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: C.gold, fontWeight: 700 }}>{plat(d.price)}<SmallPlatIcon /></td>
+                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 14, fontWeight: 700, color: C.up }}>{d.drop_pct.toFixed(2)}%</td>
                   <td style={{ padding: "10px 16px", minWidth: 180 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{ flex: 1, height: 4, background: C.b, borderRadius: 2, position: "relative" }}>
                         <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${barW}%`, borderRadius: 2, background: C.up, opacity: 0.75 }} />
                       </div>
-                      <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: C.up, minWidth: 32, textAlign: "right" }}>{d.ratio.toFixed(2)}</span>
+                      <span style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 700, color: C.up, minWidth: 32, textAlign: "right" }}>{d.ratio.toFixed(2)}</span>
                     </div>
                   </td>
-                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.t2, fontWeight: 600 }}>{d.vol}</td>
+                  <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "monospace", fontSize: 14, color: C.t2, fontWeight: 600 }}>{d.vol}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 16px", borderTop: `1px solid ${C.b}`, background: "rgba(0,0,0,0.1)", fontSize: 12, color: C.t2, fontFamily: "monospace" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 16px", borderTop: `1px solid ${C.b}`, background: "rgba(0,0,0,0.1)", fontSize: 13, color: C.t2, fontFamily: "monospace" }}>
         <span>Mock-Daten · {filtered.length} Items · /api/market/drops wird als nächstes eingebunden</span>
-        <TextLink href="#" style={{ fontSize: 12 }} onClick={e => e.preventDefault()}>Farm Value →</TextLink>
+        <TextLink href="#" style={{ fontSize: 13 }} onClick={e => e.preventDefault()}>Farm Value →</TextLink>
       </div>
     </div>
   );
@@ -532,6 +544,8 @@ const VIEW_CONFIG: Record<ViewKey, {
 };
 
 const VIEW_ORDER: ViewKey[] = ["gainers", "losers", "traded", "value"];
+
+const isView = oneOf<ViewKey>(VIEW_ORDER);
 
 /**
  * Ansichtsumschalter im Listenkopf. Steuert denselben view-State wie die großen
@@ -573,24 +587,59 @@ const ViewIconSwitch = ({
  * auseinander (+203 % sind dort keine halbe Platin). Nur bei den beiden
  * Veränderungs-Ansichten sichtbar, sonst hätte der Schalter keine Wirkung.
  */
-const MetricSwitch = ({ metric, onChange }: {
-  metric: ChangeMetric; onChange: (m: ChangeMetric) => void;
-}) => (
-  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-    {([["pct", "%", "Veränderung in Prozent"],
-       ["abs", null, "Veränderung in Platin"]] as const).map(([key, label, title]) => {
-      const active = metric === key;
-      return (
-        <button key={key} onClick={() => onChange(key)}
-          title={title} aria-label={title} aria-pressed={active}
-          {...segBtnHover(active)}
-          style={{ ...segBtn(active), padding: 0, width: 28, height: 30, fontSize: 13, fontWeight: 700 }}>
-          {label ?? <span style={{ display: "inline-flex", marginLeft: -3 }}><SmallPlatIcon /></span>}
-        </button>
-      );
-    })}
-  </div>
-);
+const MetricToggle = ({ metric, view, onChange }: {
+  metric: ChangeMetric; view: ViewKey; onChange: (m: ChangeMetric) => void;
+}) => {
+  // Die absolute Seite zeigt die Einheit, auf die sie umstellt. Bei
+  // „Meistgehandelt" sind das Trades, nicht Platin — ein Platin-Icon wäre dort
+  // schlicht falsch.
+  const absIsTrades = view === "traded";
+  const absLabel = absIsTrades
+    ? <span style={{ fontSize: 15, fontWeight: 700, lineHeight: 1 }}>#</span>
+    : <span style={{ display: "inline-flex" }}><SmallPlatIcon /></span>;
+  const absTitle = absIsTrades ? "Anzahl Trades" : "Veränderung in Platin";
+  const W = 34, H = 30;
+
+  return (
+    <div role="group" aria-label="Einheit der Veränderung"
+      style={{
+        position: "relative", display: "flex", flexShrink: 0,
+        width: W * 2, height: H, borderRadius: C.rad,
+        border: `1px solid ${C.b}`, background: "rgba(0,0,0,0.2)",
+        overflow: "hidden",
+      }}>
+      {/* Gleitende Fläche — macht aus zwei Knöpfen EINEN Schalter mit zwei
+          Zuständen. Sie liegt hinter den Knöpfen, deshalb pointerEvents: none. */}
+      <span aria-hidden="true" style={{
+        position: "absolute", top: 0, bottom: 0, width: W,
+        left: metric === "pct" ? 0 : W,
+        background: "rgba(200,168,75,0.16)",
+        borderRight: metric === "pct" ? `1px solid ${C.b2}` : "none",
+        borderLeft:  metric === "abs" ? `1px solid ${C.b2}` : "none",
+        transition: "left 0.14s ease", pointerEvents: "none",
+      }} />
+      {([["pct", <span style={{ fontSize: 14, fontWeight: 700 }}>%</span>, "Veränderung in Prozent"],
+         ["abs", absLabel, absTitle]] as const).map(([key, label, title]) => {
+        const active = metric === key;
+        return (
+          <button key={key} onClick={() => onChange(key)}
+            title={title} aria-label={title} aria-pressed={active}
+            style={{
+              position: "relative", width: W, height: H, padding: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "none", background: "transparent",
+              color: active ? C.gold : C.t2,
+              cursor: "pointer", transition: "color 0.12s",
+            }}
+            onMouseEnter={e => { if (!active) e.currentTarget.style.color = C.t; }}
+            onMouseLeave={e => { if (!active) e.currentTarget.style.color = C.t2; }}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 // /api/top liefert echte Verlierer inzwischen als eigene Liste (top_loser, nach
 // volumengewichtetem Verlust sortiert). Nur falls die leer ist — kein einziges Item
@@ -602,7 +651,9 @@ const loserLabels = (v?: number | null) =>
     : { label: "SCHWÄCHSTER ANSTIEG",    title: "Schwächster Anstieg"    };
 
 export const DashboardPage = ({ data, hours, metric, onMetricChange }: DashboardPageProps) => {
-  const [view, setView]               = useState<ViewKey>("gainers");
+  // Vorgabe „Meistgehandelt": Handelsaktivität beschreibt den Markt, ohne von
+  // einem einzelnen Ausschlag abzuhängen. Die Wahl überdauert das Neuladen.
+  const [view, setView]               = usePersistentState<ViewKey>("vw:view", "traded", isView);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   const getItems = useCallback((v: ViewKey): TopItem[] => {
@@ -670,20 +721,18 @@ export const DashboardPage = ({ data, hours, metric, onMetricChange }: Dashboard
             display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
           }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0, overflow: "hidden" }}>
-              <span style={{ ...T.cardTitle, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <span style={{ ...T.cardTitle, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {view === "losers"
                   ? loserLabels(topLoser?.change_pct).title
                   : VIEW_CONFIG[view].title}
               </span>
-              <span style={{ ...T.meta, whiteSpace: "nowrap" }}>· {HOURS_LABELS[hours]}</span>
-            </div>
+              </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              {(view === "gainers" || view === "losers") && (
-                <>
-                  <MetricSwitch metric={metric} onChange={onMetricChange} />
-                  <span style={{ width: 1, height: 18, background: C.b }} />
-                </>
-              )}
+              {/* Ohne Ansichtsbedingung: der Schalter wirkt jetzt in allen vier
+                  Ansichten — bei „Meistgehandelt" zwischen Prozent und Anzahl
+                  Trades, sonst zwischen Prozent und Platin. */}
+              <MetricToggle metric={metric} view={view} onChange={onMetricChange} />
+              <span style={{ width: 1, height: 18, background: C.b }} />
               <ViewIconSwitch view={view} onChange={setView}
                 loserTitle={loserLabels(topLoser?.change_pct).title} />
             </div>
@@ -708,7 +757,7 @@ export const DashboardPage = ({ data, hours, metric, onMetricChange }: Dashboard
       </div>
 
       {/* Farm Value */}
-      <div style={{ fontSize: 11, letterSpacing: "0.12em", color: C.t2, fontWeight: 600, padding: "2px 0 10px" }}>FARM VALUE · WERT × DROP-CHANCE</div>
+      <div style={{ fontSize: 12, letterSpacing: "0.12em", color: C.t2, fontWeight: 600, padding: "2px 0 10px" }}>FARM VALUE · WERT × DROP-CHANCE</div>
       <FarmValueTable />
     </>
   );

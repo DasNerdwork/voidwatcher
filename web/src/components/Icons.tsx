@@ -66,6 +66,31 @@ export const ValueIcon = () => (
   </svg>
 );
 
+// ─── ExternalLinkIcon ──────────────────────────────────────────────────────────
+/**
+ * Rahmen mit oben rechts austretendem Pfeil — das etablierte Zeichen für „führt
+ * auf eine fremde Seite".
+ *
+ * Zwei Abweichungen von iconProps oben, beide beabsichtigt: 11px statt 18px,
+ * weil dieses Icon neben 12px-Text steht statt in einem 30px-Button; und
+ * strokeWidth 1.6 statt 1.3, weil der Strich mitskaliert — bei 11/16 ergäbe 1.3
+ * nur 0,9px und liefe grau aus.
+ *
+ * currentColor ist hier tragend, nicht Gewohnheit: hoverLink setzt beim
+ * Überfahren die color des Links, das Icon färbt sich dadurch ohne eigenen
+ * Hover-Zustand mit. aria-hidden, weil die Bedeutung im Linktext steht.
+ */
+export const ExternalLinkIcon = () => (
+  <svg width="11" height="11" viewBox="0 0 16 16" fill="none"
+    stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
+    aria-hidden="true" focusable="false"
+    style={{ display: "inline-block", verticalAlign: "middle", marginLeft: 5, flexShrink: 0 }}>
+    <path d="M8.5 2.5H2.5V13.5H13.5V7.5" />
+    <path d="M10 2.5H13.5V6" />
+    <path d="M13.5 2.5L7.5 8.5" />
+  </svg>
+);
+
 // ─── LogoIcon ──────────────────────────────────────────────────────────────────
 export const LogoIcon = () => (
   <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
