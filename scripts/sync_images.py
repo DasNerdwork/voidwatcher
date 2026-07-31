@@ -48,9 +48,12 @@ import threading
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import requests
 import psycopg2
 import psycopg2.extras
+
+# Läuft aus sync_api.py heraus im selben Prozess und teilt sich dadurch dasselbe
+# 3/s-Budget — vorher konnte der Bildabgleich es zusätzlich belasten.
+from wfm_http import market_get, plain_get
 from dotenv import load_dotenv
 
 try:
@@ -424,8 +427,7 @@ def ensure_relic_avif(era: str, slug: str, icon_path: str, timeout: int = 15, fo
         if raw_bytes is None and icon_path and "unknown" not in icon_path:
             source = "wfm"
             try:
-                r = requests.get(f"{WFM_STATIC}/{icon_path}", timeout=timeout,
-                                 headers={"User-Agent": "VoidWatcher/1.0"})
+                r = market_get(f"{WFM_STATIC}/{icon_path}", timeout=timeout)
                 if r.status_code == 200 and len(r.content) >= WFM_PLACEHOLDER_MAX_BYTES:
                     raw_bytes = r.content
             except Exception:
@@ -510,10 +512,10 @@ WFM_API_BASE         = "https://api.warframe.market/v2"
 
 def fetch_wfm_set(slug: str, timeout: int = 15) -> tuple[bytes | None, str | None]:
     try:
-        r = requests.get(
+        r = market_get(
             f"{WFM_API_BASE}/item/{slug}/set",
             timeout=timeout,
-            headers={"User-Agent": "VoidWatcher/1.0", "accept": "application/json"},
+            headers={"accept": "application/json"},
         )
         if r.status_code != 200:
             return None, None
@@ -530,8 +532,7 @@ def fetch_wfm_set(slug: str, timeout: int = 15) -> tuple[bytes | None, str | Non
                 icon_path = i18n_en.get("icon", "")
                 if icon_path and WFM_PLACEHOLDER_HASH not in icon_path:
                     url = f"{WFM_STATIC}/{icon_path}"
-                    img_r = requests.get(url, timeout=timeout,
-                                         headers={"User-Agent": "VoidWatcher/1.0"})
+                    img_r = market_get(url, timeout=timeout)
                     if img_r.status_code == 200 and len(img_r.content) >= WFM_PLACEHOLDER_MAX_BYTES:
                         found_bytes = img_r.content
 
@@ -543,10 +544,7 @@ def fetch_wfm_set(slug: str, timeout: int = 15) -> tuple[bytes | None, str | Non
 
 def _fetch_page(url: str, timeout: int = 15) -> str | None:
     try:
-        r = requests.get(url, timeout=timeout, headers={
-            "User-Agent": "VoidWatcher/1.0",
-            "Accept": "text/html",
-        })
+        r = plain_get(url, timeout=timeout, headers={"Accept": "text/html"})
         return r.text if r.status_code == 200 else None
     except Exception:
         return None
@@ -554,8 +552,7 @@ def _fetch_page(url: str, timeout: int = 15) -> str | None:
 
 def _download_image(img_path: str, timeout: int = 15) -> bytes | None:
     try:
-        r = requests.get(f"{WIKI_BASE}{img_path}", timeout=timeout,
-                         headers={"User-Agent": "VoidWatcher/1.0"})
+        r = plain_get(f"{WIKI_BASE}{img_path}", timeout=timeout)
         if r.status_code == 200 and len(r.content) >= 512:
             return r.content
     except Exception:
@@ -728,8 +725,7 @@ def download_and_convert(
             url    = f"{WFM_STATIC}/{icon_path}"
             for attempt in range(1, max_retries + 1):
                 try:
-                    time.sleep(0.1)
-                    r = requests.get(url, timeout=timeout, headers={"User-Agent": "VoidWatcher/1.0"})
+                    r = market_get(url, timeout=timeout)
                     if r.status_code == 429:
                         wait = 2 ** attempt
                         log.warning(f"  429 für {slug} (Versuch {attempt}), warte {wait}s…")

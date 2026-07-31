@@ -31,10 +31,12 @@ import logging
 from pathlib import Path
 from datetime import datetime, timezone
 
-import requests
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
+
+# User-Agent und die 3/s-Grenze von warframe.market zentral, siehe wfm_http.py
+from wfm_http import market_get, plain_get
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -160,7 +162,7 @@ def fetch_worldstate(timeout: int = 15) -> tuple[str | None, str | None, str | N
     Gibt (build_label, update_label, update_url) zurück.
     """
     try:
-        r = requests.get(WF_MANIFEST_URL, timeout=timeout)
+        r = plain_get(WF_MANIFEST_URL, timeout=timeout)
         r.raise_for_status()
         data = r.json()
     except Exception as e:
@@ -215,7 +217,7 @@ def fetch_worldstate(timeout: int = 15) -> tuple[str | None, str | None, str | N
 
 def fetch_wfpe_version(timeout: int = 15) -> str | None:
     try:
-        r = requests.get(WFPE_PKG_URL, timeout=timeout)
+        r = plain_get(WFPE_PKG_URL, timeout=timeout)
         r.raise_for_status()
         v = r.json().get("version")
         return str(v).strip() if v else None
@@ -226,8 +228,8 @@ def fetch_wfpe_version(timeout: int = 15) -> str | None:
 
 def fetch_wfm_items_hash(timeout: int = 15) -> str | None:
     try:
-        r = requests.get(WFM_VER_URL, timeout=timeout,
-                         headers={"accept": "application/json"})
+        r = market_get(WFM_VER_URL, timeout=timeout,
+                       headers={"accept": "application/json"})
         r.raise_for_status()
         h = (r.json().get("data") or {}).get("collections", {}).get("items")
         return str(h).strip() if h else None

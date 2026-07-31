@@ -1,0 +1,18 @@
+# Laufzeitabhängigkeiten, gepinnt auf die Versionen des Produktivhosts
+# (Python 3.13.4). Bis hierhin gab es gar keine Liste — die Versionen waren nur
+# aus dem installierten System ablesbar.
+#
+# Installation auf Debian/Ubuntu ggf. mit --break-system-packages, siehe README.
+
+# Sync-Skripte
+requests==2.32.4
+psycopg2-binary==2.9.11
+python-dotenv==1.1.1
+
+# Bildabgleich (scripts/sync_images.py)
+Pillow==12.1.1
+pillow-avif-plugin==1.5.5
+
+# API (api/main.py)
+fastapi==0.116.1
+uvicorn==0.35.0
