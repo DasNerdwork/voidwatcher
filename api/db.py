@@ -1,12 +1,51 @@
+import datetime as _dt
+import decimal as _dec
 import os
+import threading
+from pathlib import Path
+
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 from dotenv import load_dotenv
 
-load_dotenv()
+# Pfad explizit: ohne ihn löst python-dotenv relativ zum aufrufenden Frame auf.
+# Unter uvicorn ging das gut, ein `python -c "import api.db"` von anderswo
+# bekam dagegen lautlos leere VW_*-Variablen und psycopg2 verband sich mit der
+# Datenbank `root` über den Unix-Socket, statt verständlich zu scheitern.
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+
+# ──────────────────────────────────────────────
+# VERBINDUNGEN
+# ──────────────────────────────────────────────
+# Vorher öffnete jede query() eine eigene Verbindung und schloss sie wieder —
+# gemessen 8,5 ms je Verbindungsaufbau, bei fünf Abfragen pro /api/top also rund
+# 43 ms allein für Handshakes. Schlimmer als die Latenz ist die Obergrenze: der
+# Server erlaubt 100 gleichzeitige Verbindungen, und uvicorn bedient synchrone
+# Endpunkte aus einem 40er-Threadpool.
+_POOL = None
+_POOL_LOCK = threading.Lock()
+
+
+def _pool():
+    global _POOL
+    if _POOL is None:
+        with _POOL_LOCK:
+            if _POOL is None:
+                _POOL = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1, maxconn=12,
+                    host=os.getenv("VW_HOST"),
+                    port=os.getenv("VW_PORT"),
+                    user=os.getenv("VW_USER"),
+                    password=os.getenv("VW_PASSWORD"),
+                    dbname=os.getenv("VW_NAME"),
+                )
+    return _POOL
 
 
 def get_conn():
+    """Einzelverbindung ohne Pool — für Skripte, die den Prozess ohnehin beenden."""
     return psycopg2.connect(
         host=os.getenv("VW_HOST"),
         port=os.getenv("VW_PORT"),
@@ -17,13 +56,40 @@ def get_conn():
 
 
 def query(sql, params=None):
-    conn = get_conn()
+    pool = _pool()
+    conn = pool.getconn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params or ())
             return cur.fetchall()
+    except Exception:
+        # Eine Verbindung mit abgebrochener Transaktion darf nicht in den Pool
+        # zurück — der nächste Nutzer bekäme sonst "current transaction is
+        # aborted" für eine völlig andere Abfrage.
+        conn.rollback()
+        raise
     finally:
-        conn.close()
+        pool.putconn(conn)
+
+
+def _jsonable(rows: list) -> list:
+    """
+    RealDictRow → reines dict mit JSON-tauglichen Werten.
+
+    Liegt hier und nicht in main.py, damit die vorberechneten Ranglisten exakt
+    dieselbe Form haben wie die live berechneten. Wären es zwei Umwandlungen,
+    unterschieden sich Cache und Rückfall früher oder später in Details.
+    """
+    out = []
+    for r in rows:
+        d = dict(r)
+        for k, v in d.items():
+            if isinstance(v, _dec.Decimal):
+                d[k] = float(v)
+            elif isinstance(v, (_dt.datetime, _dt.date)):
+                d[k] = v.isoformat()
+        out.append(d)
+    return out
 
 
 def get_last_updated():
@@ -115,6 +181,18 @@ CREDIBILITY_M = 30
 # Items bleiben damit sichtbar.
 MIN_VOLUME = 5
 
+# Mindest-Handelsvolumen je Rand der Veränderungsmessung (siehe _edge_cte).
+#
+# Vorher war ein Rand genau EIN Bucket. Gemessen über alle ranglistenrelevanten
+# Items bei 48h liegt dessen Volumen im Median bei 1 Trade, und 79,7 % der Items
+# haben mindestens einen Rand mit ≤ 2 Trades. Daraus entstanden Werte wie
+# "Adarza Kavat Imprint +900 %": ein einzelner 1-₱-Eintrag mit 2 Trades bei einem
+# Item-Median von 9,5 ₱ diente als Nenner.
+#
+# Derselbe Wert wie MIN_VOLUME, aus demselben Grund: unterhalb von fünf Trades
+# ist eine Preisangabe kein Marktpreis, sondern die Meinung einer einzelnen Person.
+EDGE_MIN_VOLUME = 5
+
 # Untergrenze NUR für den Prozent-Modus. Bei Cent-Items ist die prozentuale
 # Veränderung reines Rauschen: "Requiem I Relic" ging von 0,22 auf 0,67 ₱ —
 # rechnerisch +203 %, tatsächlich 0,45 Platin. 79 von 2346 gehandelten Items
@@ -136,10 +214,40 @@ def _metric_parts(metric: str) -> tuple[str, str]:
     change_abs = "ROUND((c.price - p.price)::numeric, 2)"
     if metric == "abs":
         return change_abs, ""
-    # Grenze auf den ANGEZEIGTEN Durchschnitt, nicht auf c.price: sonst rutscht
-    # ein Item durch, dessen zweite Hälfte knapp über 2 ₱ liegt, während der
-    # ausgewiesene Preis darunter bleibt (z.B. Meso X1 Relic mit 1,5 ₱).
-    return change_pct, f" AND AVG(s.avg_price) >= {MIN_PRICE_FOR_PCT}"
+    # Die Grenze gehört auf den NENNER, nicht auf den Fenster-Durchschnitt.
+    # Vorher stand hier AVG(s.avg_price) — daran scheiterte der Zweck: "Adarza
+    # Kavat Imprint" hat 9,4 ₱ Durchschnitt und passierte die Grenze mühelos,
+    # geteilt wurde aber durch 1,00 ₱. Genau diese Division erzeugt die
+    # dreistelligen Prozentwerte, also muss sie geprüft werden.
+    #
+    # Der Fenster-Durchschnitt bleibt zusätzlich stehen: er fängt Items ab, deren
+    # Nenner knapp über der Grenze liegt, während der ausgewiesene Preis darunter
+    # bleibt (z.B. Meso X1 Relic mit 1,5 ₱).
+    return change_pct, (
+        f" AND AVG(s.avg_price) >= {MIN_PRICE_FOR_PCT}"
+        f" AND p.price >= {MIN_PRICE_FOR_PCT}"
+    )
+
+
+def _window_48h(hours: float) -> str:
+    """
+    Fenster der Stunden-Tabelle, verankert am jüngsten Datenpunkt statt an NOW().
+
+    Der Anker ist nicht kosmetisch. Er stand zwar in _edge_cte schon richtig, das
+    äußere SELECT derselben Abfragen rechnete aber mit NOW() — Kachel und
+    Prozentwert beschrieben damit verschiedene Zeiträume. Sichtbar wurde das als
+    „Adarza Kavat Imprint: +900 %" neben „Preisspanne 8–13 ₱": der 1-₱-Bucket,
+    der den Prozentwert erzeugte, lag im Fenster der Kennzahl und außerhalb dem
+    der Kachel. Zusätzlich wanderte die Kachel minütlich, die Kennzahl nur beim
+    Sync.
+    """
+    return f"s.ts >= (SELECT MAX(ts) FROM market_stats_48h) - INTERVAL '{hours} hours'"
+
+
+def _window_90d(days: int) -> str:
+    """Tages-Variante von _window_48h, gleiche Begründung."""
+    return (f"s.day >= ((SELECT MAX(day) FROM market_stats_90d)"
+            f" - INTERVAL '{days} days')::date")
 
 
 def _plausible_clause() -> str:
@@ -158,6 +266,40 @@ def _credibility(volume_expr: str = "SUM(s.volume)") -> str:
     return f"({volume_expr}::numeric / ({volume_expr} + {CREDIBILITY_M}))"
 
 
+# Ab diesem Handelsvolumen gilt eine Platin-Differenz als voll belastbar.
+# Siehe _sort_weight — bewusst niedrig, weil im Platin-Modus die Differenz selbst
+# schon aussagt, worum es geht.
+ABS_FULL_TRUST_VOLUME = 20
+
+
+def _sort_weight(metric: str) -> str:
+    """
+    Gewicht, mit dem die Metrik für die SORTIERUNG multipliziert wird.
+
+    Die beiden Modi brauchen unterschiedliche Gewichte, weil sie unterschiedlich
+    anfällig sind:
+
+    "pct" behält die volle Shrinkage v/(v+30). Ein Prozentwert entsteht aus einer
+    Division und explodiert bei kleinem Nenner — dort ist die Dämpfung über den
+    gesamten Volumenbereich sinnvoll.
+
+    "abs" wird dagegen primär nach der Differenz selbst sortiert. Eine
+    Platin-Differenz von 23 ₱ ist eine Aussage über den Markt, egal ob sie auf 33
+    oder auf 175 Trades beruht — die volle Shrinkage drehte genau das um und
+    schob 23,41 ₱ (33 Trades) hinter 14,93 ₱ (171 Trades). Eine Liste, deren
+    sichtbare Zahlen nicht fallen, liest sich als kaputt.
+
+    Bleibt der Schutz gegen das, was die Glaubwürdigkeit eigentlich abwehren
+    soll: eine Handvoll Fantasiepreise. Dafür genügt ein Gewicht, das bei
+    ABS_FULL_TRUST_VOLUME sättigt — darüber ordnet es nichts mehr um, darunter
+    dämpft es (10 Trades → 0,5). Zusammen mit MIN_VOLUME und EDGE_MIN_VOLUME
+    schafft es ein einzelner Trade ohnehin nicht in die Liste.
+    """
+    if metric == "abs":
+        return f"LEAST(1.0, SUM(s.volume)::numeric / {ABS_FULL_TRUST_VOLUME})"
+    return _credibility()
+
+
 def _vw_avg(col: str) -> str:
     """
     Volumengewichtetes Mittel einer Preisspalte über die Zeilen eines Buckets.
@@ -173,6 +315,22 @@ def _vw_avg(col: str) -> str:
                 )::numeric, 2)"""
 
 
+# Was `median` in den Ranglisten genau ist — die Unterscheidung ist wichtig, bevor
+# jemand die Zahl anders beschriftet:
+#
+# warframe.market liefert je Bucket den Median der TATSÄCHLICHEN Trades dieses
+# Buckets. `_vw_avg('s.median')` mittelt diese Bucket-Mediane volumengewichtet über
+# das Fenster. Das ist ein Mittel von Medianen, KEIN Quantil über alle Einzeltrades
+# — die Oberfläche darf deshalb nicht „Hälfte der Trades darunter" behaupten. Sie
+# sagt „typischer Preis", und das trifft zu.
+#
+# Warum trotzdem so: dieselbe Aggregation nutzt get_item_history (siehe unten), die
+# Kachel zeigt damit exakt die Größe, die der Graph als Median-Linie zeichnet. Ein
+# eigenes percentile_disc über die Buckets wäre zwar ein echter Median, ergäbe aber
+# eine andere Zahl als die Linie daneben — genau der Widerspruch, den die
+# Datenqualitäts-Regeln oben vermeiden wollen.
+
+
 def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
     """
     Erster und letzter Punkt eines Items im Zeitfenster — genau die beiden Enden
@@ -185,20 +343,38 @@ def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
     Daneben stand zugleich „Eröffnung 20 ₱" — Eröffnung 20, aktuell 70,
     Veränderung +33 ergibt zusammen keinen Sinn.
 
-    Jetzt gilt: letzter Bucket gegen ersten. Dass ein Randbucket auf einem
-    einzigen Trade beruhen kann, bleibt wahr — dagegen wirken der
-    Glaubwürdigkeitsfaktor in der Sortierung und der Hinweis „dünne Datenlage",
-    nicht eine Glättung, die die Zahl vom Graphen ablöst.
+    Ein Rand ist deshalb NICHT ein einzelner Bucket, sondern so viele Buckets,
+    bis EDGE_MIN_VOLUME Trades zusammenkommen — volumengewichtet gemittelt. Der
+    frühere Einzel-Bucket war im Median ein einziger Trade; „Adarza Kavat
+    Imprint" meldete +900 %, weil ein 1-₱-Eintrag mit 2 Trades den Nenner
+    stellte (Item-Median 9,5 ₱). Mit fünf Trades je Rand ergibt derselbe Fall
+    +6,5 %, während ein echter 20×-Anstieg mit belegten Rändern stehen bleibt.
 
-    Liefert `current_price` und `previous_price` mit den Spalten `price` und
-    `vol` (Handelsvolumen desselben Buckets, für die Volumen-Entwicklung).
-    Bei nur einem Bucket im Fenster bleibt die Vorperiode NULL — „keine
+    Im Graphen ablesbar bleibt die Kennzahl trotzdem: es ist weiterhin Anfang
+    gegen Ende der gezeichneten Linie, nur ein kurzes Stück davon statt eines
+    einzelnen Punktes. Das unterscheidet sie vom verworfenen Hälften-Vergleich,
+    der zwei Fensterhälften gegeneinander stellte.
+
+    Reicht das Fenster nicht für zwei GETRENNTE Ränder, überdeckt derselbe
+    Bucket beide Seiten. Dann bleibt die Vorperiode NULL — der Vergleich stellte
+    die Daten sonst sich selbst gegenüber und meldete „0 %", also eine Aussage,
+    wo keine ist. Ebenso bei nur einem Bucket im Fenster: „keine
     Vergleichsbasis" ist etwas anderes als „unverändert".
+
+    `vol` bleibt bewusst das Volumen des EINZELNEN Randbuckets, nicht das des
+    Rand-Aggregats: es speist die Volumen-Entwicklung der Ansicht
+    „Meistgehandelt". Über das Aggregat gerechnet lägen beide Seiten bauartbedingt
+    bei je ~EDGE_MIN_VOLUME Trades und die Volumen-Veränderung wäre immer ≈ 0.
 
     Die Bucket-Preise entstehen über _vw_avg, also identisch zu get_item_history:
     ein Tag/eine Stunde kann mehrere Zeilen haben (eine je mod_rank).
     """
     rank_clause = _rank_clause(rank_mode)
+    # „cum - vol < EDGE_MIN_VOLUME" heißt: alles, was VOR diesem Bucket lag, hat
+    # die Schwelle noch nicht erreicht. Der Bucket, der sie überschreitet, ist
+    # damit gerade noch enthalten — sonst bliebe der Rand unter der Schwelle.
+    lead = f"cum_a - vol < {EDGE_MIN_VOLUME}"
+    tail = f"cum_z - vol < {EDGE_MIN_VOLUME}"
     return f"""
         buckets AS (
             SELECT s.item_id, {bucket} AS b,
@@ -211,27 +387,43 @@ def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
               {_plausible_clause()}
             GROUP BY s.item_id, {bucket}
         ),
+        ranked AS (
+            SELECT item_id, b, price, vol,
+                   SUM(vol) OVER (PARTITION BY item_id ORDER BY b)      AS cum_a,
+                   SUM(vol) OVER (PARTITION BY item_id ORDER BY b DESC) AS cum_z
+            FROM buckets
+        ),
         edges AS (
             SELECT item_id,
-                   (array_agg(price ORDER BY b DESC))[1] AS c_price,
-                   (array_agg(vol   ORDER BY b DESC))[1] AS c_vol,
-                   CASE WHEN COUNT(*) > 1 THEN (array_agg(price ORDER BY b))[1] END AS p_price,
-                   CASE WHEN COUNT(*) > 1 THEN (array_agg(vol   ORDER BY b))[1] END AS p_vol
-            FROM buckets
+                   -- Randpreise: volumengewichtetes Mittel der jeweiligen Buckets
+                   SUM(price * vol) FILTER (WHERE {tail})
+                     / NULLIF(SUM(vol) FILTER (WHERE {tail}), 0)        AS c_price,
+                   -- Volumen weiterhin aus dem einzelnen Randbucket, siehe Docstring
+                   (array_agg(vol ORDER BY b DESC))[1]                  AS c_vol,
+                   CASE WHEN COUNT(*) FILTER (WHERE {lead} AND {tail}) = 0
+                        THEN SUM(price * vol) FILTER (WHERE {lead})
+                             / NULLIF(SUM(vol) FILTER (WHERE {lead}), 0)
+                   END                                                  AS p_price,
+                   CASE WHEN COUNT(*) FILTER (WHERE {lead} AND {tail}) = 0
+                        THEN (array_agg(vol ORDER BY b))[1]
+                   END                                                  AS p_vol
+            FROM ranked
             GROUP BY item_id
         ),
-        current_price  AS (SELECT item_id, c_price AS price, c_vol AS vol FROM edges),
-        previous_price AS (SELECT item_id, p_price AS price, p_vol AS vol FROM edges)
+        current_price  AS (SELECT item_id, ROUND(c_price::numeric, 2) AS price, c_vol AS vol FROM edges),
+        previous_price AS (SELECT item_id, ROUND(p_price::numeric, 2) AS price, p_vol AS vol FROM edges)
     """
 
 
 def _change_pct_cte(hours: float, rank_mode: str = "max") -> str:
     """Stündliche Variante. Fenster ab dem jüngsten Datenpunkt, nicht ab NOW() —
-    sonst wandert bei stehendem Sync das Fenster von den Daten weg."""
+    sonst wandert bei stehendem Sync das Fenster von den Daten weg. Dasselbe
+    _window_48h nutzt das äußere SELECT, damit Kennzahl und Kacheln denselben
+    Zeitraum beschreiben."""
     return _edge_cte(
         table="market_stats_48h",
         bucket="s.ts",
-        window=f"s.ts >= (SELECT MAX(ts) FROM market_stats_48h) - INTERVAL '{hours} hours'",
+        window=_window_48h(hours),
         rank_mode=rank_mode,
     )
 
@@ -241,7 +433,7 @@ def _change_pct_cte_90d(days: int, rank_mode: str = "max") -> str:
     return _edge_cte(
         table="market_stats_90d",
         bucket="s.day",
-        window=f"s.day >= ((SELECT MAX(day) FROM market_stats_90d) - INTERVAL '{days} days')::date",
+        window=_window_90d(days),
         rank_mode=rank_mode,
     )
 
@@ -257,7 +449,7 @@ def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
     metric_expr, metric_having = _metric_parts(metric)
     if "change" in order_by:
         direction = "DESC" if "DESC" in order_by else "ASC"
-        effective_order = f"({metric_expr} * {_credibility()}) {direction} NULLS LAST"
+        effective_order = f"({metric_expr} * {_sort_weight(metric)}) {direction} NULLS LAST"
         if metric_having and metric_having not in having:
             having = (having or "HAVING TRUE") + metric_having
     else:
@@ -280,18 +472,23 @@ def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
             ROUND((c.price - p.price)::numeric, 2) AS change_abs,
             (c.vol - p.vol)                        AS volume_change_abs,
             ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            {_vw_avg('s.median')}            AS median,
             ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_90d s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.day >= (NOW() - INTERVAL '{days} days')::date
+        WHERE {_window_90d(days)}
           {tag_clause}
           {rank_clause}
           {_plausible_clause()}
         GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
         {having}
-        ORDER BY {effective_order}
+        -- i.slug als Tiebreaker: bei Gleichstand (haeufig, etwa zwei Items mit
+        -- identischem Volumen) gibt Postgres sonst keine feste Reihenfolge. Live-
+        -- Abfrage und Vorberechnung sortierten dadurch unterschiedlich, und die
+        -- Liste sprang zwischen zwei Aufrufen ohne jede Datenaenderung.
+        ORDER BY {effective_order}, i.slug
         LIMIT %s
     """, tag_params + [limit])
 
@@ -331,18 +528,19 @@ def get_top_performers(hours, limit, tag: str | None = None, rank_mode: str = "m
             ROUND((c.price - p.price)::numeric, 2) AS change_abs,
             (c.vol - p.vol)                        AS volume_change_abs,
             ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            {_vw_avg('s.median')}            AS median,
             ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
+        WHERE {_window_48h(hours)}
           {tag_clause}
           {rank_clause}
           {_plausible_clause()}
         GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
         HAVING SUM(s.volume) >= {MIN_VOLUME}{metric_having}
-        ORDER BY ({metric_expr} * {_credibility()}) DESC NULLS LAST
+        ORDER BY ({metric_expr} * {_sort_weight(metric)}) DESC NULLS LAST, i.slug
         LIMIT %s
     """, tag_params + [limit])
 
@@ -394,18 +592,19 @@ def get_top_losers(hours, limit, tag: str | None = None, rank_mode: str = "max",
             ROUND((c.price - p.price)::numeric, 2) AS change_abs,
             (c.vol - p.vol)                        AS volume_change_abs,
             ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            {_vw_avg('s.median')}            AS median,
             ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
+        WHERE {_window_48h(hours)}
           {tag_clause}
           {rank_clause}
           {_plausible_clause()}
         GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
         HAVING SUM(s.volume) >= {MIN_VOLUME}{metric_having} AND {change_expr} < 0
-        ORDER BY ({change_expr} * {_credibility()}) ASC NULLS LAST
+        ORDER BY ({change_expr} * {_sort_weight(metric)}) ASC NULLS LAST, i.slug
         LIMIT %s
     """, tag_params + [limit])
 
@@ -439,17 +638,18 @@ def get_top_sellers(hours, limit, tag: str | None = None, rank_mode: str = "max"
             ROUND((c.price - p.price)::numeric, 2) AS change_abs,
             (c.vol - p.vol)                        AS volume_change_abs,
             ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            {_vw_avg('s.median')}            AS median,
             ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
+        WHERE {_window_48h(hours)}
           {tag_clause}
           {rank_clause}
           {_plausible_clause()}
         GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
-        ORDER BY c.price DESC
+        ORDER BY c.price DESC, i.slug
         LIMIT %s
     """, tag_params + [limit])
 
@@ -483,19 +683,76 @@ def get_most_traded(hours, limit, tag: str | None = None, rank_mode: str = "max"
             ROUND((c.price - p.price)::numeric, 2) AS change_abs,
             (c.vol - p.vol)                        AS volume_change_abs,
             ROUND(((c.vol - p.vol)::numeric / NULLIF(p.vol, 0) * 100)::numeric, 1) AS volume_change_pct,
+            {_vw_avg('s.median')}            AS median,
             ROUND({_credibility()}, 2) AS confidence
         FROM market_stats_48h s
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
+        WHERE {_window_48h(hours)}
           {tag_clause}
           {rank_clause}
           {_plausible_clause()}
         GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
-        ORDER BY volume DESC
+        ORDER BY volume DESC, i.slug
         LIMIT %s
     """, tag_params + [limit])
+
+
+# ──────────────────────────────────────────────
+# VORBERECHNETE RANGLISTEN
+# ──────────────────────────────────────────────
+
+# Tiefe der Vorberechnung. Das Frontend fragt 10 an, die API erlaubt bis 200 —
+# alles über dieser Grenze fällt auf die Live-Berechnung zurück. 50 deckt jede
+# realistische Anfrage ab und kostet 72 Kombinationen × 4 Listen × 50 = 14.400
+# Zeilen, also nichts.
+PRECOMPUTE_DEPTH = 50
+
+# Welche Funktion welche Liste berechnet. Der Precompute-Lauf und der
+# Live-Rückfall greifen auf dieselbe Abbildung zu — dadurch KANN sich die
+# vorberechnete Liste nicht von der berechneten unterscheiden.
+TOP_LIST_KINDS = {
+    "performer": lambda h, lim, tag, rm, m: get_top_performers(h, lim, tag=tag, rank_mode=rm, metric=m),
+    "loser":     lambda h, lim, tag, rm, m: get_top_losers(h, lim, tag=tag, rank_mode=rm, metric=m),
+    "seller":    lambda h, lim, tag, rm, m: get_top_sellers(h, lim, tag=tag, rank_mode=rm),
+    "traded":    lambda h, lim, tag, rm, m: get_most_traded(h, lim, tag=tag, rank_mode=rm),
+}
+
+
+def compute_top_list(kind, hours, limit, tag=None, rank_mode="max", metric="pct"):
+    """Live-Berechnung einer Rangliste, bereits JSON-tauglich."""
+    return _jsonable(TOP_LIST_KINDS[kind](hours, limit, tag, rank_mode, metric))
+
+
+def read_top_list(kind, hours, limit, tag=None, rank_mode="max", metric="pct"):
+    """
+    Rangliste aus der Vorberechnung, sonst live.
+
+    Der Rückfall ist kein Randfall, sondern der Sicherheitsgurt: er greift, wenn
+    der Precompute-Lauf nie lief, fehlschlug, oder wenn nach Parametern gefragt
+    wird, die er nicht abdeckt (rank_mode ≠ max, Tiefe > PRECOMPUTE_DEPTH).
+    Lieber langsam und richtig als schnell und veraltet.
+    """
+    if rank_mode == "max" and limit <= PRECOMPUTE_DEPTH:
+        rows = query("""
+            SELECT payload
+            FROM top_lists
+            WHERE hours = %s
+              AND COALESCE(tag, '') = COALESCE(%s, '')
+              AND metric = %s
+              AND list_kind = %s
+              AND rank <= %s
+              -- Frischeschutz: die Vorberechnung gilt nur für genau den
+              -- Datenstand, aus dem sie entstand.
+              AND source_updated = (SELECT value::timestamptz FROM metadata
+                                    WHERE key = 'last_updated')
+            ORDER BY rank
+        """, (hours, tag, metric, kind, limit))
+        if rows:
+            return [r["payload"] for r in rows]
+
+    return compute_top_list(kind, hours, limit, tag, rank_mode, metric)
 
 
 # ──────────────────────────────────────────────
@@ -526,7 +783,7 @@ def get_volume_leaders(
             JOIN market_items i        ON i.id = s.item_id
             JOIN current_price c       ON c.item_id = s.item_id
             LEFT JOIN previous_price p ON p.item_id = s.item_id
-            WHERE s.day >= (NOW() - INTERVAL '{days} days')::date
+            WHERE {_window_90d(days)}
               {tag_clause} {rank_clause} {_plausible_clause()}
             GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
             HAVING SUM(s.volume) >= %s
@@ -554,7 +811,7 @@ def get_volume_leaders(
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
+        WHERE {_window_48h(hours)}
           {tag_clause} {rank_clause} {_plausible_clause()}
         GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
         HAVING SUM(s.volume) >= %s
@@ -591,7 +848,7 @@ def get_value_leaders(
             JOIN market_items i        ON i.id = s.item_id
             JOIN current_price c       ON c.item_id = s.item_id
             LEFT JOIN previous_price p ON p.item_id = s.item_id
-            WHERE s.day >= (NOW() - INTERVAL '{days} days')::date
+            WHERE {_window_90d(days)}
               {tag_clause} {rank_clause} {_plausible_clause()}
             GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
             HAVING SUM(s.volume) >= %s AND MAX(s.max_price) <= AVG(s.avg_price) * 10
@@ -619,7 +876,7 @@ def get_value_leaders(
         JOIN market_items i        ON i.id = s.item_id
         JOIN current_price c       ON c.item_id = s.item_id
         LEFT JOIN previous_price p ON p.item_id = s.item_id
-        WHERE s.ts >= NOW() - INTERVAL '{hours} hours'
+        WHERE {_window_48h(hours)}
           {tag_clause} {rank_clause} {_plausible_clause()}
         GROUP BY i.id, i.slug, i.tags, i.max_rank, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol
         HAVING SUM(s.volume) >= %s AND MAX(s.max_price) <= AVG(s.avg_price) * 10
@@ -814,6 +1071,25 @@ def get_items_by_drop_filter(
 # KATEGORIE / SUCHE
 # ──────────────────────────────────────────────
 
+def _like_escape(term: str) -> str:
+    """
+    Maskiert die LIKE-Metazeichen einer Nutzereingabe.
+
+    Ohne das ist `q=%` kein Suchbegriff, sondern ein Platzhalter für alles: die
+    Suche lieferte dann die zehn meistgehandelten Items statt „nichts gefunden",
+    und `q=_____` traf jedes Wort ab fünf Zeichen. Ein Sicherheitsproblem ist es
+    nicht — gemessen dauert `q=%%%%%` 46 ms, genauso lange wie `q=ember` —,
+    aber die Antwort war schlicht falsch.
+
+    Absichtlich KEINE Zeichen-Whitelist auf q: echte Itemnamen enthalten
+    Apostrophe („Warrior's Rest"), Klammern („Melee Riven Mod (Veiled)") und
+    Umlaute („Höllvanian Old Town in Fall"). Ein Filter darauf würde die Suche
+    beschädigen, ohne ein Risiko abzuwehren — q ist an jeder Stelle als
+    %s-Parameter gebunden.
+    """
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def search_items(search_term: str, limit: int = 8):
     """
     Autocomplete-Suche über market_items.
@@ -827,7 +1103,8 @@ def search_items(search_term: str, limit: int = 8):
     Preisdaten per LEFT JOIN, damit Items ohne Trades trotzdem erscheinen.
     """
     term = search_term.strip()
-    like = f"%{term}%"
+    esc  = _like_escape(term)
+    like = f"%{esc}%"
     return query(f"""
         WITH prices AS (
             SELECT
@@ -846,18 +1123,18 @@ def search_items(search_term: str, limit: int = 8):
             p.avg_price, p.volume
         FROM market_items i
         LEFT JOIN prices p ON p.item_id = i.id
-        WHERE (i.raw->'i18n'->'en'->>'name') ILIKE %s
-           OR REPLACE(i.slug, '_', ' ') ILIKE %s
+        WHERE (i.raw->'i18n'->'en'->>'name') ILIKE %s ESCAPE '\\'
+           OR REPLACE(i.slug, '_', ' ') ILIKE %s ESCAPE '\\'
         ORDER BY
             CASE
                 WHEN LOWER(i.raw->'i18n'->'en'->>'name') = LOWER(%s)      THEN 0
-                WHEN (i.raw->'i18n'->'en'->>'name')      ILIKE %s         THEN 1
+                WHEN (i.raw->'i18n'->'en'->>'name')      ILIKE %s ESCAPE '\\' THEN 1
                 ELSE 2
             END,
             COALESCE(p.volume, 0) DESC,
             LENGTH(i.raw->'i18n'->'en'->>'name')
         LIMIT %s
-    """, (like, like, term, f"{term}%", limit))
+    """, (like, like, term, f"{esc}%", limit))
 
 
 # ──────────────────────────────────────────────
@@ -873,6 +1150,7 @@ def get_item_detail(slug: str):
         WITH target AS (
             SELECT id, slug, tags, ducats, max_rank, thumb_path, image_path,
                    price_median,
+                   sell_price_min, sell_price_rank, sell_price_status, sell_orders_at,
                    (raw->'i18n'->'en'->>'name') AS name
             FROM market_items WHERE slug = %s
         ),
@@ -942,7 +1220,11 @@ def get_item_detail(slug: str):
                 ((w24.avg_price - prev24.avg_price)
                  / NULLIF(prev24.avg_price, 0) * 100)::numeric, 1
             ) AS change_pct,
-            ranks.mod_ranks
+            ranks.mod_ranks,
+            -- Niedrigstes Verkaufsangebot. Nur gefüllt, wenn das Item keine
+            -- Handelsdaten hat (siehe refresh_sell_offers). Ein Angebot ist KEIN
+            -- Handelspreis — die Oberfläche weist es getrennt aus.
+            i.sell_price_min, i.sell_price_rank, i.sell_price_status, i.sell_orders_at
         FROM target i, w24, w48, prev24, ranks
     """, (slug,))
     return rows[0] if rows else None
@@ -1127,16 +1409,16 @@ def get_item_combined(name: str, hours: int = 24):
     wf_data = query("""
         SELECT unique_name, name_en, name_de, export_type, raw
         FROM wfpe_items
-        WHERE name_en ILIKE %s
+        WHERE name_en ILIKE %s ESCAPE '\\'
         ORDER BY
             CASE
                 WHEN LOWER(name_en) = LOWER(%s) THEN 0
-                WHEN name_en ILIKE %s THEN 1
+                WHEN name_en ILIKE %s ESCAPE '\\' THEN 1
                 ELSE 2
             END,
             LENGTH(name_en)
         LIMIT 5
-    """, (f"%{name}%", name, f"{name} %"))
+    """, (f"%{_like_escape(name)}%", name, f"{_like_escape(name)} %"))
 
     market_data = query(f"""
         SELECT
@@ -1151,12 +1433,12 @@ def get_item_combined(name: str, hours: int = 24):
         FROM market_items i
         JOIN market_stats_48h s ON s.item_id = i.id
         JOIN wfpe_items w ON w.unique_name = i.game_ref
-        WHERE w.name_en ILIKE %s
+        WHERE w.name_en ILIKE %s ESCAPE '\\'
           AND s.ts >= NOW() - INTERVAL '{hours} hours'
         GROUP BY i.id, i.slug, i.max_rank, i.thumb_path, i.image_path
         ORDER BY SUM(s.volume) DESC
         LIMIT 5
-    """, (f"%{name}%",))
+    """, (f"%{_like_escape(name)}%",))
 
     return {"wiki": wf_data, "market": market_data}
 

@@ -52,9 +52,18 @@ def _ok(data: dict) -> JSONResponse:
 
 
 def _err(e: Exception) -> JSONResponse:
+    """
+    Fehler an den Client — ohne Details.
+
+    Vorher stand hier `str(e)`. Damit gingen rohe Postgres-Meldungen nach außen,
+    nachgewiesen etwa „FEHLER: LIMIT darf nicht negativ sein" und bei Spalten-
+    oder Syntaxfehlern zusätzlich das Query-Fragment samt Tabellen- und
+    Spaltennamen. Die Diagnose gehört ins Journal, nicht in die Antwort.
+    """
     import traceback
     traceback.print_exc()
-    return JSONResponse(status_code=500, content={"error": str(e)})
+    return JSONResponse(status_code=500,
+                        content={"error": "Interner Fehler bei der Verarbeitung der Anfrage."})
 
 
 @router.get("/")
@@ -98,24 +107,21 @@ def top(
 ):
     try:
         last_updated = api.db.get_last_updated()
-        metric     = metric if metric in ("pct", "abs") else "pct"
-        top_perf   = api.db.get_top_performers(hours, limit, tag=tag, rank_mode=rank_mode, metric=metric)
-        top_loser  = api.db.get_top_losers(hours, limit, tag=tag, rank_mode=rank_mode, metric=metric)
-        top_seller = api.db.get_top_sellers(hours, limit, tag=tag, rank_mode=rank_mode)
-        top_traded = api.db.get_most_traded(hours, limit, tag=tag, rank_mode=rank_mode)
+        metric = metric if metric in ("pct", "abs") else "pct"
 
-        for lst in (top_perf, top_loser, top_seller, top_traded):
-            for item in lst:
-                item["datetime"] = item["datetime"].isoformat() if item.get("datetime") else None
-                cp = item.get("change_pct")
-                item["change_pct"] = float(cp) if cp is not None else None
+        # read_top_list liefert aus der Vorberechnung und fällt selbsttätig auf
+        # die Live-Berechnung zurück. Die Umwandlung in JSON-taugliche Werte
+        # passiert in db.py, damit beide Wege dieselbe Form ergeben.
+        def lst(kind):
+            return api.db.read_top_list(kind, hours, limit,
+                                        tag=tag, rank_mode=rank_mode, metric=metric)
 
         return _ok({
             "last_updated":   last_updated,
-            "top_performer":  _serialize(top_perf),
-            "top_loser":      _serialize(top_loser),
-            "top_seller":     _serialize(top_seller),
-            "top_traded":     _serialize(top_traded),
+            "top_performer":  lst("performer"),
+            "top_loser":      lst("loser"),
+            "top_seller":     lst("seller"),
+            "top_traded":     lst("traded"),
         })
     except Exception as e:
         return _err(e)
@@ -315,7 +321,9 @@ def get_item_drops(
 # ──────────────────────────────────────────────
 
 @router.get("/category")
-def category(tag: str | None = None, limit: int = 20):
+# Grenzen wie bei allen übrigen Endpunkten. Ohne sie ließ ein negatives limit
+# den Postgres-Fehler „LIMIT darf nicht negativ sein" bis zum Client durch.
+def category(tag: str | None = None, limit: int = Query(20, ge=1, le=500)):
     try:
         last_updated = api.db.get_last_updated()
 
