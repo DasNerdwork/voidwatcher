@@ -1,4 +1,5 @@
 import { C, T, TextLink } from "./shared";
+import { locale, t, useI18n } from "../i18n";
 
 interface StatusResponse {
   wf_build_label:          string | null;
@@ -12,7 +13,9 @@ interface FooterProps {
   status?: StatusResponse | null;
 }
 
-export const Footer = ({ status }: FooterProps) => (
+export const Footer = ({ status }: FooterProps) => {
+  useI18n();   // am Sprach-Context hängen, siehe App.tsx
+  return (
   <footer style={{
     borderTop:      `1px solid ${C.b}`,
     background:     "rgba(8,10,26,0.7)",
@@ -45,35 +48,33 @@ export const Footer = ({ status }: FooterProps) => (
           )}
           {status.wfm_items_updated_at && (
             <span>WFM <span style={{ color: C.t, fontWeight: 600 }}>
-              {new Date(status.wfm_items_updated_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+              {new Date(status.wfm_items_updated_at).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit", year: "2-digit" })}
             </span></span>
           )}
           {status.last_updated && (
             <span>Sync <span style={{ color: C.t, fontWeight: 600 }}>
-              {new Date(status.last_updated).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              {new Date(status.last_updated).toLocaleString(locale(), { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
             </span></span>
           )}
         </div>
       )}
 
       <p style={{ ...T.meta, lineHeight: 1.7, maxWidth: 860 }}>
-        Digital Extremes Ltd, Warframe and the logo Warframe are registered trademarks.
-        All rights are reserved worldwide. This site has no official link with Digital Extremes Ltd or Warframe.
-        All artwork, screenshots, characters or other recognizable features of the intellectual property
-        relating to these trademarks are likewise the intellectual property of Digital Extremes Ltd.
+        {t("Digital Extremes Ltd, Warframe and the logo Warframe are registered trademarks. All rights are reserved worldwide. This site has no official link with Digital Extremes Ltd or Warframe. All artwork, screenshots, characters or other recognizable features of the intellectual property relating to these trademarks are likewise the intellectual property of Digital Extremes Ltd.")}
       </p>
 
       <div style={{ display: "flex", alignItems: "center", gap: 4, ...T.meta }}>
         <span>© 2026 Voidwatch.DasNerdwork.net | </span>
         <TextLink href="https://dasnerdwork.net/impressum" color={C.gold}>
-          Impressum
+          {t("Imprint")}
         </TextLink>
         &amp;
         <TextLink href="https://dasnerdwork.net/datenschutz" color={C.gold}>
-          Datenschutz
+          {t("Privacy")}
         </TextLink>
       </div>
 
     </div>
   </footer>
 );
+};

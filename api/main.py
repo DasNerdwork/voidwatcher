@@ -394,8 +394,8 @@ def category(tag: str | None = None, limit: int = Query(20, ge=1, le=500)):
                     item["category"] = cat
                     item["subcategory"] = subcat
                 except Exception:
-                    cat = "Andere"
-                    item["category"] = "Andere"
+                    cat = "Unsorted"
+                    item["category"] = "Unsorted"
                     item["subcategory"] = None
 
                 # Decimal → float/int (immer, unabhängig vom try/except oben)

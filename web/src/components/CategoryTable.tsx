@@ -194,11 +194,11 @@ export const CategoryTable = ({ category, allCategories, miscSub }: CategoryTabl
                   <div style={{ minWidth: 0 }}>
                     <A href={itemPath(item.slug)}
                       style={{ ...T.bodyStrong, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>
-                      {item.name}
+                      {itemName(item)}
                     </A>
                     {item.max_rank != null && item.max_rank > 0 && (
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, marginTop: 2 }}>
-                        Rang {item.max_rank}
+                        {t("Rank %d", item.max_rank)}
                       </div>
                     )}
                   </div>

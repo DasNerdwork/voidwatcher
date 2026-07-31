@@ -1614,6 +1614,18 @@ def get_all_category_overview(limit: int = 20):
 
 
 def classify_item_by_tags(tags: str) -> tuple[str, str | None]:
+    """
+    Grobe Einordnung eines Items für den Category Browser.
+
+    Die Namen sind **englische Kanonwerte**, keine Anzeigetexte: sie sind
+    gleichzeitig Filterwert im Frontend und Schlüssel in den Farbtabellen. Die
+    Übersetzung passiert dort über t(). Vorher standen hier gemischte deutsche
+    und englische Begriffe („Waffen", „Misc", „Sonstiges") — die ließen sich
+    nicht übersetzen, ohne den Filterzustand mitzuübersetzen.
+
+    Die REIHENFOLGE ist die Klassifikation: Items tragen mehrere Tags, der erste
+    Treffer gewinnt.
+    """
     if not tags or not isinstance(tags, str):
         tags_list = []
     else:
@@ -1637,7 +1649,7 @@ def classify_item_by_tags(tags: str) -> tuple[str, str | None]:
     if 'warframe' in tag_set:
         return ('Warframes', None)
     if any(t in tag_set for t in ['primary', 'secondary', 'melee', 'weapon', 'sentinel_weapon', 'archwing']):
-        return ('Waffen', None)
+        return ('Weapons', None)
     if 'set' in tag_set or 'prime' in tag_set:
         return ('Warframes', None)
     if 'fish' in tag_set:

@@ -3,6 +3,7 @@ import { SmallPlatIcon } from "./Icons";
 import { C, CategoryBadge, ItemThumb, T, plat } from "./shared";
 import { A, itemPath, navigate } from "../router";
 import { readPref, writePref } from "../prefs";
+import { itemName, locale, t, useI18n } from "../i18n";
 import type { SearchResult } from "../types";
 
 // ─── Recently Searched (localStorage) ─────────────────────────────────────────
@@ -25,18 +26,53 @@ const pushRecent = (item: SearchResult): SearchResult[] => {
 };
 
 // ─── Kategorie aus Tags ───────────────────────────────────────────────────────
-// Kompakte Frontend-Variante von classify_item_by_tags — für die Vorschau
-// reicht das grobe Label, die Detailseite bekommt die echte Einordnung vom Server.
+// Frontend-Variante von classify_item_by_tags (api/db.py). Angezeigt wird nur die
+// Oberkategorie, nicht die Misc-Unterkategorie — in der engen Zeile ist „Misc"
+// die Angabe, die trägt; die Detailseite zeigt beide Badges vom Server.
+//
+// Die REIHENFOLGE ist die Klassifikation: Items tragen mehrere Tags, und der
+// erste Treffer gewinnt. „Thermite Rounds" hat mod + primary — Mods steht vor
+// Waffen, sonst stünde dort „Waffen".
+//
+// Vorher endete die Kette nach „set/prime" und alles darunter blieb ohne Badge:
+// Scenes, Fische, Ressourcen, Ayatan, Skins, Schlüssel — „The Teacher Dojo Scene"
+// (Tag `scene`) zeigte deshalb nichts, obwohl der Server sie als Misc/Scenes führt.
 
+const MISC_TAGS = [
+  "fish", "arcane_helmet", "skin", "scene", "simulacrum",
+  "gem", "resource", "metal", "plant", "ayatan_sculpture", "ayatan_star",
+  "focus", "lens", "kubrow", "pet", "imprint", "key", "beacon", "syndicate",
+  "sentinel", "misc", "blueprint", "component", "collectible", "fusion core",
+];
+
+// Rückgabe sind die Kanonwerte aus classify_item_by_tags (englisch), NICHT
+// Anzeigetexte — CategoryBadge übersetzt sie.
 const categoryFromTags = (tags?: string[] | null): string | null => {
-  const t = new Set((tags ?? []).map(x => x.toLowerCase()));
-  if (t.has("arcane_enhancement")) return "Arcanes";
-  if (t.has("relic"))              return "Relics";
-  if (t.has("mod") || t.has("augment")) return "Mods";
-  if (t.has("warframe"))           return "Warframes";
-  if (["primary", "secondary", "melee", "weapon", "sentinel_weapon", "archwing"].some(x => t.has(x))) return "Waffen";
-  if (t.has("set") || t.has("prime")) return "Warframes";
+  const set = new Set((tags ?? []).map(x => x.toLowerCase()));
+  if (set.has("arcane_enhancement")) return "Arcanes";
+  if (set.has("relic"))              return "Relics";
+  if (set.has("mod") || set.has("augment")) return "Mods";
+  if (set.has("necramech") || set.has("mech")) return "Misc";
+  if (set.has("warframe"))           return "Warframes";
+  if (["primary", "secondary", "melee", "weapon", "sentinel_weapon", "archwing"].some(x => set.has(x))) return "Weapons";
+  if (set.has("set") || set.has("prime")) return "Warframes";
+  if (MISC_TAGS.some(x => set.has(x))) return "Misc";
+  // Serverseitig heißt dieser Fall „Unsorted". Ein Badge dafür benennt nichts —
+  // die Zeile bleibt wie bisher ohne.
   return null;
+};
+
+// ─── Herkunft des Preises ─────────────────────────────────────────────────────
+// Drei Quellen, absteigend nach Aussagekraft: 48h-Handel → letzter Handelstag →
+// niedrigstes Verkaufsangebot. Nur die erste braucht keine Erklaerung.
+
+const priceHint = (item: SearchResult): string | undefined => {
+  if (item.is_offer) return t("Lowest sell offer — no trades in the last 48 hours");
+  if (item.price_day) {
+    const d = new Date(`${item.price_day}T00:00:00`);
+    return t("Last traded on %s — no trades in the last 48 hours", d.toLocaleDateString(locale()));
+  }
+  return undefined;
 };
 
 // ─── Ergebniszeile ────────────────────────────────────────────────────────────
@@ -65,17 +101,15 @@ const ResultRow = ({
         color: active ? C.gold : C.t,
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>
-        {item.name}
+        {itemName(item)}
       </span>
       {cat && <CategoryBadge cat={cat} />}
-      {/* Angebotspreise sehen aus wie Handelspreise — bewusst so entschieden.
-          Der Unterschied steht nur im Tooltip, kostet also keine Breite in der
-          ohnehin engen Zeile. */}
+      {/* Ersatzpreise sehen aus wie frische Handelspreise — bewusst so
+          entschieden. Der Unterschied steht nur im Tooltip, kostet also keine
+          Breite in der ohnehin engen Zeile. */}
       {item.avg_price != null && (
         <span style={{ ...T.num, color: C.gold, flexShrink: 0 }}
-          title={item.is_offer
-            ? "Niedrigstes Verkaufsangebot — kein Handel in den letzten 48 Stunden"
-            : undefined}>
+          title={priceHint(item)}>
           {plat(item.avg_price)}<SmallPlatIcon />
         </span>
       )}
@@ -86,6 +120,10 @@ const ResultRow = ({
 // ─── SearchBox ────────────────────────────────────────────────────────────────
 
 export const SearchBox = () => {
+  // Am Sprach-Context hängen, damit ein Umschalten sofort durchschlägt: t()
+  // liest die Sprache aus einer Modulvariablen und löst von sich aus kein
+  // Neuzeichnen aus.
+  useI18n();
   const [query,   setQuery]   = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [recent,  setRecent]  = useState<SearchResult[]>(loadRecent);
@@ -133,9 +171,11 @@ export const SearchBox = () => {
   const pick = (item: SearchResult) => {
     setRecent(pushRecent({
       name: item.name, slug: item.slug, thumb_path: item.thumb_path,
-      // is_offer muss mit: die Recently-Liste rendert dieselbe Zeile und verlöre
-      // sonst den Hinweis, dass der Preis ein Angebot ist.
-      tags: item.tags, avg_price: item.avg_price, is_offer: item.is_offer,
+      // is_offer und price_day müssen mit: die Recently-Liste rendert dieselbe
+      // Zeile und verlöre sonst den Hinweis, woher der Preis stammt.
+      // Beide Namen mit: die Liste überlebt einen Sprachwechsel im Speicher.
+      tags: item.tags, avg_price: item.avg_price, name_de: item.name_de,
+      is_offer: item.is_offer, price_day: item.price_day,
     }));
     setQuery("");
     setOpen(false);
@@ -182,7 +222,7 @@ export const SearchBox = () => {
         ref={inputRef}
         type="text"
         value={query}
-        placeholder="Item suchen…"
+        placeholder={t("Search item…")}
         autoComplete="off"
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         onFocus={e => { setOpen(true); e.currentTarget.style.borderColor = C.gold; }}
@@ -206,7 +246,7 @@ export const SearchBox = () => {
           {showRecent ? (
             recent.length > 0 ? (
               <>
-                {sectionLabel("RECENTLY SEARCHED")}
+                {sectionLabel(t("RECENTLY SEARCHED"))}
                 {recent.map((r, i) => (
                   <ResultRow key={r.slug} item={r} active={i === cursor}
                     onPick={() => pick(r)} onHover={() => setCursor(i)} />
@@ -214,7 +254,7 @@ export const SearchBox = () => {
               </>
             ) : (
               <div style={{ padding: "10px", ...T.meta, fontStyle: "italic" }}>
-                Mindestens 2 Zeichen eingeben…
+                {t("Type at least 2 characters…")}
               </div>
             )
           ) : loading && results.length === 0 ? (
@@ -222,11 +262,11 @@ export const SearchBox = () => {
               padding: "14px 10px", textAlign: "center", color: C.t2,
               fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em",
             }}>
-              SUCHE...
+              {t("SEARCHING…")}
             </div>
           ) : results.length === 0 ? (
             <div style={{ padding: "10px", ...T.meta, fontStyle: "italic" }}>
-              Keine Treffer für „{term}"
+              {t("No matches for “%s”", term)}
             </div>
           ) : (
             results.map((r, i) => (

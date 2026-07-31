@@ -74,8 +74,7 @@ const App: React.FC = () => {
   const [data, setData]                           = useState<ApiResponse | null>(null);
   const [status, setStatus]                       = useState<StatusResponse | null>(null);
   const [tickerItems, setTickerItems]             = useState<TopItem[]>([]);
-  const [category, setCategory]                   = useState("Alle");
-  const [now, setNow]                             = useState(new Date());
+  const [category, setCategory]                   = useState("All");
   const [allCategories, setAllCategories]         = useState<CategoriesOverview[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [page, setPage]                           = useState<Page>("dashboard");
@@ -175,7 +174,7 @@ const App: React.FC = () => {
   useEffect(() => { fetchCategories(); }, []);
 
   const visibleItemCount = () => {
-    if (category === "Alle") return allCategories.reduce((a, c) => a + c.items.length, 0);
+    if (category === "All") return allCategories.reduce((a, c) => a + c.items.length, 0);
     if (category === "Misc") {
       const misc = allCategories.find(c => c.name === "Misc")?.items ?? [];
       return miscSub ? misc.filter(i => i.subcategory === miscSub).length : misc.length;
@@ -259,33 +258,35 @@ const App: React.FC = () => {
       {/* ── Pages ── */}
       <main style={{ flex: 1, width: "100%", maxWidth: 1400, margin: "0 auto", padding: "22px 22px 60px" }}>
 
-        {itemSlug && <ItemPage key={itemSlug} slug={itemSlug} />}
+        {view === "item" && <ItemPage key={itemSlug!} slug={itemSlug!} />}
 
-        {!itemSlug && page === "dashboard" && (
+        {view === "warframes" && <WarframesPage />}
+
+        {view === "pages" && page === "dashboard" && (
           <>
             {/* Zeitraum + Kategorie Controls */}
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <FilterLabel>ZEITRAUM</FilterLabel>
+                <FilterLabel>{t("PERIOD")}</FilterLabel>
                 {HOURS_OPTIONS.map(h => {
                   const active = hours === h;
                   return (
                     <button key={h} onClick={() => setHours(h)}
                       style={segBtn(active)} {...segBtnHover(active)}>
-                      {HOURS_LABELS[h]}
+                      {t(HOURS_LABELS[h])}
                     </button>
                   );
                 })}
               </div>
               <div style={{ width: 1, height: 20, background: C.b, flexShrink: 0 }} />
               <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-                <FilterLabel>KATEGORIE</FilterLabel>
+                <FilterLabel>{t("CATEGORY")}</FilterLabel>
                 {TAG_OPTIONS.map(({ label, value }) => {
                   const active = activeTag === value;
                   return (
                     <button key={label} onClick={() => setActiveTag(value)}
                       style={segBtn(active)} {...segBtnHover(active)}>
-                      {label}
+                      {t(label)}
                     </button>
                   );
                 })}
@@ -309,11 +310,11 @@ const App: React.FC = () => {
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <div style={{ width: 2, height: 15, borderRadius: 1, background: C.cy, flexShrink: 0 }} />
-                  <span style={T.cardTitle}>Category Browser</span>
-                  <span style={T.meta}>· {visibleItemCount()} Items</span>
+                  <span style={T.cardTitle}>{t("Category Browser")}</span>
+                  <span style={T.meta}>· {t("%d items", visibleItemCount())}</span>
                   {category === "Misc" && miscSub && (
                     <span style={{ fontSize: 12, fontWeight: 600, color: C.gold, background: "rgba(200,168,75,0.12)", border: `1px solid rgba(200,168,75,0.25)`, borderRadius: C.radBtn, padding: "2px 8px" }}>
-                      {miscSub}
+                      {t(miscSub)}
                     </span>
                   )}
                 </div>
@@ -324,14 +325,14 @@ const App: React.FC = () => {
                       <button key={cat}
                         onClick={() => { setCategory(cat); setMiscSub(null); setMiscOpen(false); }}
                         style={catBtnStyle(category === cat)} {...segBtnHover(category === cat)}>
-                        {cat}
+                        {t(cat)}
                       </button>
                     ) : (
                       <div key="Misc" ref={miscRef} style={{ position: "relative" }}>
                         <button onClick={() => setMiscOpen(o => !o)}
                           style={{ ...catBtnStyle(category === "Misc"), padding: "5px 10px", display: "flex", alignItems: "center", gap: 5 }}
                           {...segBtnHover(category === "Misc")}>
-                          Misc
+                          {t("Misc")}
                           <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ transform: miscOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
                             <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
@@ -357,7 +358,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               {categoriesLoading ? (
-                <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em" }}>KATEGORIEN LADEN...</div>
+                <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em" }}>{t("LOADING CATEGORIES…")}</div>
               ) : (
                 <CategoryTable category={category} allCategories={allCategories} miscSub={miscSub} />
               )}

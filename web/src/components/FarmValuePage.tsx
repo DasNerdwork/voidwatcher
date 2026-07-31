@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { SmallPlatIcon } from "./Icons";
-import { C, CardCorner, FilterLabel, ItemThumb, RARITY_COLORS, T, TagFilter, VitFlourish, plat, segBtn } from "./shared";
+import { C, CardCorner, FilterLabel, ItemThumb, RARITY_COLORS, T, TagFilter, VitFlourish, plat, segBtn, segBtnHover } from "./shared";
 import { A, itemPath, navigate } from "../router";
+import { itemName, locale, t, useI18n } from "../i18n";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DropSource {
@@ -35,20 +36,20 @@ const REFINEMENTS = [
   { value: "exceptional", label: "Exceptional" },
   { value: "flawless",    label: "Flawless" },
   { value: "radiant",     label: "Radiant" },
-  { value: "enemy",       label: "Enemy Drop" },
+  { value: "enemy",       label: "Enemy drop" },
   { value: "best",        label: "Best" },
 ];
 
 const SORT_OPTIONS = [
-  { value: "drop_chance", label: "Drop Chance" },
-  { value: "value",       label: "Wert (₱)" },
-  { value: "ratio",       label: "Wert × Chance" },
+  { value: "drop_chance", label: "Drop chance" },
+  { value: "value",       label: "Value (₱)" },
+  { value: "ratio",       label: "Value × chance" },
 ];
 
 const SOURCE_OPTIONS = [
-  { value: "",      label: "Alle Quellen" },
-  { value: "relic", label: "Nur Relics" },
-  { value: "enemy", label: "Nur Enemies" },
+  { value: "",      label: "All sources" },
+  { value: "relic", label: "Relics only" },
+  { value: "enemy", label: "Enemies only" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
     <div style={{ paddingLeft: 14, paddingBottom: 8 }}>
       {top.map((src, i) => {
         const isRelic  = src.source_type === "relic";
-        const srcLabel = isRelic ? "RELIC" : src.source_type === "mission" ? "MISSION" : "ENEMY";
+        const srcLabel = t(isRelic ? "RELIC" : src.source_type === "mission" ? "MISSION" : "ENEMY");
         const srcColor = isRelic ? C.gold : src.source_type === "mission" ? C.up : C.cy;
         const chance   = isRelic ? src.chance_intact : src.chance_enemy;
         const rarColor = src.rarity ? (RARITY_COLORS[src.rarity] ?? C.t3) : C.t3;
@@ -109,6 +110,10 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
 
 // ─── FarmValuePage ────────────────────────────────────────────────────────────
 export const FarmValuePage = () => {
+  // Am Sprach-Context hängen, damit ein Umschalten sofort durchschlägt: t()
+  // liest die Sprache aus einer Modulvariablen und löst von sich aus kein
+  // Neuzeichnen aus.
+  useI18n();
   const [tag, setTag]               = useState<string | null>(null);
   const [refinement, setRefinement] = useState("intact");
   const [sortBy, setSortBy]         = useState("ratio");
@@ -161,13 +166,12 @@ export const FarmValuePage = () => {
         {/* Row 2: Refinement + Source + Sort */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <FilterLabel>REFINEMENT</FilterLabel>
+            <FilterLabel>{t("REFINEMENT")}</FilterLabel>
             {REFINEMENTS.map(({ value, label }) => (
               <button key={value} onClick={() => setRefinement(value)} style={segBtn(refinement === value, C.gold)}
-                onMouseEnter={e => { if (refinement !== value) e.currentTarget.style.color = C.t; }}
-                onMouseLeave={e => { if (refinement !== value) e.currentTarget.style.color = C.t3; }}
+                {...segBtnHover(refinement === value)}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -175,13 +179,12 @@ export const FarmValuePage = () => {
           <div style={{ width: 1, height: 18, background: C.b, flexShrink: 0 }} />
 
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <FilterLabel>QUELLE</FilterLabel>
+            <FilterLabel>{t("SOURCE")}</FilterLabel>
             {SOURCE_OPTIONS.map(({ value, label }) => (
               <button key={value} onClick={() => setSourceType(value)} style={segBtn(sourceType === value, C.cy)}
-                onMouseEnter={e => { if (sourceType !== value) e.currentTarget.style.color = C.t; }}
-                onMouseLeave={e => { if (sourceType !== value) e.currentTarget.style.color = C.t3; }}
+                {...segBtnHover(sourceType === value)}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -189,13 +192,12 @@ export const FarmValuePage = () => {
           <div style={{ width: 1, height: 18, background: C.b, flexShrink: 0 }} />
 
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <FilterLabel>SORTIERUNG</FilterLabel>
+            <FilterLabel>{t("SORTING")}</FilterLabel>
             {SORT_OPTIONS.map(({ value, label }) => (
               <button key={value} onClick={() => setSortBy(value)} style={segBtn(sortBy === value, C.up)}
-                onMouseEnter={e => { if (sortBy !== value) e.currentTarget.style.color = C.t; }}
-                onMouseLeave={e => { if (sortBy !== value) e.currentTarget.style.color = C.t3; }}
+                {...segBtnHover(sortBy === value)}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -215,7 +217,7 @@ export const FarmValuePage = () => {
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <div style={{ width: 2, height: 15, borderRadius: 1, background: C.up, flexShrink: 0 }} />
             <div>
-              <div style={T.cardTitle}>Farm Value</div>
+              <div style={T.cardTitle}>{t("Farm Efficiency")}</div>
               <div style={{ ...T.meta, marginTop: 2 }}>
                 Sortiert nach {sortLabel} · Refinement: {refLabel}
               </div>
@@ -229,11 +231,11 @@ export const FarmValuePage = () => {
 
         {loading ? (
           <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 13 }}>
-            LADEN...
+            {t("LOADING…")}
           </div>
         ) : items.length === 0 ? (
           <div style={{ padding: "40px 16px", textAlign: "center", color: C.t2, fontSize: 14, fontStyle: "italic" }}>
-            Keine Items mit Drop-Daten für diese Filterung
+            {t("No items with drop data for this filter")}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -242,12 +244,12 @@ export const FarmValuePage = () => {
                 <tr style={{ borderBottom: `1px solid ${C.b}` }}>
                   {[
                     { label: "#",           right: false },
-                    { label: "ITEM",        right: false },
-                    { label: "PREIS (₱)",   right: true  },
-                    { label: "DROP CHANCE", right: true  },
-                    { label: "WERT/DROP",   right: true  },
-                    { label: "QUELLEN",     right: true  },
-                    { label: "VOL",         right: true  },
+                    { label: t("ITEM"),        right: false },
+                    { label: t("PRICE (₱)"),   right: true  },
+                    { label: t("DROP CHANCE"), right: true  },
+                    { label: t("VALUE/DROP"),   right: true  },
+                    { label: t("SOURCES"),     right: true  },
+                    { label: t("VOL"),         right: true  },
                   ].map(({ label, right }) => (
                     <th key={label} style={{
                       padding: "9px 14px", textAlign: right ? "right" : "left",
@@ -284,11 +286,11 @@ export const FarmValuePage = () => {
 
                         <td style={{ padding: "10px 14px", maxWidth: 240 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                            <ItemThumb path={item.thumb_path} name={item.item_name} />
+                            <ItemThumb path={item.thumb_path} name={itemName(item)} />
                             <div style={{ minWidth: 0 }}>
                               <A href={itemPath(item.slug)}
                                 style={{ display: "block", fontWeight: 600, color: C.t, fontSize: 14, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {item.item_name}
+                                {itemName(item)}
                               </A>
                               {topSource && (
                                 <div style={{ ...T.meta, marginTop: 3 }}>
@@ -332,7 +334,7 @@ export const FarmValuePage = () => {
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
-                          {item.volume.toLocaleString("de-DE")}
+                          {item.volume.toLocaleString(locale())}
                         </td>
                       </tr>
 

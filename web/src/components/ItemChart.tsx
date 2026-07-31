@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import PlatinumSmall from "../assets/PlatinumSmall.avif";
 import { C, T } from "./shared";
+import { locale, t } from "../i18n";
 import { usePersistentState } from "../prefs";
 import type { HistoryPoint } from "../types";
 
@@ -39,9 +40,9 @@ interface SeriesDef {
 // Items (87 % gefüllt stündlich, 97 % täglich), die Schaltfläche graut dann aus.
 const SERIES: SeriesDef[] = [
   { key: "median",    label: "Median",                 color: "#c07ad4", needs: ["median"],                     default: true  },
-  { key: "movingAvg", label: "Gleitender Durchschnitt", color: "#7a9ed4", needs: ["moving_avg"],                default: false },
+  { key: "movingAvg", label: "Moving average", color: "#7a9ed4", needs: ["moving_avg"],                default: false },
   { key: "range",     label: "Min–Max",                color: "#8fa0b8", needs: ["min_price", "max_price"],     default: false },
-  { key: "donchian",  label: "Donchian-Kanal",         color: C.gold,    needs: ["donch_top", "donch_bot"],     default: true  },
+  { key: "donchian",  label: "Donchian channel",         color: C.gold,    needs: ["donch_top", "donch_bot"],     default: true  },
   { key: "candles",   label: "Candlesticks",           color: C.cy,      needs: ["open_price", "closed_price"], default: false },
 ];
 
@@ -115,18 +116,18 @@ const ceilToStep = (ms: number, step: number): number => {
  */
 const fmtAxis = (ms: number, res: "hour" | "day") => {
   const d = new Date(ms);
-  const dateLabel = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  const dateLabel = d.toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" });
   if (res === "day") return dateLabel;
   return d.getHours() === 0 && d.getMinutes() === 0
     ? dateLabel
-    : d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    : d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 };
 
 const fmtFull = (ms: number, res: "hour" | "day") => {
   const d = new Date(ms);
   return res === "hour"
-    ? d.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+    ? d.toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString(locale(), { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
 const num = (v?: number | null, digits = 1) => (v != null ? v.toFixed(digits) : "—");
@@ -158,7 +159,7 @@ const LegendToggle = ({
       background: active && !disabled ? def.color : "transparent",
       border: `1px solid ${disabled ? C.t3 : def.color}`,
     }} />
-    {def.label}
+    {t(def.label)}
   </button>
 );
 
@@ -223,7 +224,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
         alignItems: "center", justifyContent: "center",
         ...T.meta, fontStyle: "italic",
       }}>
-        Zu wenig Handelsdaten für einen Verlauf in diesem Zeitraum
+        {t("Not enough trade data for a chart in this period")}
       </div>
     );
   }
@@ -574,12 +575,12 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
 
         {/* Achsentitel */}
         <text x={w - pad.r + 8} y={pad.t - 3} fontSize="12" fill={C.t2}
-          fontWeight="600" letterSpacing="0.1em">PREIS</text>
+          fontWeight="600" letterSpacing="0.1em">{t("PRICE")}</text>
         <text x={w - pad.r + 8} y={volTop + 10} fontSize="12" fill={C.t2}
-          fontWeight="600" letterSpacing="0.1em">TRADES</text>
+          fontWeight="600" letterSpacing="0.1em">{t("TRADES")}</text>
 
         <text x={w - pad.r + 8} y={H - 7} fontSize="12" fill={C.t2}
-          fontWeight="600" letterSpacing="0.1em">ZEITRAUM</text>
+          fontWeight="600" letterSpacing="0.1em">{t("PERIOD")}</text>
 
         {xTicks.map(({ x, label }, i, arr) => (
           <text key={i} x={x} y={H - 7} fontSize="13" fill={C.t} fontFamily="monospace"
@@ -609,23 +610,23 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
           </div>
           <div style={{ ...T.num, color: C.gold, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
             {num(hp.avg_price, 0)}
-            <img src={PlatinumSmall} width={12} height={12} alt="Platin" />
+            <img src={PlatinumSmall} width={12} height={12} alt={t("Platinum")} />
           </div>
           {([
             // Min–Max steht immer, auch ohne eingeschaltetes Band: die Spanne
             // eines Buckets ist die Grundinformation zum Punkt unter dem Cursor.
-            ["Min–Max",  `${num(hp.min_price, 0)} – ${num(hp.max_price, 0)}`,
+            [t("Min–Max"),  `${num(hp.min_price, 0)} – ${num(hp.max_price, 0)}`,
              showRange ? SERIES_COLOR.range : C.t2],
             showMedian && hp.median != null
-              ? ["Median", num(hp.median, 0), SERIES_COLOR.median] : null,
+              ? [t("Median"), num(hp.median, 0), SERIES_COLOR.median] : null,
             showMovingAvg && hp.moving_avg != null
-              ? ["Gleitender Durchschnitt", num(hp.moving_avg, 0), SERIES_COLOR.movingAvg] : null,
+              ? [t("Moving average"), num(hp.moving_avg, 0), SERIES_COLOR.movingAvg] : null,
             showDonchian && hp.donch_top != null
-              ? ["Donchian", `${num(hp.donch_bot, 0)} – ${num(hp.donch_top, 0)}`, C.gold] : null,
+              ? [t("Donchian"), `${num(hp.donch_bot, 0)} – ${num(hp.donch_top, 0)}`, C.gold] : null,
             showCandles && hp.open_price != null
-              ? ["Open→Close", `${num(hp.open_price, 0)} → ${num(hp.closed_price, 0)}`,
+              ? [t("Open→Close"), `${num(hp.open_price, 0)} → ${num(hp.closed_price, 0)}`,
                  (hp.closed_price ?? 0) >= (hp.open_price ?? 0) ? C.up : C.down] : null,
-            ["Trades", String(hp.volume ?? 0), C.cy],
+            [t("Trades"), String(hp.volume ?? 0), C.cy],
           ].filter(Boolean) as [string, string, string][]).map(([label, value, color]) => (
             <div key={label} style={{
               display: "flex", justifyContent: "space-between", gap: 14,
@@ -649,9 +650,9 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
       ))}
       {clipped && (
         <span style={{ ...T.meta, fontSize: 12, marginLeft: 4, display: "inline-flex", alignItems: "center", gap: 3 }}
-          title="Ein einzelner Ausreißer würde den gesamten Verlauf platt drücken — die Skala ist deshalb begrenzt.">
+          title={t("A single outlier would flatten the whole chart — the scale is capped for that reason.")}>
           · Skala gekappt, Ausreißer bis {num(trueMax, 0)}
-          <img src={PlatinumSmall} width={11} height={11} alt="Platin" />
+          <img src={PlatinumSmall} width={11} height={11} alt={t("Platinum")} />
         </span>
       )}
     </div>

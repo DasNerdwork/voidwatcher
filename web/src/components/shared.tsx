@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { decimalSep, locale, t } from "../i18n";
 import type React from "react";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ export const TextLink = ({
 // ─── Kategorie-Farben ─────────────────────────────────────────────────────────
 export const CATEGORY_COLORS: Record<string, string> = {
   Warframes: "#5ab4c8",
-  Waffen:    "#d45c5c",
+  Weapons:   "#d45c5c",
   Mods:      "#c8a84b",
   Relics:    "#4dba7f",
   Arcanes:   "#c89050",
@@ -188,7 +189,7 @@ export const MISC_SUB_COLORS: Record<string, string> = {
   "Gems & Resources": "#b8a04a",
   "Ayatan":           "#c87a50",
   "Necramech":        "#8a9ab8",
-  "Sonstiges":        "#7a7a7a",
+  "Other":            "#7a7a7a",
 };
 
 export const RARITY_COLORS: Record<string, string> = {
@@ -245,8 +246,10 @@ export const CategoryBadge = ({ cat }: { cat: string }) => {
 // enthielt nur Mods und Prime-Teile, keinen einzigen Warframe) und "Ressourcen"
 // (Tag 'resource' existiert nicht). "Arcanes" lief ins Leere, weil der Tag
 // 'arcane_enhancement' heißt. "Weapons" meint jetzt Nicht-Prime-Waffen.
+// Die Beschriftungen sind zugleich die Übersetzungsschlüssel (englischer
+// Quelltext); übersetzt wird beim Rendern über t().
 export const TAG_OPTIONS: { label: string; value: string | null }[] = [
-  { label: "Alle",    value: null },
+  { label: "All",     value: null },
   { label: "Mods",    value: "mod" },
   { label: "Arcanes", value: "arcane" },
   { label: "Prime",   value: "prime" },
@@ -260,8 +263,10 @@ export const TAG_OPTIONS: { label: string; value: string | null }[] = [
 // = 90 Tage, die volle Tiefe von market_stats_90d.
 export const HOURS_OPTIONS = [24, 48, 168, 336, 720, 2160] as const;
 
+// „7T" ist NICHT sprachneutral — das T steht für Tage. Die Schlüssel sind
+// deshalb englisch (7D …) und werden über t() übersetzt.
 export const HOURS_LABELS: Record<number, string> = {
-  24: "24H", 48: "48H", 168: "7T", 336: "14T", 720: "30T", 2160: "90T",
+  24: "24H", 48: "48H", 168: "7D", 336: "14D", 720: "30D", 2160: "90D",
 };
 
 // Ausgeschriebene Fassung für Unterzeilen. Bewusst eine eigene Tabelle statt einer
@@ -272,12 +277,12 @@ export const HOURS_LABELS: Record<number, string> = {
 // in der KPI-Kachel um (167px Textbreite bei 13px reichen für rund 24 Zeichen,
 // die Stunden-Varianten liegen darüber). Gemessen, nicht geschätzt.
 export const HOURS_PHRASE: Record<number, string> = {
-    24: "Letzte 24 Stunden",
-    48: "Letzte 48 Stunden",
-   168: "Letzte 7 Tage",
-   336: "Letzte 14 Tage",
-   720: "Letzte 30 Tage",
-  2160: "Letzte 90 Tage",
+    24: "Last 24 hours",
+    48: "Last 48 hours",
+   168: "Last 7 days",
+   336: "Last 14 days",
+   720: "Last 30 days",
+  2160: "Last 90 days",
 };
 
 // ─── Filter-Controls ──────────────────────────────────────────────────────────
@@ -304,6 +309,64 @@ export const segBtn = (active: boolean, color: string = C.gold): React.CSSProper
 export const segBtnHover = (active: boolean) => hoverSurface({ active, border: true });
 
 /** Versal-Label vor einer Filtergruppe ("ZEITRAUM", "KATEGORIE", …). */
+/**
+ * Zwei Zustände als EIN Schalter mit gleitender Fläche — kein Knopfpaar.
+ *
+ * Lag zuerst nur als `MetricToggle` im Dashboard; seit die Warframe-Seite
+ * denselben Schalter braucht, steht er hier. Zwei Fassungen desselben
+ * Bedienelements laufen auseinander, das ist bei den Hover-Mustern schon einmal
+ * passiert.
+ *
+ * `size` schiebt Kachelbreite und -höhe mit — die Warframe-Seite fährt eine
+ * Stufe größer als das Dashboard.
+ */
+export function SlideToggle<K extends string>({
+  options, value, onChange, ariaLabel, size = { w: 34, h: 30 },
+}: {
+  options: readonly { key: K; label: React.ReactNode; title: string }[];
+  value:      K;
+  onChange:   (k: K) => void;
+  ariaLabel:  string;
+  size?:      { w: number; h: number };
+}) {
+  const idx = Math.max(0, options.findIndex(o => o.key === value));
+  const { w, h } = size;
+  return (
+    <div role="group" aria-label={ariaLabel} style={{
+      position: "relative", display: "flex", flexShrink: 0,
+      width: w * options.length, height: h, borderRadius: C.rad,
+      border: `1px solid ${C.b}`, background: "rgba(0,0,0,0.2)", overflow: "hidden",
+    }}>
+      {/* Die gleitende Fläche liegt HINTER den Knöpfen, deshalb pointerEvents: none. */}
+      <span aria-hidden="true" style={{
+        position: "absolute", top: 0, bottom: 0, width: w, left: idx * w,
+        background: "rgba(200,168,75,0.16)",
+        borderRight: idx < options.length - 1 ? `1px solid ${C.b2}` : "none",
+        borderLeft:  idx > 0                  ? `1px solid ${C.b2}` : "none",
+        transition: "left 0.14s ease", pointerEvents: "none",
+      }} />
+      {options.map(({ key, label, title }) => {
+        const active = key === value;
+        return (
+          <button key={key} onClick={() => onChange(key)}
+            title={title} aria-label={title} aria-pressed={active}
+            style={{
+              position: "relative", width: w, height: h, padding: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "none", background: "transparent",
+              color: active ? C.gold : C.t2,
+              cursor: "pointer", transition: "color 0.12s",
+            }}
+            onMouseEnter={e => { if (!active) e.currentTarget.style.color = C.t; }}
+            onMouseLeave={e => { if (!active) e.currentTarget.style.color = C.t2; }}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export const FilterLabel = ({ children }: { children: React.ReactNode }) => (
   <span style={{
     fontSize: 12, fontWeight: 600, color: C.t2,
@@ -338,13 +401,13 @@ interface TagFilterProps {
 
 export const TagFilter = ({ activeTag, onChange }: TagFilterProps) => (
   <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-    <FilterLabel>KATEGORIE</FilterLabel>
+    <FilterLabel>{t("CATEGORY")}</FilterLabel>
     {TAG_OPTIONS.map(({ label, value }) => {
       const active = activeTag === value;
       return (
         <button key={label} onClick={() => onChange(value)}
           style={segBtn(active)} {...segBtnHover(active)}>
-          {label}
+          {t(label)}
         </button>
       );
     })}

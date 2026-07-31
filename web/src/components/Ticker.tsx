@@ -2,6 +2,7 @@ import { memo } from "react";
 import type { TopItem } from "../types";
 import { SmallPlatIcon } from "./Icons";
 import { A, itemPath } from "../router";
+import { itemName, t, useI18n } from "../i18n";
 import { C, T, pctChange, plat } from "./shared";
 
 interface TickerBannerProps {
@@ -13,6 +14,10 @@ interface TickerBannerProps {
 // Mal mitrendern. Der Neustart der Scroll-Animation passiert damit nur noch,
 // wenn sich der Ticker-Inhalt tatsächlich ändert.
 export const TickerBanner = memo(({ items }: TickerBannerProps) => {
+  // memo() hält den Ticker aus dem Rendern von App heraus — ein Sprachwechsel
+  // erreicht ihn deshalb nur über den Context. Vor dem Early Return, sonst
+  // hinge die Hook-Zahl an der Datenlage (React #300).
+  useI18n();
   if (!items.length) return null;
 
   const allItems = [...items, ...items];
@@ -47,7 +52,7 @@ export const TickerBanner = memo(({ items }: TickerBannerProps) => {
           ...T.label, color: C.gold, fontWeight: 700,
           fontFamily: "system-ui, -apple-system, sans-serif", whiteSpace: "nowrap",
         }}>
-          24 H
+          {t("24 H")}
         </span>
       </div>
 
@@ -71,7 +76,7 @@ export const TickerBanner = memo(({ items }: TickerBannerProps) => {
                   ...T.bodyStrong,
                   fontFamily: "system-ui, -apple-system, sans-serif",
                 }}>
-                  {item.item_name}
+                  {itemName(item)}
                 </span>
                 {/* Zahl und Icon als eine Einheit: sonst addiert sich der
                     gap: 8 der Zeile zum marginLeft: 3 des Icons auf 11px. */}

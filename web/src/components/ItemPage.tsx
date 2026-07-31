@@ -6,6 +6,7 @@ import {
   T, TextLink, VitFlourish, marketUrl, plat, pctChange, segBtn,
 } from "./shared";
 import { A, itemPath, navigate } from "../router";
+import { itemName, locale, t, useI18n } from "../i18n";
 import type {
   DropSource, HistoryResponse, ItemDetailResponse, RelicContent, SetPart,
 } from "../types";
@@ -46,11 +47,11 @@ const pct = (v?: number | null, digits = 2) =>
   v != null && v > 0 ? `${(v * 100).toFixed(digits)}%` : "—";
 
 const lastTradeLabel = (iso?: string | null) => {
-  if (!iso) return "keine Trades in 48h";
+  if (!iso) return t("no trades in 48h");
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 60)   return `zuletzt gehandelt vor ${mins} Min`;
-  if (mins < 1440) return `zuletzt gehandelt vor ${Math.round(mins / 60)} Std`;
-  return `zuletzt gehandelt vor ${Math.round(mins / 1440)} Tagen`;
+  if (mins < 60)   return t("last traded %d min ago", mins);
+  if (mins < 1440) return t("last traded %d h ago", Math.round(mins / 60));
+  return t("last traded %d days ago", Math.round(mins / 1440));
 };
 
 // ─── Karten-Gerüst ────────────────────────────────────────────────────────────
@@ -114,9 +115,9 @@ const RelicTable = ({ sources }: { sources: DropSource[] }) => (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
       <thead>
         <tr>
-          <TH>RELIC</TH>
-          <TH>RARITY</TH>
-          {REFINEMENTS.map(r => <TH key={r.key} right>{r.label.toUpperCase()}</TH>)}
+          <TH>{t("RELIC")}</TH>
+          <TH>{t("RARITY")}</TH>
+          {REFINEMENTS.map(r => <TH key={r.key} right>{t(r.label).toUpperCase()}</TH>)}
         </tr>
       </thead>
       <tbody>
@@ -188,9 +189,9 @@ const DropSourcesCard = ({ sources }: { sources: DropSource[] }) => {
 
   if (sources.length === 0) {
     return (
-      <Card title="Drop-Quellen" accent={C.up}>
+      <Card title={t("Drop sources")} accent={C.up}>
         <div style={{ padding: "32px 16px", textAlign: "center", ...T.body, fontStyle: "italic" }}>
-          Keine Drop-Quellen bekannt
+          {t("No drop sources known")}
         </div>
       </Card>
     );
@@ -210,10 +211,10 @@ const DropSourcesCard = ({ sources }: { sources: DropSource[] }) => {
   );
 
   return (
-    <Card title="Drop-Quellen" accent={C.up} sub={`${sources.length} Quellen`} right={<VitFlourish />}>
-      {relics.length   > 0 && section("RELICS",    relics.length,   <RelicTable sources={relics} />)}
-      {enemies.length  > 0 && section("GEGNER",    enemies.length,  <TableSourceList sources={enemies} accent={C.cy} />)}
-      {missions.length > 0 && section("MISSIONEN", missions.length, <TableSourceList sources={missions} accent={C.up} />)}
+    <Card title={t("Drop sources")} accent={C.up} sub={t("%d sources", sources.length)} right={<VitFlourish />}>
+      {relics.length   > 0 && section(t("RELICS"),   relics.length,   <RelicTable sources={relics} />)}
+      {enemies.length  > 0 && section(t("ENEMIES"),  enemies.length,  <TableSourceList sources={enemies} accent={C.cy} />)}
+      {missions.length > 0 && section(t("MISSIONS"), missions.length, <TableSourceList sources={missions} accent={C.up} />)}
     </Card>
   );
 };
@@ -228,16 +229,16 @@ const RelicContentsCard = ({ contents }: { contents: RelicContent[] }) => {
   }));
 
   return (
-    <Card title="Relic-Inhalt" accent={C.cy} sub={`${contents.length} mögliche Belohnungen`} right={<VitFlourish />}>
+    <Card title={t("Relic contents")} accent={C.cy} sub={t("%d possible rewards", contents.length)} right={<VitFlourish />}>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr>
-              <TH>ITEM</TH>
-              <TH>RARITY</TH>
-              <TH right>INTACT</TH>
-              <TH right>RADIANT</TH>
-              <TH right>PREIS</TH>
+              <TH>{t("ITEM")}</TH>
+              <TH>{t("RARITY")}</TH>
+              <TH right>{t("INTACT")}</TH>
+              <TH right>{t("RADIANT")}</TH>
+              <TH right>{t("PRICE")}</TH>
             </tr>
           </thead>
           <tbody>
@@ -247,8 +248,8 @@ const RelicContentsCard = ({ contents }: { contents: RelicContent[] }) => {
                 <LinkedRow key={c.slug} slug={c.slug}>
                   <td style={TD_BASE}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      <ItemThumb path={c.thumb_path} name={c.name} size={24} />
-                      <A href={itemPath(c.slug)} style={T.bodyStrong}>{c.name}</A>
+                      <ItemThumb path={c.thumb_path} name={itemName(c)} size={24} />
+                      <A href={itemPath(c.slug)} style={T.bodyStrong}>{itemName(c)}</A>
                     </div>
                   </td>
                   <td style={{ ...TD_BASE, fontFamily: "monospace", fontSize: 12, color: rarColor, fontWeight: 700, letterSpacing: "0.04em" }}>
@@ -277,7 +278,7 @@ const RelicContentsCard = ({ contents }: { contents: RelicContent[] }) => {
             borderRight: i < arr.length - 1 ? `1px solid ${C.b}` : "none",
           }}>
             <div style={{ ...T.label, marginBottom: 5 }}>
-              DURCHSCHNITTSWERT {e.label.toUpperCase()}
+              {t("AVERAGE VALUE")} {t(e.label).toUpperCase()}
             </div>
             <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: C.cy }}>
               {plat(e.value)}<SmallPlatIcon />
@@ -301,15 +302,15 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
   const diffPct   = diff != null && piecesSum > 0 ? (diff / piecesSum) * 100 : null;
 
   return (
-    <Card title="Set & Einzelteile" accent="#8a7eb8" sub={`${pieces.length} Teile`} right={<VitFlourish />}>
+    <Card title={t("Set & parts")} accent="#8a7eb8" sub={t("%d parts", pieces.length)} right={<VitFlourish />}>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr>
-              <TH>ITEM</TH>
-              <TH right>PREIS</TH>
-              <TH right>DUCATS</TH>
-              <TH right>VOL</TH>
+              <TH>{t("ITEM")}</TH>
+              <TH right>{t("PRICE")}</TH>
+              <TH right>{t("DUCATS")}</TH>
+              <TH right>{t("VOL")}</TH>
             </tr>
           </thead>
           <tbody>
@@ -322,9 +323,9 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
                     borderLeft: isCurrent ? `2px solid ${C.gold}` : "2px solid transparent",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      <ItemThumb path={p.thumb_path} name={p.name} size={24} />
+                      <ItemThumb path={p.thumb_path} name={itemName(p)} size={24} />
                       <A href={itemPath(p.slug)} style={{ color: isCurrent ? C.gold : C.t, fontWeight: p.is_set ? 700 : 500 }}>
-                        {p.name}
+                        {itemName(p)}
                       </A>
                       {p.is_set && (
                         <span style={{
@@ -343,7 +344,7 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
                     {p.ducats ?? "—"}
                   </td>
                   <td style={{ ...TD_BASE, textAlign: "right", ...T.numSmall, color: C.t2 }}>
-                    {p.volume?.toLocaleString("de-DE") ?? "—"}
+                    {p.volume?.toLocaleString(locale()) ?? "—"}
                   </td>
                 </LinkedRow>
               );
@@ -354,10 +355,10 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
 
       <div style={{ display: "flex", flexWrap: "wrap", background: "rgba(0,0,0,0.18)" }}>
         {[
-          { label: "SUMME TEILE", value: <>{plat(piecesSum)}<SmallPlatIcon /></>, color: C.t },
-          { label: "SET-PREIS",   value: <>{plat(setPrice)}<SmallPlatIcon /></>,       color: C.gold },
+          { label: t("SUM OF PARTS"), value: <>{plat(piecesSum)}<SmallPlatIcon /></>, color: C.t },
+          { label: t("SET PRICE"),    value: <>{plat(setPrice)}<SmallPlatIcon /></>,    color: C.gold },
           {
-            label: "DIFFERENZ",
+            label: t("DIFFERENCE"),
             value: diff != null
               ? <>{diff >= 0 ? "+" : "−"}{plat(Math.abs(diff))}<SmallPlatIcon />{diffPct != null && ` (${diffPct >= 0 ? "+" : "−"}${Math.abs(diffPct).toFixed(0)}%)`}</>
               : "—",
@@ -378,7 +379,7 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
         ))}
       </div>
       <div style={{ padding: "9px 18px", ...T.meta, borderTop: `1px solid ${C.b}` }}>
-        Positive Differenz = das Set wird teurer gehandelt als die Summe seiner Teile.
+        {t("A positive difference means the set trades higher than the sum of its parts.")}
       </div>
     </Card>
   );
@@ -387,6 +388,10 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
 // ─── ItemPage ─────────────────────────────────────────────────────────────────
 
 export const ItemPage = ({ slug }: { slug: string }) => {
+  // Am Sprach-Context hängen, damit ein Umschalten sofort durchschlägt: t()
+  // liest die Sprache aus einer Modulvariablen und löst von sich aus kein
+  // Neuzeichnen aus.
+  useI18n();
   const [data,    setData]    = useState<ItemDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -440,7 +445,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
 
   const backLink = (
     <A href="/" style={{ ...T.meta, display: "inline-block", marginBottom: 12 }}>
-      ← Zurück zur Übersicht
+      ← {t("Back to overview")}
     </A>
   );
 
@@ -453,7 +458,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
           padding: "60px 16px", textAlign: "center", color: C.t2,
           fontFamily: "monospace", letterSpacing: "0.15em", fontSize: 13,
         }}>
-          LADEN...
+          {t("LOADING…")}
         </div>
       </>
     );
@@ -467,7 +472,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
           background: C.card, border: `1px solid ${C.b}`, borderRadius: C.rad,
           padding: "50px 16px", textAlign: "center",
         }}>
-          <div style={{ fontSize: 17, fontWeight: 600, color: C.t, marginBottom: 6 }}>Item nicht gefunden</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: C.t, marginBottom: 6 }}>{t("Item not found")}</div>
           <div style={{ ...T.meta, fontFamily: "monospace" }}>{slug}</div>
         </div>
       </>
@@ -495,38 +500,38 @@ export const ItemPage = ({ slug }: { slug: string }) => {
 
   const kpis: { label: string; value: React.ReactNode; sub: React.ReactNode; color: string }[] = [
     offerOnly ? {
-      label: "ANGEBOT AB", color: C.cy,
+      label: t("OFFERED FROM"), color: C.cy,
       value: <>{plat(item.sell_price_min)}<SmallPlatIcon /></>,
       sub: item.sell_price_rank != null
-        ? `Niedrigstes Angebot, Rang ${item.sell_price_rank}`
-        : "Niedrigstes Angebot",
+        ? t("Lowest offer, rank %d", item.sell_price_rank)
+        : t("Lowest offer"),
     } : {
-      label: "AKTUELLER PREIS", color: C.gold,
+      label: t("CURRENT PRICE"), color: C.gold,
       value: <>{plat(headlinePrice)}<SmallPlatIcon /></>,
-      sub: priceIs48h ? "Durchschnitt der letzten 48h" : "Durchschnitt der letzten 24h",
+      sub: priceIs48h ? t("Average of the last 48h") : t("Average of the last 24h"),
     },
     {
-      label: "VERÄNDERUNG 24 H", color: up ? C.up : C.down,
+      label: t("CHANGE 24 H"), color: up ? C.up : C.down,
       value: changed,
-      sub: "Gegenüber 24–48h davor",
+      sub: t("Against 24–48h before"),
     },
     {
-      label: "PREISSPANNE 48 H", color: C.t,
+      label: t("PRICE RANGE 48 H"), color: C.t,
       value: <>{plat(item.min_price_48h)} – {plat(item.max_price_48h)}<SmallPlatIcon /></>,
-      sub: <>{plat(spread)} Differenz ({spreadPct}%)</>,
+      sub: <>{plat(spread)} {t("difference")} ({spreadPct}%)</>,
     },
     {
-      label: "HANDELSVOLUMEN", color: C.cy,
-      value: (item.volume_24h ?? 0).toLocaleString("de-DE"),
-      sub: <>{(item.volume_48h ?? 0).toLocaleString("de-DE")} in 48h</>,
+      label: t("TRADE VOLUME"), color: C.cy,
+      value: (item.volume_24h ?? 0).toLocaleString(locale()),
+      sub: <>{t("%s in 48h", (item.volume_48h ?? 0).toLocaleString(locale()))}</>,
     },
   ];
 
   if (platPerDucat != null) {
     kpis.push({
-      label: "DUCAT-EFFIZIENZ", color: "#c89050",
+      label: t("DUCAT EFFICIENCY"), color: "#c89050",
       value: `${platPerDucat.toFixed(3)}`,
-      sub: <>₱ pro Ducat · {item.ducats} Ducats</>,
+      sub: <>{t("₱ per ducat · %d ducats", item.ducats ?? 0)}</>,
     });
   }
 
@@ -545,10 +550,10 @@ export const ItemPage = ({ slug }: { slug: string }) => {
           gap: 16, padding: "18px 22px", flexWrap: "wrap",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
-            <ItemThumb path={item.image_path ?? item.thumb_path} name={item.name} size={72} />
+            <ItemThumb path={item.image_path ?? item.thumb_path} name={itemName(item)} size={72} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 26, fontWeight: 700, color: C.t, lineHeight: 1.2 }}>
-                {item.name}
+                {itemName(item)}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 <CategoryBadge cat={item.category} />
@@ -582,7 +587,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
               </div>
               <div style={{ ...T.meta, marginTop: 8 }}>
                 <TextLink href={marketUrl(slug)} target="_blank" rel="noopener noreferrer"
-                  title="Auf warframe.market ansehen — öffnet einen neuen Tab">
+                  title={t("View on warframe.market — opens a new tab")}>
                   warframe.market<ExternalLinkIcon />
                 </TextLink>
               </div>
@@ -606,7 +611,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
               </div>
             )}
             <div style={{ ...T.meta, marginTop: 5 }}>
-              {offerOnly ? "kein Handel, niedrigstes Angebot" : lastTradeLabel(item.last_trade)}
+              {offerOnly ? t("no trades, lowest offer") : lastTradeLabel(item.last_trade)}
             </div>
           </div>
         </div>
@@ -632,14 +637,14 @@ export const ItemPage = ({ slug }: { slug: string }) => {
 
       {/* ── Chart ── */}
       <Card
-        title="Preisverlauf"
-        sub={history?.resolution === "hour" ? "stündliche Auflösung" : "tägliche Auflösung"}
+        title={t("Price history")}
+        sub={history?.resolution === "hour" ? t("hourly resolution") : t("daily resolution")}
         right={
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div style={{ display: "flex", gap: 3 }}>
               {RANGES.map(r => (
                 <button key={r.hours} onClick={() => setHours(r.hours)} style={segBtn(hours === r.hours)}>
-                  {r.label}
+                  {t(r.label)}
                 </button>
               ))}
             </div>
@@ -647,8 +652,8 @@ export const ItemPage = ({ slug }: { slug: string }) => {
               <>
                 <div style={{ width: 1, height: 16, background: C.b }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                  <FilterLabel>RANG</FilterLabel>
-                  <button onClick={() => setModRank(null)} style={segBtn(modRank === null, C.cy)}>Alle</button>
+                  <FilterLabel>{t("RANK")}</FilterLabel>
+                  <button onClick={() => setModRank(null)} style={segBtn(modRank === null, C.cy)}>{t("All")}</button>
                   {item.mod_ranks.map(r => (
                     <button key={r} onClick={() => setModRank(r)} style={segBtn(modRank === r, C.cy)}>
                       R{r}
@@ -666,7 +671,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
               height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
               color: C.t2, fontFamily: "monospace", fontSize: 13, letterSpacing: "0.15em",
             }}>
-              LADEN...
+              {t("LOADING…")}
             </div>
           ) : (
             <ItemChart points={history?.points ?? []} resolution={history?.resolution ?? "day"} minHeight={340} />
