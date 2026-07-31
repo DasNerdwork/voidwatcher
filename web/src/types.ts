@@ -161,3 +161,54 @@ export interface HistoryResponse {
   resolution: "hour" | "day"
   points:     HistoryPoint[]
 }
+
+// ─── Warframe-Übersicht (/api/warframes) ──────────────────────────────────────
+
+/** Die Spalten, über die sortiert, eingefärbt und der Median gebildet wird. */
+export type WfNumKey =
+  | "health" | "armor" | "dr_pct" | "effective_health" | "shield"
+  | "energy" | "start_energy" | "sprint" | "max_overshield"
+  | "ehp_shield" | "ehp_shield_overshield"
+
+export interface WarframeStat {
+  name:         string
+  unique_name:  string
+  is_prime:     boolean
+  // Alle Werte auf Rang 30. start_energy ist die echte Startenergie des Frames,
+  // KEIN Anteil der Kapazität — bei 107 von 119 Frames sind das verschiedene
+  // Zahlen (Ash startet mit 50 von 150).
+  health:                number
+  armor:                 number
+  dr_pct:                number   // Rüstung/(Rüstung+300) × 100
+  effective_health:      number   // Leben × (1 + Rüstung/300), ohne Schilde
+  shield:                number
+  energy:                number
+  start_energy:          number | null
+  sprint:                number
+  max_overshield:        number
+  ehp_shield:            number
+  ehp_shield_overshield: number
+  // Detailzeile, aus dem Wiki-Datenmodul
+  passive:     string | null
+  abilities:   string[]
+  polarities:  string[]
+  aura:        string | null
+  helminth:    string | null      // subsumierbare Fähigkeit
+  progenitor:  string | null      // Lich-Element
+  introduced:  string | null
+  // Marktbezug — nur Prime-Sets sind handelbar, also 50 von 117 Zeilen
+  slug:           string | null
+  thumb_path:     string | null
+  price:          number | null
+  price_is_offer: boolean
+}
+
+export type WfMedians = Record<WfNumKey, number | null>
+
+export interface WarframesResponse {
+  last_updated: string | null
+  items:        WarframeStat[]
+  // Drei Sätze: ein Prime ist durchweg besser ausgestattet und gehört mit
+  // seinesgleichen verglichen, nicht mit den Nicht-Primes.
+  medians:      { all: WfMedians; prime: WfMedians; nonprime: WfMedians }
+}
