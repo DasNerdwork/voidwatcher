@@ -234,21 +234,38 @@ const App: React.FC = () => {
           <LogoIcon />
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, letterSpacing: "0.16em", lineHeight: 1.1 }}>VOIDWATCH</div>
-            <div style={{ fontSize: 12, color: C.t2, letterSpacing: "0.04em" }}>Platinum Market</div>
+            <div style={{ fontSize: 12, color: C.t2, letterSpacing: "0.04em" }}>{t("Platinum Market")}</div>
           </div>
         </A>
 
         <div style={{ width: 1, height: 22, background: C.b, flexShrink: 0 }} />
 
         <nav style={{ display: "flex", gap: 3 }}>
-          {NAV.map(({ key, label }) => (
-            <button key={key} style={navBtnStyle(page === key && !itemSlug)}
-              onClick={() => { setPage(key); navigate("/"); }}
-              onMouseEnter={e => { if (page !== key) { e.currentTarget.style.background = C.hov; e.currentTarget.style.color = C.t; }}}
-              onMouseLeave={e => { if (page !== key) { e.currentTarget.style.background = "none"; e.currentTarget.style.color = C.t2; }}}>
-              {label}
-            </button>
-          ))}
+          {NAV.map(tab => {
+            const active = isTabActive(tab);
+            // hoverSurface statt handgeschriebener Handler: dieselbe Wirkung,
+            // aber im Hausmuster — restColor C.t2 ist genau die Ruhefarbe von
+            // navBtnStyle(false).
+            const shared = {
+              style: navBtnStyle(active),
+              ...hoverSurface({ active, restBorder: "transparent" }),
+            };
+            // Der Pfad-Reiter ist ein echtes <a>: Strg- und Mittelklick sollen
+            // weiterhin einen neuen Tab öffnen.
+            // Beim Überfahren schon holen: zwischen Hover und Klick liegen
+            // typisch 200–400 ms, die Antwort kommt aus dem Server-Cache in
+            // wenigen Millisekunden. Wer den Reiter nie anfasst, lädt nichts.
+            // onFocus deckt die Tastaturbedienung mit ab.
+            return "path" in tab
+              ? <A key={tab.path} href={tab.path} {...shared}
+                   onMouseEnter={e => { shared.onMouseEnter?.(e); prefetchWarframes().catch(() => {}); }}
+                   onFocus={() => { prefetchWarframes().catch(() => {}); }}>
+                  {tab.label}
+                </A>
+              : <button key={tab.page} onClick={() => { setPage(tab.page); navigate("/"); }} {...shared}>
+                  {tab.label}
+                </button>;
+          })}
         </nav>
 
         {/* Center search */}
