@@ -68,8 +68,14 @@ const ResultRow = ({
         {item.name}
       </span>
       {cat && <CategoryBadge cat={cat} />}
+      {/* Angebotspreise sehen aus wie Handelspreise — bewusst so entschieden.
+          Der Unterschied steht nur im Tooltip, kostet also keine Breite in der
+          ohnehin engen Zeile. */}
       {item.avg_price != null && (
-        <span style={{ ...T.num, color: C.gold, flexShrink: 0 }}>
+        <span style={{ ...T.num, color: C.gold, flexShrink: 0 }}
+          title={item.is_offer
+            ? "Niedrigstes Verkaufsangebot — kein Handel in den letzten 48 Stunden"
+            : undefined}>
           {plat(item.avg_price)}<SmallPlatIcon />
         </span>
       )}
@@ -127,7 +133,9 @@ export const SearchBox = () => {
   const pick = (item: SearchResult) => {
     setRecent(pushRecent({
       name: item.name, slug: item.slug, thumb_path: item.thumb_path,
-      tags: item.tags, avg_price: item.avg_price,
+      // is_offer muss mit: die Recently-Liste rendert dieselbe Zeile und verlöre
+      // sonst den Hinweis, dass der Preis ein Angebot ist.
+      tags: item.tags, avg_price: item.avg_price, is_offer: item.is_offer,
     }));
     setQuery("");
     setOpen(false);

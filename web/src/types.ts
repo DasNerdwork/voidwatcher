@@ -41,6 +41,9 @@ export interface SearchResult {
   max_rank?:   number | null
   avg_price?:  number | null
   volume?:     number | null
+  // true, wenn avg_price aus sell_price_min stammt (kein Handel in 48h).
+  // Optisch nicht unterschieden — nur als Tooltip am Preis.
+  is_offer?:   boolean | null
 }
 
 // ─── Item-Detailseite (/api/item/{slug}/detail) ───────────────────────────────

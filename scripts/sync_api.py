@@ -943,8 +943,10 @@ def refresh_sell_offers(conn, workers: int = 6):
     """
     Niedrigstes Verkaufsangebot für Items OHNE frische Handelsdaten.
 
-    1290 von 3825 Items (33,7 %) haben kein 48h-Fenster und zeigten deshalb
-    überall „—", obwohl Angebote existieren — für „Warm Coat" sind es 107.
+    Rund 1190 von 3825 Items haben keine Handelsdaten der letzten 48 Stunden und
+    zeigten deshalb überall „—", obwohl Angebote existieren — für „Warm Coat"
+    sind es 107. Etwa zwei Drittel davon liefern tatsächlich ein Angebot; der
+    Rest hat schlicht keinen Verkäufer.
 
     Geholt wird /v2/orders/item/{slug}/top: fünf beste Kauf- und Verkaufsangebote,
     bereits auf online/ingame gefiltert, EIN Request statt 107 Orders zu parsen.
@@ -962,7 +964,14 @@ def refresh_sell_offers(conn, workers: int = 6):
             SELECT i.id, i.slug
             FROM market_items i
             WHERE i.slug IS NOT NULL
-              AND NOT EXISTS (SELECT 1 FROM market_stats_48h s WHERE s.item_id = i.id)
+              -- Zeitfilter wie in der Anzeige. Ohne ihn fielen Items mit alten,
+              -- aber vorhandenen Statistikzeilen durch beide Raster: kein
+              -- Handelspreis (die Anzeige filtert auf 48h) und keine
+              -- Angebotsabfrage (die Auswahl filterte gar nicht).
+              AND NOT EXISTS (
+                  SELECT 1 FROM market_stats_48h s
+                  WHERE s.item_id = i.id AND s.ts >= NOW() - INTERVAL '48 hours'
+              )
         """)
         targets = cur.fetchall()
 
