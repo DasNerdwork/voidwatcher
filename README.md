@@ -15,7 +15,8 @@ Warframe Public Export Plus, damit sichtbar wird, was ein Item wert ist *und* wo
 bleiben lokal gespeichert. Sucht über Namen *und* Slugs, findet damit auch Sets und Relics.
 
 **Item-Detailseiten** (`/item/{slug}`)
-- Preisverlauf über 48 h bis 90 Tage mit Donchian-Kanal, optionalen Candlesticks und Volumenspur
+- Preisverlauf über 48 h bis 90 Tage mit Median, gleitendem Durchschnitt, Min–Max-Band,
+  Donchian-Kanal, optionalen Candlesticks und Trades-Spur
 - Kennzahlen: aktueller Preis, 24-h-Veränderung, Spanne mit Spread, Volumen, Ducat-Effizienz
 - Rang-Umschalter für Mods und Arcanes (Preise unterscheiden sich je Rang deutlich)
 - **Drop-Quellen** gruppiert nach Relics, Gegnern und Missionen — bei Relics mit Chance je
@@ -24,9 +25,10 @@ bleiben lokal gespeichert. Sucht über Namen *und* Slugs, findet damit auch Sets
 - **Set ↔ Einzelteile**: Summe der Teile gegen den Set-Preis, inklusive Differenz
 
 **Dashboard** — stärkster Preisanstieg, stärkster Rückgang, meistgehandelt und teuerstes Item,
-über Zeiträume von 24 h bis 90 Tagen und nach Kategorie filterbar. Die Veränderung lässt sich
-zwischen Prozent und Platin umschalten; bei „Meistgehandelt" steht stattdessen die Entwicklung
-der Handelsaktivität.
+über Zeiträume von 24 h bis 90 Tagen und nach Kategorie filterbar. Ein Umschalter wechselt in
+allen vier Ansichten zwischen Prozent und absolutem Wert — Platin bei den Preisansichten, Anzahl
+Trades bei „Meistgehandelt". Die Listen kommen vorberechnet aus der Datenbank und antworten in
+wenigen Millisekunden.
 
 **Market** — Category Browser über alle gehandelten Items, sortierbar nach Preis, Volumen
 und Drop-Chance.
@@ -43,6 +45,11 @@ und gewichtet Ranglisten nach Handelsvolumen: ein Ausschlag über drei Trades st
 kleineren Bewegung über zweitausend. Angezeigt wird immer der echte Wert, dünne Datenlagen
 werden markiert.
 
+Die Preisveränderung vergleicht Anfang und Ende des Zeitraums, wobei jedes Ende so viele Buckets
+umfasst, bis mindestens fünf Trades zusammenkommen — ein einzelner Fantasiepreis am Rand kann die
+Kennzahl damit nicht mehr bestimmen. Items ganz ohne Handel zeigen statt eines Preises das
+niedrigste Verkaufsangebot, getrennt gekennzeichnet: ein Angebot ist kein Handelspreis.
+
 ## 🛠 Tech Stack
 
 - **Frontend**: React 19 + Vite + TypeScript, Inline-Styles über zentrale Design-Tokens,
@@ -55,9 +62,12 @@ werden markiert.
 ## 🔄 Datenaktualisierung
 
 Ein täglicher Sync (08:00) holt Statistiken für alle ~3.800 handelbaren Items (stündlich für die
-letzten 48 h, täglich für 90 Tage), aktualisiert die Item-Metadaten aus dem Public Export
-und berechnet die Drop-Quellen-Tabelle neu. Ein stündlicher Job prüft auf neue
-Warframe-Builds.
+letzten 48 h, täglich für 90 Tage), aktualisiert die Item-Metadaten aus dem Public Export, holt
+Angebotspreise für Items ohne Handel und berechnet Drop-Quellen sowie die Ranglisten der
+Startseite neu. Laufzeit rund 35 Minuten. Ein stündlicher Job prüft auf neue Warframe-Builds.
+
+Aller Verkehr zu warframe.market läuft über einen gemeinsamen Ausgang mit eigenem User-Agent und
+einer globalen Drosselung auf die dort veröffentlichten 3 Anfragen pro Sekunde.
 
 ---
 
