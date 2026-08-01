@@ -7,6 +7,19 @@
 
 html, body { min-height: 100vh; }
 
+/* Platz für die Scrollleiste dauerhaft freihalten. Die Detailansicht der
+   Startseite ist je nach Item verschieden hoch - "Meistgehandelt" trifft ein
+   Item mit vollem Preisverlauf, "Teuerstes Item" oft eines mit zwei Trades,
+   dessen Chart gar nicht erst gezeichnet wird. Dadurch kam und ging die
+   Scrollleiste beim Umschalten, und weil der Inhalt zentriert ist, sprang die
+   ganze Seite um ihre halbe Breite zur Seite.
+   Der Fallback ist für Browser ohne scrollbar-gutter (vor Chrome 94,
+   Firefox 97, Safari 18.2) - dort steht die Leiste eben immer. */
+html { scrollbar-gutter: stable; }
+@supports not (scrollbar-gutter: stable) {
+  html { overflow-y: scroll; }
+}
+
 body {
   /* Fallback color while image loads */
   background-color:      #0d1022;
@@ -46,6 +59,11 @@ button, input, select {
 input, select { cursor: text; }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
+/* Firefox kennt ::-webkit-scrollbar nicht und zeichnete deshalb seine helle
+   Systemleiste ins dunkle Layout - genau der graue Streifen am rechten Rand.
+   Die Werte spiegeln die webkit-Regeln darunter: erst Griff, dann Bahn. */
+* { scrollbar-width: thin; scrollbar-color: rgba(200, 168, 75, 0.22) #0d1022; }
+
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #0d1022; }
 ::-webkit-scrollbar-thumb { background: rgba(200,168,75,0.22); border-radius: 3px; }
