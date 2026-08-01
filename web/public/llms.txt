@@ -1,0 +1,57 @@
+# VoidTicker
+
+> VoidTicker tracks platinum prices and trade volume for Warframe items from warframe.market and joins them with item metadata and drop tables from the Warframe Public Export Plus, so a single page shows what an item is worth and where it comes from. It is a web app at https://voidticker.com with a public, read-only JSON API under /api. The interface and item names are available in English and German, independently switchable.
+
+Read this before quoting any figure from this site. The numbers carry caveats that are easy to state wrongly:
+
+- **Prices are user submissions, not verified trades.** warframe.market lets anyone list an item at any price, and nobody checks that a trade happened at it. Every figure is an indication, not a market fact.
+- **Data is refreshed once a day**, by a full sync at 08:00 Europe/Berlin covering roughly 3,800 tradable items. `GET /api/status` returns the exact moment in `last_updated`. Never present these figures as live.
+- **Resolution is hourly for the last 48 hours and daily for 90 days.** Every window is anchored on the newest stored data point, not on the current time, so a window can end hours before "now".
+- **"Median" here is a volume-weighted mean of warframe.market's per-bucket medians**, not a quantile over individual trades. Describe it as a typical price. Do not say "half of all trades were below this".
+- **Price change compares the two ends of the window**, and each end is widened over as many buckets as it takes to cover at least 5 trades. When the two ends would overlap, the field is null. Null means "no basis for comparison", which is not the same as "unchanged".
+- **An outlier filter drops prices more than 20x the item's own 90-day median.** It applies to all rankings and to item details, but deliberately not to the chart series, where an outlier trade should stay visible.
+- **Rankings are weighted by trade volume, for ordering only.** Displayed values are always the real, unweighted ones. Items resting on roughly ten trades or fewer are marked as thin data.
+- **Some items show a sell offer instead of a traded price**, flagged by `is_offer`. An asking price is not a trade. A third case, flagged by `price_day`, is the last day on which the item actually traded.
+- Prices are in platinum, the in-game premium currency, written as the character ₱ in the interface.
+- Mods and Arcanes are priced per rank and differ sharply between ranks. `mod_rank` selects one; the default `rank_mode=max` reports the maximum rank.
+- Item names are returned in both languages in the same response, as `item_name`/`item_name_de` or `name`/`name_de`. Items are traded under their English names.
+- Drop source names are English only and are not translated anywhere, because no data source provides a translation for them.
+- The Warframe overview covers the 117 suits from the export, 51 of them Prime. Archwings and Necramechs are excluded on purpose, since they belong to a different class and would distort every median.
+
+API conventions: every endpoint answers JSON, is read-only, needs no authentication and is rate limited. `{slug}` is the warframe.market slug, for example `ember_prime_set`. Valid `tag` values are `mod`, `arcane`, `prime`, `weapon` and `relic`; omitting the parameter means all categories. `rank_mode` is one of `max`, `unranked` or `all` and defaults to `max`.
+
+Digital Extremes Ltd, Warframe and the Warframe logo are registered trademarks. All rights reserved worldwide. This site has no official connection to Digital Extremes Ltd or Warframe.
+
+## Site
+
+- [Dashboard](https://voidticker.com/): Biggest price gain, biggest price drop, most traded and most expensive item. Filterable by category, over windows of 24 h, 48 h, 7, 14, 30 and 90 days, switchable between percent and absolute values
+- [Warframe base values](https://voidticker.com/warframes): Rank-30 stats for all 117 Warframes, with health, armour, damage reduction, effective hit points, shields, energy, starting energy, sprint and overshields, plus a median row that follows the selected group
+- [Item page, example Ember Prime Set](https://voidticker.com/item/ember_prime_set): Per-item price history, key figures, drop sources by relic, enemy and mission, relic contents, and a set-versus-parts comparison. The URL pattern is /item/{slug}
+
+## API
+
+- [Sync status](https://voidticker.com/api/status): Timestamp of the last sync, the current Warframe build and update name, and the Public Export version. Call this first to state how old the data is
+- [Rankings](https://voidticker.com/api/top?hours=48&limit=10&metric=pct): The four dashboard lists in one response. `hours` 1 to 2160, `limit` 1 to 200, optional `tag`, `metric=pct` for percent or `abs` for the platinum difference
+- [Item search](https://voidticker.com/api/item/search?q=ember): Autocomplete over English and German names as well as slugs, minimum 2 characters. Returns a price per item where one exists, with `is_offer` and `price_day` marking which of the three price sources it came from
+- [Item detail](https://voidticker.com/api/item/ember_prime_set/detail): Item metadata, key figures, drop sources, relic contents and set parts
+- [Item history](https://voidticker.com/api/item/ember_prime_set/history?hours=48): The time series behind the chart. `hours` 1 to 2160 selects hourly or daily resolution, optional `mod_rank` 0 to 10. Carries average, minimum, maximum, volume, median, moving average, Donchian bounds and open/close per bucket
+- [Warframe stats](https://voidticker.com/api/warframes): Base values for all 117 Warframes at rank 30, plus three median sets for all, Prime only and non-Prime
+- [Item catalogue](https://voidticker.com/api/category?tag=all): Every tradable item with category, price and volume. Large response, roughly 740 KB
+- [Farming efficiency](https://voidticker.com/api/market/drops?hours=24&limit=20&refinement=intact): Items ranked by value times drop chance. `refinement` is one of `intact`, `exceptional`, `flawless`, `radiant`
+- [Volume ranking](https://voidticker.com/api/market/volume?hours=24&limit=20): Items by trade volume, with `min_volume` as a floor
+- [Value ranking](https://voidticker.com/api/market/value?hours=24&limit=20): Items by price
+
+## Background
+
+- [README](https://raw.githubusercontent.com/DasNerdwork/voidticker/main/README.md): Feature overview, tech stack, data sources and refresh cycle, in German
+- [Source code](https://github.com/DasNerdwork/voidticker): Full repository, React 19 with Vite and TypeScript on the frontend, FastAPI and PostgreSQL on the backend
+- [warframe.market](https://warframe.market): Source of all price and volume data
+- [Warframe Public Export Plus](https://github.com/calamity-inc/warframe-public-export-plus): Source of item metadata and drop tables
+- [Warframe wiki data module](https://wiki.warframe.com/w/Module:Warframes/data): Source of rank-30 growth and starting energy, neither of which appears in any official export
+
+## Optional
+
+- [voidwatch.dasnerdwork.net](https://voidwatch.dasnerdwork.net): Former domain, redirects to voidticker.com and keeps the path
+- [voidwatcher.pages.dev](https://voidwatcher.pages.dev): Deprecated Cloudflare Pages deployment, not the current build
+- [Imprint](https://dasnerdwork.net/impressum): Legal notice, in German
+- [Privacy policy](https://dasnerdwork.net/datenschutz): In German
