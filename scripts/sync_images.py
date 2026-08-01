@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-sync_images.py — VoidWatcher Image Sync
+sync_images.py - VoidTicker Image Sync
 
 Lädt Item-Bilder von warframe.market/static/assets/, speichert zwei AVIF-Versionen:
   /images/{slug}.avif          → Vollbild  (max 256px, Q85)  für Detailseiten
@@ -79,7 +79,7 @@ DB_CONFIG = {
     "port":     int(os.getenv("VW_PORT", 5432)),
 }
 
-IMAGE_DIR  = Path(os.getenv("VW_IMAGE_DIR", "/hdd1/warframe/voidwatch/images"))
+IMAGE_DIR  = Path(os.getenv("VW_IMAGE_DIR", "/hdd1/warframe/voidticker/images"))
 THUMB_DIR  = IMAGE_DIR / "thumbs"
 WFM_STATIC = "https://warframe.market/static/assets"
 WIKI_BASE  = "https://wiki.warframe.com"
@@ -775,7 +775,7 @@ def download_and_convert(
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def parse_args():
-    p = argparse.ArgumentParser(description="VoidWatcher Image Sync")
+    p = argparse.ArgumentParser(description="VoidTicker Image Sync")
     p.add_argument("--force",   action="store_true", help="Alle Bilder neu herunterladen")
     p.add_argument("--limit",   type=int, default=None, help="Nur N Items verarbeiten")
     p.add_argument("--workers", type=int, default=4,    help="Parallele Downloads (default: 4)")

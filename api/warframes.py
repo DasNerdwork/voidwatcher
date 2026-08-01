@@ -1,8 +1,8 @@
 """
-VoidWatch — Warframe-Basiswerte
+VoidTicker - Warframe-Basiswerte
 ============================================================
 Rechnet die Rang-30-Werte und die abgeleiteten Kennzahlen der Warframe-Übersicht.
-Reine Funktionen, kein SQL — die Abfrage steht in `db.get_warframe_rows()`.
+Reine Funktionen, kein SQL - die Abfrage steht in `db.get_warframe_rows()`.
 
 DIE ZAHLEN STAMMEN AUS ZWEI QUELLEN
 `wfpe_items` liefert die Rang-0-Basiswerte (DEs eigener Export, maßgeblich),

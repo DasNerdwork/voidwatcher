@@ -28,19 +28,19 @@ import time
 
 import requests
 
-# Projektname, Version, Website, Repository — die Beispiele, die die Regeln
+# Projektname, Version, Website, Repository - die Beispiele, die die Regeln
 # ausdrücklich nennen. Ohne Kontaktmöglichkeit ist eine Kennung wertlos.
 USER_AGENT = (
-    "VoidWatch/1.0 "
-    "(+https://voidwatch.dasnerdwork.net; "
-    "+https://github.com/DasNerdwork/voidwatcher)"
+    "VoidTicker/1.0 "
+    "(+https://voidticker.com; "
+    "+https://github.com/DasNerdwork/voidticker)"
 )
 
 # Veröffentlichte Obergrenze: „The general public API limit is 3 requests per
 # second." Wir fahren exakt dort.
 #
 # Eine Randbedingung, die man kennen sollte, falls warframe.market je drosselt:
-# bei genau 3,0/s liegen die Anfragen auf t = 0; 0,333; 0,667; 1,000 — ein
+# bei genau 3,0/s liegen die Anfragen auf t = 0; 0,333; 0,667; 1,000 - ein
 # serverseitiger Zähler mit gleitendem Sekundenfenster kann darin VIER Anfragen
 # sehen. Diese Konstante auf 2,9 zu senken (Abstand 0,345s) räumt das aus und
 # kostet auf einen Volllauf von gut 20 Minuten rund 30 Sekunden. Erster Hebel,

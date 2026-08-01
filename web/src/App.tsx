@@ -233,7 +233,7 @@ const App: React.FC = () => {
         <A href="/" style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <LogoIcon />
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, letterSpacing: "0.16em", lineHeight: 1.1 }}>VOIDWATCH</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.gold, letterSpacing: "0.16em", lineHeight: 1.1 }}>VOIDTICKER</div>
             <div style={{ fontSize: 12, color: C.t2, letterSpacing: "0.04em" }}>{t("Platinum Market")}</div>
           </div>
         </A>

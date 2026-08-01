@@ -1,5 +1,5 @@
 """
-VoidWatcher – Pre-Compute: item_drop_sources
+VoidTicker – Pre-Compute: item_drop_sources
 ============================================================
 Liest ExportRewards (Relic-Drops) und ExportEnemies (Enemy-Drops)
 aus wfpe_items, verknüpft sie über game_ref mit market_items

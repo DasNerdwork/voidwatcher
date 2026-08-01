@@ -1,10 +1,10 @@
 """
-VoidWatch — Pre-Compute: top_lists
+VoidTicker - Pre-Compute: top_lists
 ============================================================
 Schreibt die fertigen Ranglisten der Startseite in die Tabelle `top_lists`.
 
 Warum überhaupt: ein /api/top-Aufruf baute viermal dieselbe teure edges-CTE über
-identische Eingaben. Gemessen vor dieser Änderung — 48 h (die Vorgabe der
+identische Eingaben. Gemessen vor dieser Änderung - 48 h (die Vorgabe der
 Startseite) 1,24 s, 90 T 8,60 s. Die Daten ändern sich einmal täglich, also
 gehört das Ergebnis vorberechnet und nicht bei jedem Klick neu ermittelt.
 

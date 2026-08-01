@@ -1,5 +1,5 @@
 """
-VoidWatch — Sync: wiki_warframes
+VoidTicker - Sync: wiki_warframes
 ============================================================
 Holt das Wiki-Datenmodul `Module:Warframes/data` und legt je Warframe die Felder
 ab, die der Warframe Public Export NICHT enthält.

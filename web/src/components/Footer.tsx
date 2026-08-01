@@ -64,7 +64,7 @@ export const Footer = ({ status }: FooterProps) => {
       </p>
 
       <div style={{ display: "flex", alignItems: "center", gap: 4, ...T.meta }}>
-        <span>© 2026 Voidwatch.DasNerdwork.net | </span>
+        <span>© 2026 VoidTicker.com | </span>
         <TextLink href="https://dasnerdwork.net/impressum" color={C.gold}>
           {t("Imprint")}
         </TextLink>

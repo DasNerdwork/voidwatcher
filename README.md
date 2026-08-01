@@ -1,12 +1,13 @@
-# VoidWatch
+# VoidTicker
 
-**VoidWatch** ist ein Dashboard für Warframe-Marktdaten. Es verfolgt Platinpreise und
+**VoidTicker** ist ein Dashboard für Warframe-Marktdaten. Es verfolgt Platinpreise und
 Handelsvolumen von warframe.market und verknüpft sie mit den Item- und Drop-Daten aus dem
 Warframe Public Export Plus. So zeigt eine Seite, was ein Item wert ist und woher es kommt.
 
 ## Webzugriff
 
-- [voidwatch.dasnerdwork.net](https://voidwatch.dasnerdwork.net) (aktueller Build)
+- [voidticker.com](https://voidticker.com/) (aktueller Build)
+- [voidwatch.dasnerdwork.net](https://voidwatch.dasnerdwork.net) (alter Link, redirect)
 - [voidwatcher.pages.dev](https://voidwatcher.pages.dev) (Cloudflare Pages, deprecated)
 
 ## Features
@@ -59,7 +60,7 @@ nichts nach, und die Suche findet ein Item unter beiden Namen („Serration" wie
 ## Datenqualität
 
 warframe.market-Daten sind Nutzerangaben. Jeder kann ein Item zu einem beliebigen Preis
-einstellen, und ob ein Handel wirklich so stattgefunden hat, prüft niemand. VoidWatch
+einstellen, und ob ein Handel wirklich so stattgefunden hat, prüft niemand. VoidTicker
 filtert deshalb Preise, die weit vom Median des Items abweichen, und gewichtet Ranglisten
 nach Handelsvolumen. Ein Ausschlag über drei Trades steht damit hinter einer kleineren
 Bewegung über zweitausend. Angezeigt wird immer der echte Wert, dünne Datenlagen werden

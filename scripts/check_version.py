@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check_version.py — VoidWatcher Versions-Check (stündlich via Cron)
+check_version.py - VoidTicker Versions-Check (stündlich via Cron)
 
 Prüft drei Quellen auf Änderungen:
 

@@ -1078,19 +1078,19 @@ def apply_game_ref_overrides(conn):
 # CLI / main
 # -------------------------
 def parse_args():
-    p = argparse.ArgumentParser(description="Voidwatch market sync (v2 normalized schema)")
+    p = argparse.ArgumentParser(description="Voidticker market sync (v2 normalized schema)")
     p.add_argument("--dry-run",       action="store_true", help="fetch items but don't fetch/store statistics")
     p.add_argument("--skip-wfpe",     action="store_true", help="skip warframe public export plus sync")
     p.add_argument("--skip-market",   action="store_true", help="skip warframe.market item sync")
     p.add_argument("--workers",       type=int, default=6,  help="parallel workers for stats fetching")
     p.add_argument("--wfpe-workers",  type=int, default=3,  help="parallel workers for WFPE file fetching (keep low to avoid GitHub rate limits)")
-    p.add_argument("--slug",          action="append",      help="only sync statistics for these slugs (repeatable) — for testing; a full run takes ~15 min")
+    p.add_argument("--slug",          action="append",      help="only sync statistics for these slugs (repeatable) - for testing; a full run takes ~15 min")
     return p.parse_args()
 
 
 def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=False, slugs=None):
     start = time.time()
-    logging.info("=== VOIDWATCH SYNC START ===")
+    logging.info("=== VOIDTICKER SYNC START ===")
 
     # --- Fetch phase (before touching DB) ---
     market_items = []
@@ -1203,7 +1203,7 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
         conn.close()
 
     elapsed = time.time() - start
-    logging.info(f"=== VOIDWATCH SYNC END ({elapsed:.2f}s) ===")
+    logging.info(f"=== VOIDTICKER SYNC END ({elapsed:.2f}s) ===")
 
 
 if __name__ == "__main__":

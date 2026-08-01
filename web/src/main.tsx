@@ -6,9 +6,9 @@ import "./index.css";
 
 // ─── Font Injection ────────────────────────────────────────────────────────────
 const injectFonts = () => {
-  if (document.getElementById("voidwatch-fonts")) return;
+  if (document.getElementById("voidticker-fonts")) return;
   const link = document.createElement("link");
-  link.id = "voidwatch-fonts";
+  link.id = "voidticker-fonts";
   link.rel = "stylesheet";
   link.href =
     "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";

@@ -1,6 +1,6 @@
 {
-  "name": "VoidWatch",
-  "short_name": "VoidWatch",
+  "name": "VoidTicker",
+  "short_name": "VoidTicker",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0d1022",

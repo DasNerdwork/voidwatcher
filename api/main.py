@@ -1,5 +1,5 @@
 """
-VoidWatcher – API Routen (Erweiterungen)
+VoidTicker – API Routen (Erweiterungen)
 ============================================================
 Neue Endpoints:
 
@@ -26,7 +26,7 @@ from fastapi.responses import JSONResponse, Response
 import api.db
 import api.warframes
 
-app = FastAPI(title="VoidWatcher API")
+app = FastAPI(title="VoidTicker API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 router = APIRouter(prefix="/api")
@@ -69,7 +69,7 @@ def _err(e: Exception) -> JSONResponse:
 
 @router.get("/")
 def api_index():
-    return {"message": "VoidWatcher API läuft"}
+    return {"message": "VoidTicker API läuft"}
 
 
 @router.get("/status")
