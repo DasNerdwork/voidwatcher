@@ -7,26 +7,15 @@
 
 html, body { min-height: 100vh; }
 
-/* Platz für die Scrollleiste dauerhaft freihalten. Die Detailansicht der
-   Startseite ist je nach Item verschieden hoch - "Meistgehandelt" trifft ein
-   Item mit vollem Preisverlauf, "Teuerstes Item" oft eines mit zwei Trades,
-   dessen Chart gar nicht erst gezeichnet wird. Dadurch kam und ging die
-   Scrollleiste beim Umschalten, und weil der Inhalt zentriert ist, sprang die
-   ganze Seite um ihre halbe Breite zur Seite.
-   Der Fallback ist für Browser ohne scrollbar-gutter (vor Chrome 94,
-   Firefox 97, Safari 18.2) - dort steht die Leiste eben immer. */
-html { scrollbar-gutter: stable; }
-@supports not (scrollbar-gutter: stable) {
-  html { overflow-y: scroll; }
-}
-
-/* Der reservierte Streifen braucht eine eigene Farbe. Ohne sie erbt die
-   Zeichenfläche den Hintergrund des BODY - also das helle Vitruvian-Bild -,
-   während die Abdunklung darüber (body::before) fixiert positioniert ist und
-   nur den Inhaltsbereich abdeckt, nicht die Rinne. Genau daher kam der blaue
-   Streifen am rechten Rand. Mit einem Hintergrund am HTML wird dieser zur
-   Zeichenfläche, und das Bild bleibt auf den BODY beschränkt. */
-html { background-color: #0d1022; }
+/* KEIN scrollbar-gutter hier. Es stand kurzzeitig drin, gegen den Sprung beim
+   Wechsel der Dashboard-Ansicht - der kam aber daher, dass die Liste in
+   "Meistgehandelt" 7,5 px höher war (siehe Zeile 2 der Listenzeile in
+   DashboardPage.tsx). Seit die Ursache behoben ist, sind alle Ansichten gleich
+   hoch und die Leiste kommt und geht nicht mehr.
+   Eine dauerhaft reservierte Rinne wäre hier auch teuer erkauft: sie liegt
+   ausserhalb des HTML-Kastens, die fixierte Abdunklung body::before deckt sie
+   nicht ab, und sie steht damit als sichtbarer Streifen neben dem Hintergrund -
+   und zwar auf jeder Seite, auch auf denen, die nie scrollen. */
 
 body {
   /* Fallback color while image loads */
