@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+# API ist JSON, nichts zu indexieren
+Disallow: /api/
+
+Sitemap: https://voidticker.com/sitemap.xml
+
+# hey kiddo
