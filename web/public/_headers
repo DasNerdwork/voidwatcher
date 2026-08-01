@@ -1,8 +1,11 @@
+# Nur für Cloudflare Pages (voidwatcher.pages.dev, deprecated). Der Produktivbetrieb
+# läuft über nginx, und nginx liest diese Datei NICHT - die maßgeblichen Header
+# stehen in /etc/nginx/sites-available/005-voidticker. Beide müssen gleich bleiben.
 /*
-  Content-Security-Policy: default-src 'self'; connect-src 'self' https://voidwatch.dasnerdwork.net; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; object-src 'none'
   X-Content-Type-Options: nosniff
-  X-Frame-Options: DENY
-  Referrer-Policy: same-origin
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
   X-Powered-By: 
   Server: 
 
