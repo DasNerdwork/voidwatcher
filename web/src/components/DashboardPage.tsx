@@ -230,7 +230,22 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
         <div style={{ ...T.bodyStrong, color: active ? C.gold : C.t, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {itemName(item)}
         </div>
-        <div style={{ ...T.meta, marginTop: 2 }}>
+        {/* Höhe festgenagelt, nicht dem Inhalt überlassen. Bei „Meistgehandelt"
+            steht hier das Platin-Icon (20x17 px), sonst nur Text. Ein Inline-Bild
+            von 17 px passt mit vertical-align: middle NICHT in die 19,5 px
+            Zeilenbox von T.meta (13 px x line-height 1.5) und dehnt sie - je nach
+            Systemschrift um bis zu 0,75 px. Mal zehn Zeilen ergab das eine um
+            7,5 px höhere Liste, und weil die Liste die Höhe der ganzen Karte
+            bestimmt, wuchs die Seite genau in dieser einen Ansicht über das
+            Fenster hinaus: ein Scrollbalken, der in den drei anderen fehlte.
+
+            Unter Linux fällt es nicht auf, unter Windows (Segoe UI) schon - der
+            Fehler war deshalb nur auf einem der beiden Systeme sichtbar.
+
+            In der rechten Spalte steht dasselbe Icon in T.num (14 px -> 21 px
+            Zeilenbox) und passt dort hinein; nur diese Zeile braucht die Klammer.
+            Das Icon darf die Box überlaufen, es wird nichts abgeschnitten. */}
+        <div style={{ ...T.meta, marginTop: 2, height: (T.meta.fontSize as number) * 1.5 }}>
           {/* Mit Einheit statt „Vol 860": das Kürzel nennt nicht, was gezählt wird.
               Tausendertrennung wie an jeder anderen Volumen-Stelle der App.
 
