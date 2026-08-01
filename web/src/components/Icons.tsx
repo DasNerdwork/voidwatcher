@@ -25,7 +25,7 @@ const iconProps = {
   style: { display: "block" },
 };
 
-/** Preisanstieg — Pfeil aufwärts */
+/** Preisanstieg - Pfeil aufwärts */
 export const TrendUpIcon = () => (
   <svg {...iconProps}>
     <path d="M2 11.5L6 7L9 10L14 4.5" />
@@ -33,7 +33,7 @@ export const TrendUpIcon = () => (
   </svg>
 );
 
-/** Preisrückgang — Pfeil abwärts */
+/** Preisrückgang - Pfeil abwärts */
 export const TrendDownIcon = () => (
   <svg {...iconProps}>
     <path d="M2 4.5L6 9L9 6L14 11.5" />
@@ -41,7 +41,7 @@ export const TrendDownIcon = () => (
   </svg>
 );
 
-/** Meistgehandelt — zwei gegenläufige Pfeile */
+/** Meistgehandelt - zwei gegenläufige Pfeile */
 export const TradeIcon = () => (
   <svg {...iconProps}>
     <path d="M2.5 5.5H12" />
@@ -51,9 +51,9 @@ export const TradeIcon = () => (
   </svg>
 );
 
-/** Teuerstes Item — Platin-Symbol (wie PlatIcon, aber ohne feste Farbe) */
+/** Teuerstes Item - Platin-Symbol (wie PlatIcon, aber ohne feste Farbe) */
 /**
- * Edelstein im Brillantschliff — geläufiges Wertsymbol. Der frühere Kreis mit
+ * Edelstein im Brillantschliff - geläufiges Wertsymbol. Der frühere Kreis mit
  * Spitze und Querstrich las sich als eingekreistes „A" und gab keinen Hinweis
  * auf „teuer".
  */
@@ -68,12 +68,12 @@ export const ValueIcon = () => (
 
 // ─── ExternalLinkIcon ──────────────────────────────────────────────────────────
 /**
- * Rahmen mit oben rechts austretendem Pfeil — das etablierte Zeichen für „führt
+ * Rahmen mit oben rechts austretendem Pfeil - das etablierte Zeichen für „führt
  * auf eine fremde Seite".
  *
  * Zwei Abweichungen von iconProps oben, beide beabsichtigt: 11px statt 18px,
  * weil dieses Icon neben 12px-Text steht statt in einem 30px-Button; und
- * strokeWidth 1.6 statt 1.3, weil der Strich mitskaliert — bei 11/16 ergäbe 1.3
+ * strokeWidth 1.6 statt 1.3, weil der Strich mitskaliert - bei 11/16 ergäbe 1.3
  * nur 0,9px und liefe grau aus.
  *
  * currentColor ist hier tragend, nicht Gewohnheit: hoverLink setzt beim

@@ -1,11 +1,11 @@
 -- 004_stats_rank_key.sql
 -- ============================================================
--- Der Primärschlüssel war (item_id, ts) bzw. (item_id, day) — ohne mod_rank.
+-- Der Primärschlüssel war (item_id, ts) bzw. (item_id, day) - ohne mod_rank.
 -- Die warframe.market-API liefert für Mods und Arcanes aber MEHRERE Einträge
 -- pro Zeitpunkt, einen je Rang (z.B. abating_link: 70 Tage × Rang 0 und 3).
 --
 -- Folge bisher: pro Zeitpunkt überlebte genau ein Rang, der Rest wurde von
--- ON CONFLICT DO NOTHING verworfen — welcher, hing von der Reihenfolge ab.
+-- ON CONFLICT DO NOTHING verworfen - welcher, hing von der Reihenfolge ab.
 -- Deshalb liefert der Rang-Umschalter auf der Item-Seite nur Bruchstücke
 -- (abating_link: 5 statt ~70 Punkte für R0).
 --

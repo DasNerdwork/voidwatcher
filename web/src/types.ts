@@ -1,4 +1,4 @@
-// Used by /api/top — all three lists (top_performer, top_seller, top_traded)
+// Used by /api/top - all three lists (top_performer, top_seller, top_traded)
 export interface TopItem {
   item_name:   string
   /** Deutscher Item-Name. Die API liefert IMMER beide Sprachen (api/db.py),
@@ -12,12 +12,12 @@ export interface TopItem {
   volume:      number
   change_pct:  number | null  // % change vs previous window; null if no prior data
   max_rank?:   number | null  // Mod-Rang (z.B. 10 für R10 Mods, 5 für Arcanes, null sonst)
-  thumb_path?: string | null  // /images/thumbs/{slug}.avif — für Tabellen & Listen
-  image_path?: string | null  // /images/{slug}.avif         — für Detailseiten
+  thumb_path?: string | null  // /images/thumbs/{slug}.avif - für Tabellen & Listen
+  image_path?: string | null  // /images/{slug}.avif         - für Detailseiten
   // Platin-Differenz derselben beiden Fenster wie change_pct. Kommt immer mit,
   // damit der Einheiten-Umschalter ohne zweite Abfrage funktioniert.
   change_abs?: number | null
-  // Volumen-Entwicklung im Zeitraum (erster gegen letzter Bucket) — Anzeige der
+  // Volumen-Entwicklung im Zeitraum (erster gegen letzter Bucket) - Anzeige der
   // Ansicht „Meistgehandelt", unabhängig vom %/₱-Umschalter.
   // Letzter Punkt der Zeitreihe = aktueller Preis. avg_price bleibt das Mittel
   // über den Zeitraum; angezeigt wird current_price, damit Preis und Veränderung
@@ -28,7 +28,7 @@ export interface TopItem {
   // Glaubwürdigkeit 0…1 aus dem Handelsvolumen, v/(v+30). Beeinflusst die
   // Sortierung im Backend; im Frontend nur als Hinweis bei dünner Datenlage.
   confidence?: number | null
-  // Volumengewichtetes Mittel der Bucket-Mediane von warframe.market — dieselbe
+  // Volumengewichtetes Mittel der Bucket-Mediane von warframe.market - dieselbe
   // Aggregation, die der Chart als Median-Linie zeichnet. Ein Mittel von Medianen,
   // kein Quantil über alle Trades; die Kachel sagt deshalb „typischer Preis".
   median?: number | null
@@ -46,7 +46,7 @@ export interface SearchResult {
   avg_price?:  number | null
   volume?:     number | null
   // true, wenn avg_price aus sell_price_min stammt (weder frischer Handel noch
-  // ein aelterer Handelstag). Optisch nicht unterschieden — nur als Tooltip.
+  // ein älterer Handelstag). Optisch nicht unterschieden - nur als Tooltip.
   is_offer?:   boolean | null
   // gesetzt, wenn avg_price der letzte Tag MIT Handel ist statt des 48h-Fensters
   // (ISO-Datum). Ebenfalls nur als Tooltip.
@@ -144,7 +144,7 @@ export interface HistoryPoint {
   max_price: number | null
   volume:    number | null
   // Indikatoren von warframe.market (siehe migrations/003_stats_indicators.sql).
-  // NULL, solange ein Item seit der Migration noch nicht gesynct wurde —
+  // NULL, solange ein Item seit der Migration noch nicht gesynct wurde -
   // der Chart blendet die betroffene Serie dann aus.
   open_price:   number | null   // ─┬ Candlesticks
   closed_price: number | null   // ─┘
@@ -175,7 +175,7 @@ export interface WarframeStat {
   unique_name:  string
   is_prime:     boolean
   // Alle Werte auf Rang 30. start_energy ist die echte Startenergie des Frames,
-  // KEIN Anteil der Kapazität — bei 107 von 119 Frames sind das verschiedene
+  // KEIN Anteil der Kapazität - bei 107 von 119 Frames sind das verschiedene
   // Zahlen (Ash startet mit 50 von 150).
   health:                number
   armor:                 number
@@ -196,7 +196,7 @@ export interface WarframeStat {
   helminth:    string | null      // subsumierbare Fähigkeit
   progenitor:  string | null      // Lich-Element
   introduced:  string | null
-  // Marktbezug — nur Prime-Sets sind handelbar, also 50 von 117 Zeilen
+  // Marktbezug - nur Prime-Sets sind handelbar, also 50 von 117 Zeilen
   slug:           string | null
   thumb_path:     string | null
   price:          number | null

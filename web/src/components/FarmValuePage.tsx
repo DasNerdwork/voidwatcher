@@ -94,7 +94,7 @@ const DropSourcesList = ({ sources }: { sources: DropSource[] }) => {
 
             {/* Chance */}
             <span style={{ fontFamily: "monospace", fontSize: 12, color: C.up, fontWeight: 700, flexShrink: 0, minWidth: 52, textAlign: "right" }}>
-              {chance != null ? `${(chance * 100).toFixed(2)}%` : "—"}
+              {chance != null ? `${(chance * 100).toFixed(2)}%` : "-"}
             </span>
           </div>
         );
@@ -319,7 +319,7 @@ export const FarmValuePage = () => {
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: C.cy }}>
-                          {item.value_per_drop > 0 ? item.value_per_drop.toFixed(3) : "—"}
+                          {item.value_per_drop > 0 ? item.value_per_drop.toFixed(3) : "-"}
                         </td>
 
                         <td style={{ padding: "10px 14px", textAlign: "right" }}

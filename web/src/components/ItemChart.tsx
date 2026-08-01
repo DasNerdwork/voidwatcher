@@ -7,7 +7,7 @@ import type { HistoryPoint } from "../types";
 
 // ─── ItemChart ────────────────────────────────────────────────────────────────
 // Zwei gestapelte Panels (Preis + Volumen) auf gemeinsamer, ZEITproportionaler
-// X-Achse. Die Vorgängerversion positionierte über den Array-Index — dadurch
+// X-Achse. Die Vorgängerversion positionierte über den Array-Index - dadurch
 // wurden Handelspausen zusammengestaucht und die Achse zeigte etwas anderes an,
 // als die Beschriftung behauptete.
 //
@@ -31,7 +31,7 @@ interface SeriesDef {
 // technischen Indikatoren.
 //
 // Median und Gleitender Durchschnitt kommen von warframe.market selbst und lagen
-// bereits vollständig in der DB und in HistoryPoint — es fehlte nur der Eintrag
+// bereits vollständig in der DB und in HistoryPoint - es fehlte nur der Eintrag
 // hier. Der Median ist keine Dublette des Mittelwerts: bei Tagesauflösung weicht
 // er in knapp der Hälfte der Buckets ab (bei Stundenauflösung in 16 %, dort hat
 // ein Bucket oft nur ein bis zwei Trades und beide Werte fallen zusammen).
@@ -65,7 +65,7 @@ const acceptSeries = (v: unknown): v is Record<SeriesKey, boolean> =>
  *
  * Der Sonderfall ist wichtig: bei Tagesauflösung liefert die API reine Datums-
  * werte ("2026-07-30"). `new Date()` liest die als UTC-Mitternacht, dargestellt
- * wird aber in Lokalzeit — jeder Punkt saß dadurch um den Zonenoffset versetzt
+ * wird aber in Lokalzeit - jeder Punkt saß dadurch um den Zonenoffset versetzt
  * und die Tagesbeschriftung konnte einen Tag danebenliegen. Mit explizitem
  * "T00:00:00" (ohne Z) parst der Browser als LOKALE Mitternacht.
  */
@@ -73,7 +73,7 @@ const parseStamp = (t: string): number =>
   new Date(/^\d{4}-\d{2}-\d{2}$/.test(t) ? `${t}T00:00:00` : t).getTime();
 
 /**
- * Rasterweiten für die Zeitachse — das Gegenstück zu niceStep auf der Y-Achse.
+ * Rasterweiten für die Zeitachse - das Gegenstück zu niceStep auf der Y-Achse.
  *
  * Vorher wurde die Spanne in fünf gleiche Bruchteile geteilt. 48 h ÷ 5 = 9 h 36 min,
  * daher die krummen Beschriftungen wie 02:48 und 16:24. Jetzt wird die kleinste
@@ -96,7 +96,7 @@ const niceTimeStep = (span: number, res: "hour" | "day"): number => {
 };
 
 /**
- * Nächste Rastergrenze ab `ms` — auf LOKALE Grenzen, nicht auf Epoch-Vielfache.
+ * Nächste Rastergrenze ab `ms` - auf LOKALE Grenzen, nicht auf Epoch-Vielfache.
  *
  * Epoch-Rundung trifft nur bei Zonen mit vollem Stundenoffset zufällig das
  * Richtige; Indien (+5:30) oder Nepal (+5:45) lägen daneben. Deshalb wird der
@@ -111,7 +111,7 @@ const ceilToStep = (ms: number, step: number): number => {
 
 /**
  * Achsenbeschriftung. Bei Stundenauflösung trägt die Marke um Mitternacht das
- * DATUM statt der Uhrzeit — ein 48H-Fenster zeigt sonst zweimal „00:00" ohne
+ * DATUM statt der Uhrzeit - ein 48H-Fenster zeigt sonst zweimal „00:00" ohne
  * Hinweis darauf, dass ein Tageswechsel dazwischenliegt.
  */
 const fmtAxis = (ms: number, res: "hour" | "day") => {
@@ -130,7 +130,7 @@ const fmtFull = (ms: number, res: "hour" | "day") => {
     : d.toLocaleDateString(locale(), { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
-const num = (v?: number | null, digits = 1) => (v != null ? v.toFixed(digits) : "—");
+const num = (v?: number | null, digits = 1) => (v != null ? v.toFixed(digits) : "-");
 
 // ─── Legende ──────────────────────────────────────────────────────────────────
 
@@ -182,7 +182,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
   const enabled = { ...SERIES_DEFAULTS, ...stored };
 
   // Breite UND Höhe messen. Vorher wurde nur die Breite beobachtet und die Höhe
-  // als feste Prop gesetzt — im Dashboard blieben dadurch 235px Container leer.
+  // als feste Prop gesetzt - im Dashboard blieben dadurch 235px Container leer.
   // Callback-Ref statt useEffect: das beobachtete Element wechselt, sobald aus
   // dem Leerzustand ein Chart wird. Ein einmal im Effect verdrahteter Observer
   // hinge danach an einem abgehängten Knoten.
@@ -232,10 +232,10 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
   const { w, h } = size;
   // h ist die Höhe der Plotfläche, nicht die der ganzen Komponente: die Legende
   // liegt außerhalb des beobachteten Bereichs. Früher wurde von der Gesamthöhe
-  // eine KONSTANTE Legendenhöhe von 40px abgezogen — sobald die Legende umbrach,
+  // eine KONSTANTE Legendenhöhe von 40px abgezogen - sobald die Legende umbrach,
   // wuchs der Chart mit jedem Messzyklus um die Differenz weiter.
   const H = Math.max(h, 80);
-  // Rechter Rand richtet sich nach der längsten Achsenbeschriftung — bei
+  // Rechter Rand richtet sich nach der längsten Achsenbeschriftung - bei
   // sechsstelligen Preisen schnitt ein fester Wert die Labels ab.
   const axisDigits = String(Math.round(
     points.reduce((m, p) => Math.max(m, p.avg_price ?? 0), 1),
@@ -289,12 +289,12 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
     sortedVals[Math.min(sortedVals.length - 1, Math.round(f * (sortedVals.length - 1)))];
 
   // Ausreißer-Kappung nach der IQR-Zaun-Regel (Q3 + 3·IQR). Auf warframe.market
-  // stehen regelmäßig Scherzangebote — goopolla hat Tage mit 99.999 Plat bei
+  // stehen regelmäßig Scherzangebote - goopolla hat Tage mit 99.999 Plat bei
   // einem Normalpreis von 1–2 Plat. Ohne Kappung drückt ein einziger solcher Tag
   // 90 Tage Verlauf auf eine Nulllinie.
   // Ein fester Perzentilwert reicht nicht, weil es auch mehrere Ausreißer gibt;
   // der IQR-Zaun passt sich der tatsächlichen Verteilung an.
-  // Gekappt wird nur die SKALA — die Werte bleiben im Tooltip sichtbar, und die
+  // Gekappt wird nur die SKALA - die Werte bleiben im Tooltip sichtbar, und die
   // Legende weist auf die Kappung hin.
   const q1 = quantile(0.25);
   const q3 = quantile(0.75);
@@ -373,7 +373,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
 
   // ── Achsen ──
   // Achsenwerte auf runde GANZE Zahlen legen. Die Spanne in fünf gleiche Teile
-  // zu schneiden ergab bei billigen Items "0.8 / 1.6 / 2.4" — halbe Platin gibt
+  // zu schneiden ergab bei billigen Items "0.8 / 1.6 / 2.4" - halbe Platin gibt
   // es aber nicht. Stattdessen eine Schrittweite aus 1/2/5/10/20/50/… wählen,
   // die auf 4–6 Markierungen kommt.
   const niceStep = (span: number) => {
@@ -398,11 +398,11 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
   // sind zwei Marken um Mitternacht zwei verschiedene Tage, und fmtAxis
   // beschriftet sie ohnehin mit dem Datum statt der Uhrzeit.
   //
-  // KEIN useMemo — und das ist wichtig: diese Stelle liegt hinter dem
+  // KEIN useMemo - und das ist wichtig: diese Stelle liegt hinter dem
   // vorzeitigen Return `if (data.length < 2)` weiter oben. Ein Hook hier ruft
   // die Komponente je nach Datenlage unterschiedlich oft auf und React bricht
   // mit Fehler #300 ab („Rendered fewer hooks than expected"), sobald ein
-  // Zeitraumwechsel von ≥2 auf <2 Punkte führt — dieselbe Instanz bleibt dabei
+  // Zeitraumwechsel von ≥2 auf <2 Punkte führt - dieselbe Instanz bleibt dabei
   // montiert, weil der key nur am Itemnamen hängt.
   //
   // Ein Memo wäre hier ohnehin unangemessen: die Schleife läuft über höchstens
@@ -419,7 +419,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
       xTicks.push({ x: toX(ms), label });
     }
     // Fällt keine Rastergrenze ins Fenster (sehr kurze Spanne), wenigstens die
-    // beiden Ränder beschriften — eine Achse ganz ohne Marken ist schlechter.
+    // beiden Ränder beschriften - eine Achse ganz ohne Marken ist schlechter.
     if (xTicks.length === 0) {
       xTicks.push({ x: toX(t0), label: fmtAxis(t0, resolution) });
       if (t1 > t0) xTicks.push({ x: toX(t1), label: fmtAxis(t1, resolution) });
@@ -431,7 +431,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const ms   = t0 + ((e.clientX - rect.left - plotL) / plotW) * tSpan;
-    // Auf den zeitlich nächsten Punkt einrasten — bei ungleichen Abständen
+    // Auf den zeitlich nächsten Punkt einrasten - bei ungleichen Abständen
     // wäre eine Index-Rechnung daneben.
     let best = 0, bestD = Infinity;
     data.forEach((p, i) => {
@@ -464,7 +464,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
           </clipPath>
         </defs>
 
-        {/* Gitter — einheitlich gepunktet, ohne Sonderrolle für die Randticks.
+        {/* Gitter - einheitlich gepunktet, ohne Sonderrolle für die Randticks.
             Die waren vorher durchgezogen, um einen Rahmen anzudeuten, markierten
             aber gar nicht die Panelkante: yTicks entstehen aus gerundeten Werten
             INNERHALB des Wertebereichs (siehe oben), die oberste Linie lag also
@@ -482,7 +482,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
           </g>
         )}
 
-        {/* Donchian-Kanal — hinter allem anderen */}
+        {/* Donchian-Kanal - hinter allem anderen */}
         {showDonchian && donchPath && (
           <g clipPath="url(#vwPriceClip)">
             <path d={donchPath} fill={C.gold} opacity="0.07" />
@@ -555,13 +555,13 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
               fill={C.cy} opacity={hover === i ? 0.7 : 0.3} />
           );
         })}
-        {/* Grundlinie der Balken — die Null-Referenz, deshalb durchgezogen: das
+        {/* Grundlinie der Balken - die Null-Referenz, deshalb durchgezogen: das
             unterscheidet sie vom gepunkteten Raster. Die frühere zweite Linie an
             der Oberkante des Volumenpanels ist entfallen, sie lag bei effektiv
             0,09 Deckkraft und trug keine Information. */}
         <line x1={pad.l} y1={volTop + volH} x2={w - pad.r} y2={volTop + volH} stroke={C.axis} strokeWidth="1" />
 
-        {/* Achsenbeschriftung — Werte in voller Textfarbe, damit sie sich vom
+        {/* Achsenbeschriftung - Werte in voller Textfarbe, damit sie sich vom
             Gitter abheben; Einheit als Platin-Icon statt "Plat". */}
         {yTicks.map(({ y, label }, i) => (
           <g key={i}>
@@ -640,7 +640,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
       )}
     </div>
 
-    {/* Legende außerhalb der beobachteten Plotfläche — sie darf umbrechen,
+    {/* Legende außerhalb der beobachteten Plotfläche - sie darf umbrechen,
         ohne die Höhenmessung zu beeinflussen. */}
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: "10px 4px 2px", flexShrink: 0 }}>
       {SERIES.map(s => (
@@ -650,7 +650,7 @@ export const ItemChart = ({ points, resolution, minHeight = 300 }: ItemChartProp
       ))}
       {clipped && (
         <span style={{ ...T.meta, fontSize: 12, marginLeft: 4, display: "inline-flex", alignItems: "center", gap: 3 }}
-          title={t("A single outlier would flatten the whole chart — the scale is capped for that reason.")}>
+          title={t("A single outlier would flatten the whole chart - the scale is capped for that reason.")}>
           · Skala gekappt, Ausreißer bis {num(trueMax, 0)}
           <img src={PlatinumSmall} width={11} height={11} alt={t("Platinum")} />
         </span>

@@ -5,19 +5,19 @@ Vorher gab es neun unabhängige requests.get-Aufrufe mit je eigenen oder gar
 keinen Headern. Das verstieß gegen zwei der veröffentlichten warframe.market-
 Regeln:
 
-  1. „Identify Your Application" — sync_api.py und check_version.py setzten
+  1. „Identify Your Application" - sync_api.py und check_version.py setzten
      keinerlei User-Agent, warframe.market sah also `python-requests/2.32.4`
      für rund 3.800 Anfragen pro Lauf. Genau die anonyme Signatur, die laut
      Regeln blockiert werden darf.
 
-  2. „The general public API limit is 3 requests per second." — gedrosselt
+  2. „The general public API limit is 3 requests per second." - gedrosselt
      wurde mit time.sleep(0.5) INNERHALB des Worker-Threads. Bei sechs Workern
      ergibt das keine 2/s, sondern rund 4,8/s. Eine Drosselung, die sich durch
      die Worker-Zahl teilen lässt, ist keine.
 
 Beides ist hier zentral gelöst: ein Session-Objekt mit User-Agent (nebenbei
 Verbindungs-Pooling statt 3.800 einzelner TLS-Handshakes) und ein globaler
-Token-Bucket, den sich alle Threads UND beide Skripte teilen — sync_images.py
+Token-Bucket, den sich alle Threads UND beide Skripte teilen - sync_images.py
 läuft aus sync_api.py heraus im selben Prozess und kann das Budget dadurch
 nicht mehr zusätzlich belasten.
 """
@@ -59,7 +59,7 @@ class RateLimiter:
     reserviert, geschlafen wird DANACH ohne Lock. Schliefe man im Lock, wartete
     jeder Thread zusätzlich auf alle Vorgänger und die tatsächliche Rate fiele
     weit unter die Zielrate. So verteilen sich n Threads auf exakt
-    `rate_per_sec` Anfragen pro Sekunde — unabhängig davon, wie viele es sind.
+    `rate_per_sec` Anfragen pro Sekunde - unabhängig davon, wie viele es sind.
     """
 
     def __init__(self, rate_per_sec: float):
@@ -80,7 +80,7 @@ class RateLimiter:
         Nach einem 429 die Freigabe für ALLE Threads nach hinten schieben.
 
         Die frühere Lösung ließ den betroffenen Thread 2s schlafen, während die
-        übrigen fünf unvermindert weiterliefen — eine Drosselung, die genau dann
+        übrigen fünf unvermindert weiterliefen - eine Drosselung, die genau dann
         nicht griff, wenn der Server sie brauchte.
         """
         with self._lock:
@@ -97,7 +97,7 @@ def retry_after_seconds(response, default: float = 5.0) -> float:
         try:
             return max(0.0, float(raw))
         except ValueError:
-            pass  # HTTP-Datum statt Sekunden — nicht die Mühe wert, default reicht
+            pass  # HTTP-Datum statt Sekunden - nicht die Mühe wert, default reicht
     return default
 
 
@@ -106,14 +106,14 @@ def market_get(url: str, **kwargs):
     GET auf warframe.market: gedrosselt, mit User-Agent.
 
     Bei 429 wird der gesamte Pool gebremst, nicht nur der aufrufende Thread.
-    Die Antwort wird trotzdem zurückgegeben — was daraus folgt, entscheidet der
+    Die Antwort wird trotzdem zurückgegeben - was daraus folgt, entscheidet der
     Aufrufer, der den Endpunkt kennt.
     """
     MARKET_LIMITER.acquire()
     r = SESSION.get(url, **kwargs)
     if r.status_code == 429:
         wait = retry_after_seconds(r)
-        logging.warning("429 von %s — Pool wird %.1fs gebremst", url, wait)
+        logging.warning("429 von %s - Pool wird %.1fs gebremst", url, wait)
         MARKET_LIMITER.penalise(wait)
     return r
 

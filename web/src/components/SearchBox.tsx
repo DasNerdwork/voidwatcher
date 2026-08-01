@@ -27,15 +27,15 @@ const pushRecent = (item: SearchResult): SearchResult[] => {
 
 // ─── Kategorie aus Tags ───────────────────────────────────────────────────────
 // Frontend-Variante von classify_item_by_tags (api/db.py). Angezeigt wird nur die
-// Oberkategorie, nicht die Misc-Unterkategorie — in der engen Zeile ist „Misc"
+// Oberkategorie, nicht die Misc-Unterkategorie - in der engen Zeile ist „Misc"
 // die Angabe, die trägt; die Detailseite zeigt beide Badges vom Server.
 //
 // Die REIHENFOLGE ist die Klassifikation: Items tragen mehrere Tags, und der
-// erste Treffer gewinnt. „Thermite Rounds" hat mod + primary — Mods steht vor
+// erste Treffer gewinnt. „Thermite Rounds" hat mod + primary - Mods steht vor
 // Waffen, sonst stünde dort „Waffen".
 //
 // Vorher endete die Kette nach „set/prime" und alles darunter blieb ohne Badge:
-// Scenes, Fische, Ressourcen, Ayatan, Skins, Schlüssel — „The Teacher Dojo Scene"
+// Scenes, Fische, Ressourcen, Ayatan, Skins, Schlüssel - „The Teacher Dojo Scene"
 // (Tag `scene`) zeigte deshalb nichts, obwohl der Server sie als Misc/Scenes führt.
 
 const MISC_TAGS = [
@@ -46,7 +46,7 @@ const MISC_TAGS = [
 ];
 
 // Rückgabe sind die Kanonwerte aus classify_item_by_tags (englisch), NICHT
-// Anzeigetexte — CategoryBadge übersetzt sie.
+// Anzeigetexte - CategoryBadge übersetzt sie.
 const categoryFromTags = (tags?: string[] | null): string | null => {
   const set = new Set((tags ?? []).map(x => x.toLowerCase()));
   if (set.has("arcane_enhancement")) return "Arcanes";
@@ -57,20 +57,20 @@ const categoryFromTags = (tags?: string[] | null): string | null => {
   if (["primary", "secondary", "melee", "weapon", "sentinel_weapon", "archwing"].some(x => set.has(x))) return "Weapons";
   if (set.has("set") || set.has("prime")) return "Warframes";
   if (MISC_TAGS.some(x => set.has(x))) return "Misc";
-  // Serverseitig heißt dieser Fall „Unsorted". Ein Badge dafür benennt nichts —
+  // Serverseitig heißt dieser Fall „Unsorted". Ein Badge dafür benennt nichts -
   // die Zeile bleibt wie bisher ohne.
   return null;
 };
 
 // ─── Herkunft des Preises ─────────────────────────────────────────────────────
 // Drei Quellen, absteigend nach Aussagekraft: 48h-Handel → letzter Handelstag →
-// niedrigstes Verkaufsangebot. Nur die erste braucht keine Erklaerung.
+// niedrigstes Verkaufsangebot. Nur die erste braucht keine Erklärung.
 
 const priceHint = (item: SearchResult): string | undefined => {
-  if (item.is_offer) return t("Lowest sell offer — no trades in the last 48 hours");
+  if (item.is_offer) return t("Lowest sell offer - no trades in the last 48 hours");
   if (item.price_day) {
     const d = new Date(`${item.price_day}T00:00:00`);
-    return t("Last traded on %s — no trades in the last 48 hours", d.toLocaleDateString(locale()));
+    return t("Last traded on %s - no trades in the last 48 hours", d.toLocaleDateString(locale()));
   }
   return undefined;
 };
@@ -104,7 +104,7 @@ const ResultRow = ({
         {itemName(item)}
       </span>
       {cat && <CategoryBadge cat={cat} />}
-      {/* Ersatzpreise sehen aus wie frische Handelspreise — bewusst so
+      {/* Ersatzpreise sehen aus wie frische Handelspreise - bewusst so
           entschieden. Der Unterschied steht nur im Tooltip, kostet also keine
           Breite in der ohnehin engen Zeile. */}
       {item.avg_price != null && (

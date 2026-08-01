@@ -26,7 +26,7 @@ Prime Warframe Sonderbehandlung (nur wenn 'warframe'-Tag gesetzt):
   - *_prime_set                    → individuell {Name}PrimeHelmet.png    (z.B. VorunaPrimeHelmet.png)
 
   Die 3 shared Component-AVIFs werden einmal erzeugt und von allen Warframe-Komponenten-Items
-  in der DB referenziert — kein per-Slug-Duplikat, kein Symlink.
+  in der DB referenziert - kein per-Slug-Duplikat, kein Symlink.
 
 Verwendung:
     python3 sync_images.py                  # alle fehlenden/geänderten
@@ -52,7 +52,7 @@ import psycopg2
 import psycopg2.extras
 
 # Läuft aus sync_api.py heraus im selben Prozess und teilt sich dadurch dasselbe
-# 3/s-Budget — vorher konnte der Bildabgleich es zusätzlich belasten.
+# 3/s-Budget - vorher konnte der Bildabgleich es zusätzlich belasten.
 from wfm_http import market_get, plain_get
 from dotenv import load_dotenv
 
@@ -96,7 +96,7 @@ WIKI_PADDING = 5
 #
 # Mapping: Komponenten-Typ → (Wiki-Quelldatei, lokaler AVIF-Stem ohne Extension)
 # Die shared AVIFs landen direkt in IMAGE_DIR / THUMB_DIR.
-# In der DB zeigen alle zugehörigen Items auf diese Pfade — keine Slug-Kopien.
+# In der DB zeigen alle zugehörigen Items auf diese Pfade - keine Slug-Kopien.
 
 _PRIME_COMPONENT_FILES: dict[str, tuple[str, str]] = {
     "chassis":    ("PrimeChassis.png", "prime_chassis"),
@@ -190,7 +190,7 @@ def detect_prime_warframe_type(slug: str, tags_raw) -> str | None:
     Gibt den Sondertyp zurück wenn es sich um einen Prime Warframe handelt:
       'chassis' | 'neuroptics' | 'systems' | 'blueprint' | 'set' | None
 
-    Erkennung ausschließlich via 'warframe'-Tag — Waffen wie Bo Prime, Ankylos Prime
+    Erkennung ausschließlich via 'warframe'-Tag - Waffen wie Bo Prime, Ankylos Prime
     haben diesen Tag nicht und fallen durch.
 
     Reihenfolge wichtig: Komponenten zuerst, dann blueprint, dann set.
@@ -330,11 +330,11 @@ def fetch_prime_warframe_image(wf_type: str, slug: str, timeout: int = 15) -> by
 # gibt es eine shared AVIF pro Ära:
 #   /images/relic_{era}.avif  +  /images/thumbs/relic_{era}.avif
 # Quelle: WFM static icon des jeweils ersten verarbeiteten Items dieser Ära.
-# In der DB zeigen alle Relikte der Ära auf diese Pfade — keine Slug-Kopien.
+# In der DB zeigen alle Relikte der Ära auf diese Pfade - keine Slug-Kopien.
 
 _RELIC_ERAS = ("lith", "meso", "neo", "axi", "requiem")
 
-# Wiki-Quelldateien für die shared Ären-Bilder — bewusst die Intact-Variante.
+# Wiki-Quelldateien für die shared Ären-Bilder - bewusst die Intact-Variante.
 # WFM liefert in seinen Icons fälschlich die Radiant-Optik (leuchtende
 # Reactant-Punkte), die Wiki-Intact-Bilder zeigen den Basiszustand.
 _RELIC_WIKI_FILES: dict[str, str] = {
@@ -345,7 +345,7 @@ _RELIC_WIKI_FILES: dict[str, str] = {
     "requiem": "RequiemRelicIntact.png",
 }
 
-# Sonder-Relikte mit eigenem Look — kein Sharing, normale per-Slug-Pipeline:
+# Sonder-Relikte mit eigenem Look - kein Sharing, normale per-Slug-Pipeline:
 #   - Requiem Eterna (ersetzt seit 2026 Requiem I-IV, eigenes Design,
 #     WFM-Icon ist unknown.png → Bild kommt via Wiki)
 # Hinweis: Vanguard-Relikte (Prime Resurgence) sehen laut Wiki exakt wie
@@ -387,8 +387,8 @@ def ensure_relic_avif(era: str, slug: str, icon_path: str, timeout: int = 15, fo
     Stellt sicher dass die shared AVIF für diese Ära existiert.
 
     Quellen (in dieser Reihenfolge):
-      1. Wiki {Era}RelicIntact.png — Basiszustand, gewollte Optik
-      2. WFM-Icon des aufrufenden Items — zeigt fälschlich Radiant, nur Fallback
+      1. Wiki {Era}RelicIntact.png - Basiszustand, gewollte Optik
+      2. WFM-Icon des aufrufenden Items - zeigt fälschlich Radiant, nur Fallback
       3. Wiki-Pipeline des Items als letzter Ausweg
 
     Die gesamte Erzeugung läuft unter _RELIC_LOCK, damit nicht mehrere
@@ -423,7 +423,7 @@ def ensure_relic_avif(era: str, slug: str, icon_path: str, timeout: int = 15, fo
                     if m:
                         raw_bytes = _download_image(m.group(1), timeout)
 
-        # 2) Fallback: WFM static icon — zeigt Radiant statt Intact, besser als nichts
+        # 2) Fallback: WFM static icon - zeigt Radiant statt Intact, besser als nichts
         if raw_bytes is None and icon_path and "unknown" not in icon_path:
             source = "wfm"
             try:
@@ -870,7 +870,7 @@ def run(conn=None, force=False, workers=4, limit=None, dry_run=False):
         thumb_mb = _dir_size_mb(THUMB_DIR)
         elapsed  = time.time() - start
         log.info(
-            f"Fertig in {elapsed:.1f}s — "
+            f"Fertig in {elapsed:.1f}s - "
             f"OK: {ok_count} (davon Wiki: {wiki_count}), "
             f"Kein Bild: {not_found_count}, Fehler: {fail_count} | "
             f"Full: {full_mb:.1f}MB, Thumbs: {thumb_mb:.1f}MB"

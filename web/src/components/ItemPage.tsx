@@ -41,10 +41,10 @@ const REFINEMENTS = [
 
 /** "EidolonRifleLancerDropTable" → "Eidolon Rifle Lancer" */
 const prettifyTable = (name?: string | null) =>
-  (name ?? "—").replace(/DropTable$/, "").replace(/Rewards$/, "").replace(/([A-Z])/g, " $1").trim();
+  (name ?? "-").replace(/DropTable$/, "").replace(/Rewards$/, "").replace(/([A-Z])/g, " $1").trim();
 
 const pct = (v?: number | null, digits = 2) =>
-  v != null && v > 0 ? `${(v * 100).toFixed(digits)}%` : "—";
+  v != null && v > 0 ? `${(v * 100).toFixed(digits)}%` : "-";
 
 const lastTradeLabel = (iso?: string | null) => {
   if (!iso) return t("no trades in 48h");
@@ -139,7 +139,7 @@ const RelicTable = ({ sources }: { sources: DropSource[] }) => (
                 </div>
               </td>
               <td style={{ ...TD_BASE, fontFamily: "monospace", fontSize: 12, color: rarColor, fontWeight: 700, letterSpacing: "0.04em" }}>
-                {s.rarity ?? "—"}
+                {s.rarity ?? "-"}
               </td>
               {REFINEMENTS.map(r => (
                 <td key={r.key} style={{
@@ -253,7 +253,7 @@ const RelicContentsCard = ({ contents }: { contents: RelicContent[] }) => {
                     </div>
                   </td>
                   <td style={{ ...TD_BASE, fontFamily: "monospace", fontSize: 12, color: rarColor, fontWeight: 700, letterSpacing: "0.04em" }}>
-                    {c.rarity ?? "—"}
+                    {c.rarity ?? "-"}
                   </td>
                   <td style={{ ...TD_BASE, textAlign: "right", ...T.numSmall, color: C.t2 }}>
                     {pct(c.drop_chance_intact)}
@@ -341,10 +341,10 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
                     {plat(p.avg_price)}<SmallPlatIcon />
                   </td>
                   <td style={{ ...TD_BASE, textAlign: "right", ...T.numSmall, color: C.t2 }}>
-                    {p.ducats ?? "—"}
+                    {p.ducats ?? "-"}
                   </td>
                   <td style={{ ...TD_BASE, textAlign: "right", ...T.numSmall, color: C.t2 }}>
-                    {p.volume?.toLocaleString(locale()) ?? "—"}
+                    {p.volume?.toLocaleString(locale()) ?? "-"}
                   </td>
                 </LinkedRow>
               );
@@ -361,7 +361,7 @@ const SetPartsCard = ({ parts, currentSlug }: { parts: SetPart[]; currentSlug: s
             label: t("DIFFERENCE"),
             value: diff != null
               ? <>{diff >= 0 ? "+" : "−"}{plat(Math.abs(diff))}<SmallPlatIcon />{diffPct != null && ` (${diffPct >= 0 ? "+" : "−"}${Math.abs(diffPct).toFixed(0)}%)`}</>
-              : "—",
+              : "-",
             color: diff == null ? C.t3 : diff >= 0 ? C.up : C.down,
           },
         ].map((s, i, arr) => (
@@ -483,8 +483,8 @@ export const ItemPage = ({ slug }: { slug: string }) => {
   const up      = (item.change_pct ?? 0) >= 0;
   const changed = pctChange(item.change_pct);
   const spread  = (item.max_price_48h ?? 0) - (item.min_price_48h ?? 0);
-  const spreadPct = item.avg_price_48h ? ((spread / item.avg_price_48h) * 100).toFixed(0) : "—";
-  // Ohne Trades in den letzten 24h auf das 48h-Fenster zurückfallen, statt "—" zu zeigen
+  const spreadPct = item.avg_price_48h ? ((spread / item.avg_price_48h) * 100).toFixed(0) : "-";
+  // Ohne Trades in den letzten 24h auf das 48h-Fenster zurückfallen, statt "-" zu zeigen
   const headlinePrice = item.avg_price_24h ?? item.avg_price_48h;
   const priceIs48h    = item.avg_price_24h == null && item.avg_price_48h != null;
   const platPerDucat  = item.ducats && item.ducats > 0 && headlinePrice != null
@@ -492,7 +492,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
     : null;
 
   // Ohne jeden Handel bleibt nur das Orderbuch. Bewusst mit eigenem Label statt
-  // unter „AKTUELLER PREIS": ein Angebot ist kein Handelspreis — es sagt, was
+  // unter „AKTUELLER PREIS": ein Angebot ist kein Handelspreis - es sagt, was
   // jemand verlangt, nicht was jemand gezahlt hat. Beides unter derselben
   // Überschrift zu zeigen, wäre genau die stille Vermischung, die die
   // Datenqualitätsregeln des Projekts untersagen.
@@ -587,7 +587,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
               </div>
               <div style={{ ...T.meta, marginTop: 8 }}>
                 <TextLink href={marketUrl(slug)} target="_blank" rel="noopener noreferrer"
-                  title={t("View on warframe.market — opens a new tab")}>
+                  title={t("View on warframe.market - opens a new tab")}>
                   warframe.market<ExternalLinkIcon />
                 </TextLink>
               </div>
@@ -600,7 +600,7 @@ export const ItemPage = ({ slug }: { slug: string }) => {
               auf 100px erklärt nichts, es verdoppelt nur. Im Dashboard fehlt eine
               solche Kachel, dort trägt das Label Information. */}
           <div style={{ textAlign: "right", flexShrink: 0 }}>
-            {/* Bei Items ohne Handel steht hier das Angebot — in C.cy statt Gold,
+            {/* Bei Items ohne Handel steht hier das Angebot - in C.cy statt Gold,
                 damit schon die Farbe sagt, dass es eine andere Größe ist. */}
             <div style={{ ...T.hero, color: offerOnly ? C.cy : C.gold }}>
               {plat(offerOnly ? item.sell_price_min : headlinePrice)}<SmallPlatIcon />

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 // und "/warframes"), da lohnt keine Dependency. nginx liefert bereits per
 // try_files auf index.html zurück, für Cloudflare Pages tut das public/_redirects.
 //
-// Die vier Reiter unter "/" sind Komponentenzustand, kein Ort — sie beschreiben
+// Die vier Reiter unter "/" sind Komponentenzustand, kein Ort - sie beschreiben
 // dieselben Marktdaten aus verschiedenen Blickwinkeln. Die Warframe-Übersicht
 // bekommt dagegen eine echte URL: sie ist eine Nachschlagetabelle, die man
 // verschickt und neu lädt.
@@ -45,12 +45,12 @@ export const itemPath = (slug: string) => `/item/${encodeURIComponent(slug)}`;
 
 export const WARFRAMES_PATH = "/warframes";
 
-/** true für "/warframes" und "/warframes/" — symmetrisch zu itemSlugFromPath. */
+/** true für "/warframes" und "/warframes/" - symmetrisch zu itemSlugFromPath. */
 export const isWarframesPath = (path: string): boolean => /^\/warframes\/?$/.test(path);
 
 // ─── Link ─────────────────────────────────────────────────────────────────────
 // Echtes <a>, damit Mittelklick und Strg/Cmd-Klick weiterhin einen neuen Tab
-// öffnen — nur der einfache Linksklick wird abgefangen.
+// öffnen - nur der einfache Linksklick wird abgefangen.
 
 interface AProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;

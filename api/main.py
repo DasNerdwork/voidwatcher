@@ -54,7 +54,7 @@ def _ok(data: dict) -> JSONResponse:
 
 def _err(e: Exception) -> JSONResponse:
     """
-    Fehler an den Client — ohne Details.
+    Fehler an den Client - ohne Details.
 
     Vorher stand hier `str(e)`. Damit gingen rohe Postgres-Meldungen nach außen,
     nachgewiesen etwa „FEHLER: LIMIT darf nicht negativ sein" und bei Spalten-
@@ -131,12 +131,12 @@ def top(
 # Zwischenspeicher der Warframe-Antwort.
 #
 # Die Basiswerte ändern sich mit einem Warframe-Update, also grob einmal im
-# Monat — sie bei jedem Aufruf neu zu berechnen ist Verschwendung, auch bei
+# Monat - sie bei jedem Aufruf neu zu berechnen ist Verschwendung, auch bei
 # 36 ms. Verworfen wird er über `metadata.last_updated`, denselben Stempel, an
 # dem auch `read_top_list()` seine Vorberechnung misst: der Sync setzt ihn, der
 # nächste Aufruf rechnet einmal neu.
 #
-# Kein Lock: kämen zwei Anfragen gleichzeitig durch, rechnete jede einmal — das
+# Kein Lock: kämen zwei Anfragen gleichzeitig durch, rechnete jede einmal - das
 # kostet 36 ms doppelt und ist billiger als der Apparat, der es verhindert.
 _WF_CACHE: dict = {"stamp": None, "body": None, "etag": None}
 
@@ -153,7 +153,7 @@ def warframes(request: Request):
 
     Antwort aus dem Zwischenspeicher (siehe oben), dazu ETag und ein kurzes
     max-age: ein Neuladen innerhalb von zehn Minuten kostet gar keine Anfrage,
-    danach genügt eine Revalidierung mit 304. Bewusst KEINE Tage oder Wochen —
+    danach genügt eine Revalidierung mit 304. Bewusst KEINE Tage oder Wochen -
     einen Browser-Cache kann niemand von außen leeren, und diese Seite dient dem
     Zahlenvergleich. Der Zwischenspeicher, der die Arbeit spart, sitzt im Server.
     """
@@ -407,7 +407,7 @@ def category(tag: str | None = None, limit: int = Query(20, ge=1, le=500)):
 
                 # Die rohe Tag-Liste hat ihren Zweck mit der Einordnung oben
                 # erfüllt und wird im Browser nirgends gerendert. Bei 2550 Items
-                # ist sie rund ein Viertel der Antwort — raus damit.
+                # ist sie rund ein Viertel der Antwort - raus damit.
                 item.pop("tags", None)
 
                 if cat != "Unsorted":

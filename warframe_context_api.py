@@ -90,7 +90,7 @@ def format_drops(drops: list, max_items: int = 2) -> str:
         rot         = rotation_from_location(loc)
         loc_clean   = re.sub(r',?\s*Rotation\s+[ABC]', '', loc, flags=re.IGNORECASE).strip()
         # Railjack nodes list many mission subtypes individually in the wiki,
-        # but wfstat only returns one — label generically instead of wrong type
+        # but wfstat only returns one - label generically instead of wrong type
         if 'Proxima' in loc or 'Railjack' in mission:
             suffix = '(Railjack)'
         elif mission:
@@ -187,7 +187,7 @@ def format_warframe_overview(raw: dict) -> str:
         bt_h = round(build_time / 3600) if build_time else '?'
         parts.append(f"Crafting: {build_cost} Credits, {bt_h}h Bauzeit")
 
-    # Latest patch — DATE ONLY here
+    # Latest patch - DATE ONLY here
     patchlogs = raw.get('patchlogs', [])
     if patchlogs:
         latest = patchlogs[0]

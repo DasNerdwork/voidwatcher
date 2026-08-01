@@ -259,7 +259,7 @@ def trigger_sync(skip_wfpe: bool = False, reason: str = ""):
     cmd = [sys.executable, str(SYNC_SCRIPT)]
     if skip_wfpe:
         cmd.append("--skip-wfpe")
-    log.info(f"Starte Sync — Grund: {reason}")
+    log.info(f"Starte Sync - Grund: {reason}")
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, cwd=str(BASE_DIR))
@@ -275,13 +275,13 @@ def main():
     log.info("─── Versions-Check ───")
 
     if is_sync_running():
-        log.info("Sync läuft bereits — überspringe.")
+        log.info("Sync läuft bereits - überspringe.")
         return
 
     conn = get_conn()
     try:
         if was_synced_recently(conn):
-            log.info(f"Letzter Sync < {MIN_SYNC_INTERVAL // 60} min her — überspringe.")
+            log.info(f"Letzter Sync < {MIN_SYNC_INTERVAL // 60} min her - überspringe.")
             return
 
         now = datetime.now(timezone.utc).isoformat()
@@ -352,7 +352,7 @@ def main():
 
         # ── Sync-Entscheidung ──
         if first_run:
-            log.info("Erster Lauf — Versionen gespeichert, kein Sync getriggert.")
+            log.info("Erster Lauf - Versionen gespeichert, kein Sync getriggert.")
         elif wf_changed or wfpe_changed:
             trigger_sync(
                 skip_wfpe=False,
@@ -364,7 +364,7 @@ def main():
                 reason="WFM-Datenbank aktualisiert"
             )
         else:
-            log.info("Keine Änderungen — kein Sync nötig.")
+            log.info("Keine Änderungen - kein Sync nötig.")
 
     finally:
         conn.close()

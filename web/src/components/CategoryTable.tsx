@@ -49,18 +49,18 @@ const SubcategoryBadge = ({ sub }: { sub: string }) => {
 };
 
 /**
- * Die Tabelle des Category Browsers — bis zu 2550 Zeilen auf einmal.
+ * Die Tabelle des Category Browsers - bis zu 2550 Zeilen auf einmal.
  *
  * memo() und die beiden useMemo sind hier kein Feinschliff, sondern der
  * Unterschied zwischen flüssig und hakelig: die Uhr im Header ließ App früher
  * sekündlich neu rendern, und weil beides fehlte, entstanden dabei jedes Mal
  * 2550 neue Objekte plus eine vollständige Sortierung (bei Namenssortierung
  * ~29.000 localeCompare-Aufrufe). Gemessen: 100–130 ms Blockade pro Sekunde.
- * Die Uhr liegt inzwischen in ihrer eigenen Komponente — memo hält die Tabelle
+ * Die Uhr liegt inzwischen in ihrer eigenen Komponente - memo hält die Tabelle
  * auch von der nächsten Zustandsänderung in App fern.
  */
 export const CategoryTable = memo(({ category, allCategories, miscSub }: CategoryTableProps) => {
-  // SortIcon, Kopfzelle und Sortiersemantik liegen in shared.tsx — dieselbe
+  // SortIcon, Kopfzelle und Sortiersemantik liegen in shared.tsx - dieselbe
   // Mechanik trägt die Warframe-Übersicht.
   const [sortKey, sortDir, handleSort] =
     useSortState<SortKey>("volume", "desc", ["name", "category"]);
@@ -83,7 +83,7 @@ export const CategoryTable = memo(({ category, allCategories, miscSub }: Categor
 
   const sorted = useMemo(() => [...items].sort((a, b) => {
     if (sortKey === "name") {
-      // Sortiert wird nach dem ANGEZEIGTEN Namen — sonst steht die Liste im
+      // Sortiert wird nach dem ANGEZEIGTEN Namen - sonst steht die Liste im
       // Deutsch-Modus in englischer Reihenfolge da.
       const av = itemName(a).toLowerCase();
       const bv = itemName(b).toLowerCase();
@@ -201,13 +201,13 @@ export const CategoryTable = memo(({ category, allCategories, miscSub }: Categor
               <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13 }}>
                 {item.best_drop_chance_pct != null && item.best_drop_chance_pct > 0
                   ? <span style={{ color: C.up, fontWeight: 700 }}>{item.best_drop_chance_pct.toFixed(3)}%</span>
-                  : <span style={{ color: C.t2 }}>—</span>
+                  : <span style={{ color: C.t2 }}>-</span>
                 }
               </td>
 
               {/* Volume */}
               <td style={{ padding: "9px 15px", textAlign: "right", fontFamily: "monospace", fontSize: 13, fontWeight: 600, color: C.t2 }}>
-                {item.volume?.toLocaleString(locale()) ?? "—"}
+                {item.volume?.toLocaleString(locale()) ?? "-"}
               </td>
             </tr>
           ))}

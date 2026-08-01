@@ -6,7 +6,7 @@ import type { Lang } from "../i18n";
 /**
  * Zahnrad im Header: Oberflächensprache und Item-Namen getrennt einstellbar.
  *
- * Getrennt, weil beides verschiedene Zwecke hat — die Oberfläche liest man in
+ * Getrennt, weil beides verschiedene Zwecke hat - die Oberfläche liest man in
  * seiner Sprache, Items handelt man unter dem Namen, den der Handelschat und
  * warframe.market benutzen. Genau diese Kombination (Oberfläche deutsch,
  * Item-Namen englisch) ist deshalb die Vorgabe.
@@ -38,7 +38,7 @@ export const SettingsMenu = () => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Klick außerhalb schließt — dasselbe Muster wie das Misc-Menü im Header.
+  // Klick außerhalb schließt - dasselbe Muster wie das Misc-Menü im Header.
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {

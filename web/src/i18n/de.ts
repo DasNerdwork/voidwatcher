@@ -1,9 +1,9 @@
 /**
- * Deutsches Wörterbuch — Schlüssel ist der englische Quelltext.
+ * Deutsches Wörterbuch - Schlüssel ist der englische Quelltext.
  *
  * Vorbild ist /hdd1/clashapp/lang/*.csv: eine Datei je Fremdsprache, der
  * englische Satz als Schlüssel, kein Eintrag = englischer Text. Englisch braucht
- * deshalb kein eigenes Wörterbuch — es IST der Schlüsselraum.
+ * deshalb kein eigenes Wörterbuch - es IST der Schlüsselraum.
  *
  * Gruppiert nach Ort im Bild, nicht alphabetisch: wer eine Seite umbaut, findet
  * ihre Texte am Stück. Platzhalter sind %s (Text) und %d (Zahl), in der
@@ -29,8 +29,8 @@ export const de: Record<string, string> = {
   "LANGUAGE":   "SPRACHE",
   "Interface":  "Oberfläche",
   "Item names": "Item-Namen",
-  "Item names stay English by default — that is how they are traded.":
-    "Item-Namen bleiben standardmäßig englisch — unter diesen Namen wird gehandelt.",
+  "Item names stay English by default - that is how they are traded.":
+    "Item-Namen bleiben standardmäßig englisch - unter diesen Namen wird gehandelt.",
 
   // ─── Zeiträume und Filter ───────────────────────────────────────────────────
   // 24H/48H bleiben gleich, 7D/14D/30D/90D werden zu Tagen.
@@ -96,18 +96,18 @@ export const de: Record<string, string> = {
   "VOL":                 "VOL",
   "Drop%":               "Drop%",
   "Rank %d":             "Rang %d",
-  "View on warframe.market — opens a new tab":
-    "Auf warframe.market ansehen — öffnet einen neuen Tab",
+  "View on warframe.market - opens a new tab":
+    "Auf warframe.market ansehen - öffnet einen neuen Tab",
 
   // ─── Suche ──────────────────────────────────────────────────────────────────
   "Search item…":                "Item suchen…",
   "RECENTLY SEARCHED":           "ZULETZT GESUCHT",
   "Type at least 2 characters…": "Mindestens 2 Zeichen eingeben…",
   "No matches for “%s”":         "Keine Treffer für „%s“",
-  "Lowest sell offer — no trades in the last 48 hours":
-    "Niedrigstes Verkaufsangebot — kein Handel in den letzten 48 Stunden",
-  "Last traded on %s — no trades in the last 48 hours":
-    "Letzter Handel am %s — kein Handel in den letzten 48 Stunden",
+  "Lowest sell offer - no trades in the last 48 hours":
+    "Niedrigstes Verkaufsangebot - kein Handel in den letzten 48 Stunden",
+  "Last traded on %s - no trades in the last 48 hours":
+    "Letzter Handel am %s - kein Handel in den letzten 48 Stunden",
 
   // ─── Startseite ─────────────────────────────────────────────────────────────
   "BIGGEST PRICE GAIN":  "STÄRKSTER PREISANSTIEG",
@@ -134,13 +134,13 @@ export const de: Record<string, string> = {
   "Change in platinum":  "Veränderung in Platin",
   "Number of trades":    "Anzahl Trades",
   "thin data":           "dünne Datenlage",
-  "Only %d trades — figure is not very reliable":
-    "Nur %d Trades — Wert wenig belastbar",
+  "Only %d trades - figure is not very reliable":
+    "Nur %d Trades - Wert wenig belastbar",
   "Trades at the last against trades at the first point of the period":
     "Trades am letzten gegen Trades am ersten Punkt des Zeitraums",
   "Change in trades, last against first point of the period":
     "Veränderung der Trades, letzter gegen ersten Punkt des Zeitraums",
-  "%s — open detail page": "%s — Detailseite öffnen",
+  "%s - open detail page": "%s - Detailseite öffnen",
 
   // ─── Markt (Item-Katalog) ───────────────────────────────────────────────────
   "Category Browser":                    "Item-Katalog",
@@ -204,8 +204,8 @@ export const de: Record<string, string> = {
     "Zu wenig Handelsdaten für einen Verlauf in diesem Zeitraum",
   "No data available for this item yet":
     "Für dieses Item liegen noch keine Daten vor",
-  "A single outlier would flatten the whole chart — the scale is capped for that reason.":
-    "Ein einzelner Ausreißer würde den gesamten Verlauf platt drücken — die Skala ist deshalb begrenzt.",
+  "A single outlier would flatten the whole chart - the scale is capped for that reason.":
+    "Ein einzelner Ausreißer würde den gesamten Verlauf platt drücken - die Skala ist deshalb begrenzt.",
   "· scale capped, outlier up to %s": "· Skala gekappt, Ausreißer bis %s",
 
   // ─── Farm-Effizienz ─────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ export const de: Record<string, string> = {
   "NAME": "NAME",
   // Spaltenköpfe: die Umbrüche (\n) sind gesetzt, nicht dem Zufall überlassen.
   // Die Breiten in WF_COLUMNS sind auf die jeweils längere der beiden Sprachen
-  // gerechnet — wer hier übersetzt, misst dort nach.
+  // gerechnet - wer hier übersetzt, misst dort nach.
   "HEALTH":                       "LEBEN",
   "ARMOR":                        "RÜSTUNG",
   "DAMAGE\nREDUCTION":            "SCHADENS-\nREDUKTION",
@@ -264,14 +264,14 @@ export const de: Record<string, string> = {
   "EHP + SHIELDS &\nOVERSHIELDS": "EHP + SCHILDE &\nÜBERSCHILDE",
   "Health at rank 30":  "Lebenspunkte auf Rang 30",
   "Armor at rank 30":   "Rüstung auf Rang 30",
-  "Armor ÷ (armor + 300) — share of damage the armor absorbs":
-    "Rüstung ÷ (Rüstung + 300) — Anteil des Schadens, den die Rüstung abfängt",
+  "Armor ÷ (armor + 300) - share of damage the armor absorbs":
+    "Rüstung ÷ (Rüstung + 300) - Anteil des Schadens, den die Rüstung abfängt",
   "Effective hit points: health × (1 + armor ÷ 300). Shields and overshields not included":
     "Effektive Lebenspunkte: Leben × (1 + Rüstung ÷ 300). Schilde und Überschilde nicht enthalten",
   "Shields at rank 30":         "Schilde auf Rang 30",
   "Energy capacity at rank 30": "Energiekapazität auf Rang 30",
-  "Energy at mission start — a separate value per Warframe, not half the capacity":
-    "Energie beim Missionsstart — ein eigener Wert je Warframe, nicht die halbe Kapazität",
+  "Energy at mission start - a separate value per Warframe, not half the capacity":
+    "Energie beim Missionsstart - ein eigener Wert je Warframe, nicht die halbe Kapazität",
   "Sprint speed": "Sprintgeschwindigkeit",
   "1200 for everyone, 2400 for Harrow. No shields means no overshields":
     "1200 für alle, 2400 für Harrow. Ohne Schilde auch keine Überschilde",

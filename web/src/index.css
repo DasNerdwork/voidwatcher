@@ -78,11 +78,11 @@ th {
 /* Der Category Browser zeigt bis zu 2550 Zeilen auf einmal (~45.000 DOM-Knoten).
    content-visibility überspringt Layout und Paint für alles, was gerade nicht im
    Bild ist; contain-intrinsic-size gibt dem Browser die geschätzte Zeilenhöhe,
-   damit die Scrollleiste nicht springt. Gilt bewusst NUR hier — die anderen
+   damit die Scrollleiste nicht springt. Gilt bewusst NUR hier - die anderen
    Tabellen der App bleiben unter 200 Zeilen, dort wäre es Aufwand ohne Wirkung. */
 .cat-table tbody tr {
   content-visibility: auto;
-  /* Gemessen: 47 px ohne Rangzeile, 60 px mit. 55 liegt dazwischen — je näher
+  /* Gemessen: 47 px ohne Rangzeile, 60 px mit. 55 liegt dazwischen - je näher
      die Schätzung, desto ruhiger die Scrollleiste. */
   contain-intrinsic-size: 0 55px;
 }

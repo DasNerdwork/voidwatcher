@@ -19,7 +19,7 @@
 --
 -- Gelöscht wird nur, was nachweislich ein Duplikat ist: keine Indikatoren UND
 -- avg/min/max identisch zu einer indikator-behafteten Zeile desselben Buckets.
--- Zeilen, die nur alt sind (ganze Items ohne Indikatoren), bleiben unangetastet —
+-- Zeilen, die nur alt sind (ganze Items ohne Indikatoren), bleiben unangetastet -
 -- sie sind echte Historie und laufen ohnehin aus dem 90-Tage-Fenster.
 --
 -- Betroffen zum Zeitpunkt der Erstellung: 19.206 Zeilen (90d) / 863 (48h),

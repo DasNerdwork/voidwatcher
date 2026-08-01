@@ -3,7 +3,7 @@
 -- Dritte Dimension neben mod_rank: subtype.
 --
 -- Die warframe.market-API liefert für manche Items mehrere Zeilen pro Zeitpunkt,
--- unterschieden durch "subtype" — bei Fischen z.B. small / medium / large, die
+-- unterschieden durch "subtype" - bei Fischen z.B. small / medium / large, die
 -- zu deutlich unterschiedlichen Preisen gehandelt werden. Beispiel goopolla:
 -- drei Einträge für denselben Zeitstempel.
 --

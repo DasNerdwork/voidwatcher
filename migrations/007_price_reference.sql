@@ -2,7 +2,7 @@
 -- ============================================================
 -- Referenzpreis je Item für die Ausreißererkennung.
 --
--- Die Daten von warframe.market sind Nutzerangaben, keine Ingame-Trades — jeder
+-- Die Daten von warframe.market sind Nutzerangaben, keine Ingame-Trades - jeder
 -- kann ein Item zu einem beliebigen Preis einstellen. Beispiele aus dem Bestand:
 --
 --   Warm Coat                 500.067 ₱   Median des Items:  10 ₱   → 50.007×
@@ -11,12 +11,12 @@
 --
 -- Als Maßstab dient der Median des jeweiligen Items, nicht eine absolute Grenze:
 -- 99 % aller Beobachtungen liegen unter dem 4,8-fachen ihres Item-Medians, 99,9 %
--- unter dem 15-fachen. Oberhalb von 20× bleiben 81 von 285.461 Zeilen (0,03 %) —
+-- unter dem 15-fachen. Oberhalb von 20× bleiben 81 von 285.461 Zeilen (0,03 %) -
 -- darunter alle zwölf Einträge über 5.000 ₱.
 --
 -- Vorberechnet statt zur Abfragezeit: der Median je Item kostet inline 154 ms,
 -- was sich bei vier Ranglisten pro /api/top-Aufruf vervierfacht. Zudem soll die
--- Referenz stabil sein und nicht mit dem gewählten Zeitraum schwanken — deshalb
+-- Referenz stabil sein und nicht mit dem gewählten Zeitraum schwanken - deshalb
 -- immer über das volle 90-Tage-Fenster.
 --
 -- NULL bedeutet "keine Referenz" (neues Item, noch keine Historie). Der Filter

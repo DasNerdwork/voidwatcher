@@ -4,7 +4,7 @@ import { de } from "./de";
 // ─── Übersetzung ──────────────────────────────────────────────────────────────
 // Modell wie in ClashApp (/hdd1/clashapp/lang/translate.php): der **englische
 // Quelltext ist der Schlüssel**, es gibt genau ein Wörterbuch je Fremdsprache,
-// und fehlt ein Eintrag, steht der Schlüssel selbst da — also Englisch.
+// und fehlt ein Eintrag, steht der Schlüssel selbst da - also Englisch.
 //
 // Zwei Abweichungen vom Vorbild, beide bewusst:
 //
@@ -21,7 +21,7 @@ const DICTS: Record<Lang, Record<string, string>> = { de, en: {} };
 // Die aktive Sprache liegt zusätzlich als Modulvariable, nicht nur im Context:
 // `t()` wird auch aus reinen Hilfsfunktionen heraus aufgerufen (Zeitangaben,
 // Tooltips), die keine Hooks nutzen dürfen. Der Provider hält beide Wege
-// synchron — der Context löst das Neuzeichnen aus, die Variable liefert den Wert.
+// synchron - der Context löst das Neuzeichnen aus, die Variable liefert den Wert.
 let activeUi: Lang = "de";
 let activeItems: Lang = "en";
 
@@ -34,7 +34,7 @@ export const uiLang = () => activeUi;
 export const itemLang = () => activeItems;
 
 /**
- * Übersetzt und setzt Platzhalter ein — `%s` für Text, `%d` für Zahlen, in der
+ * Übersetzt und setzt Platzhalter ein - `%s` für Text, `%d` für Zahlen, in der
  * Reihenfolge der Argumente. Beispiel:
  *
  *     t("%d of %d Warframes", 2, 117)
@@ -56,7 +56,7 @@ export const t = (key: string, ...args: (string | number)[]): string => {
  *     const [a, b, c] = tParts("Base values from %s, growth from %s");
  *
  * Das PHP-Vorbild löst dasselbe, indem es `<a href=…>` und `</a>` als Argumente
- * in den Satz schiebt. Das ginge hier nur über dangerouslySetInnerHTML — die
+ * in den Satz schiebt. Das ginge hier nur über dangerouslySetInnerHTML - die
  * Teile-Variante kommt ohne aus.
  */
 export const tParts = (key: string): string[] => {
@@ -69,7 +69,7 @@ export const tParts = (key: string): string[] => {
 // (siehe api/db.py), deshalb kostet das Umschalten keinen neuen Abruf.
 //
 // Die Felder heißen je nach Endpunkt `name`/`name_de` oder
-// `item_name`/`item_name_de` — beide Formen werden hier abgefangen, damit die
+// `item_name`/`item_name_de` - beide Formen werden hier abgefangen, damit die
 // Aufrufer nicht wissen müssen, aus welcher Liste ihre Zeile stammt.
 
 interface NamedRow {
@@ -115,7 +115,7 @@ export const useI18n = () => useContext(I18nContext);
 /**
  * Vorgabe für die Oberflächensprache: die Browsersprache, sonst Deutsch.
  *
- * Greift nur beim allerersten Besuch — sobald etwas im Speicher steht, gewinnt
+ * Greift nur beim allerersten Besuch - sobald etwas im Speicher steht, gewinnt
  * die getroffene Wahl (readPref liefert dann den gespeicherten Wert).
  */
 export const browserLang = (): Lang => {

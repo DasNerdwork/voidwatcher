@@ -5,7 +5,7 @@
 --
 -- Warum überhaupt eine zweite Quelle: die BASISWERTE stehen bereits vollständig
 -- in `wfpe_items` (export_type = 'ExportWarframes'), und DEs Export ist dafür die
--- maßgebliche Quelle — Wiki und Export stimmen bei allen 117 Warframes auf die
+-- maßgebliche Quelle - Wiki und Export stimmen bei allen 117 Warframes auf die
 -- Einheit überein. Was der Export NICHT enthält, ist das Wachstum bis Rang 30.
 -- Das steckt im Spielclient und ist öffentlich nur im Wiki nachgezeichnet.
 --
@@ -14,7 +14,7 @@
 -- Inaros bei 2210 statt 2310 Leben, Hildryn bei 1380 statt 1780 Schilden,
 -- Dante bei 400/250/250 statt 390/240/270, Grendel bei 195 statt 95 Schilden.
 -- Genau dieser Fehler steckt bis heute in der Google-Tabelle, die diese Seite
--- ablöst — dort waren die Sonderregeln zwar vorgesehen, verglichen aber gegen
+-- ablöst - dort waren die Sonderregeln zwar vorgesehen, verglichen aber gegen
 -- Pfade auf `…BaseSuit`, die es im Export nicht gibt, und liefen samt und
 -- sonders ins Leere.
 --

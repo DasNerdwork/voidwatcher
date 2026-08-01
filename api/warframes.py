@@ -10,7 +10,7 @@ DIE ZAHLEN STAMMEN AUS ZWEI QUELLEN
 allen 117 Frames in den Basiswerten überein; das Wiki ergänzt nur.
 
 DAS WACHSTUM IST NICHT EINHEITLICH
-Die Regel lautet +100 Leben, +100 Schilde, ±0 Rüstung, +50 Energie — aber 33 der
+Die Regel lautet +100 Leben, +100 Schilde, ±0 Rüstung, +50 Energie - aber 33 der
 117 Frames weichen ab. Deshalb gilt: liegt ein Rang-30-Wert aus dem Wiki vor,
 gewinnt er; sonst greift die Regel. Wer stattdessen nur die Regel anwendet,
 bekommt Inaros mit 2210 statt 2310 Leben, Hildryn mit 1380 statt 1780 Schilden
@@ -18,7 +18,7 @@ und Dante mit 400/250/250 statt 390/240/270.
 
 BASISWERT NULL BLEIBT NULL
 Inaros, Nidus und Kullervo haben keine Schilde, Hildryn und Lavos keine Energie.
-Wächst so ein Wert mit, entstehen Zahlen, die es im Spiel nicht gibt — und über
+Wächst so ein Wert mit, entstehen Zahlen, die es im Spiel nicht gibt - und über
 die Überschilde reißt es zusätzlich 1200 Punkte in die EHP-Spalten. Genau dieser
 Fehler steckte in der abgelösten Google-Tabelle, weil sie erst wachsen ließ und
 danach auf Null prüfte.
@@ -43,7 +43,7 @@ OVERSHIELD_DEFAULT = 1200
 OVERSHIELD_PRIEST = 2400
 PRIEST_PATH = "/Lotus/Powersuits/Priest/"
 
-# Spalten, über die die Medianzeile gebildet wird — dieselbe Reihenfolge wie in
+# Spalten, über die die Medianzeile gebildet wird - dieselbe Reihenfolge wie in
 # der Tabelle. `name` und die Textfelder der Detailzeile bleiben außen vor.
 NUMERIC_KEYS = (
     "health", "armor", "dr_pct", "effective_health", "shield",
@@ -75,7 +75,7 @@ def _rank30(key: str, base: float, wiki: dict, name: str, warn: list) -> float:
     Rang-30-Wert einer Spalte.
 
     Der Wiki-Wert wird nur übernommen, wenn sein Basiswert mit dem Export
-    übereinstimmt. Weicht er ab, ist das Wiki veraltet — dann ist auch sein
+    übereinstimmt. Weicht er ab, ist das Wiki veraltet - dann ist auch sein
     Rang-30-Wert nicht vertrauenswürdig, und die Regel ist die bessere Schätzung.
     """
     if base == 0:
@@ -119,7 +119,7 @@ def build_row(row: dict, warn: list) -> dict:
     ehp_shield = effective_health + shield
 
     # Startenergie: eigener Wert je Frame, KEIN Anteil der Kapazität. Fehlt der
-    # Wiki-Eintrag, bleibt die Zelle leer — eine geschätzte Zahl sähe aus wie eine
+    # Wiki-Eintrag, bleibt die Zelle leer - eine geschätzte Zahl sähe aus wie eine
     # gemessene.
     start_energy = _f(wiki.get("InitialEnergy"))
 
@@ -159,7 +159,7 @@ def medians(rows: list) -> dict:
     """
     Spaltenweiser Median über eine Zeilenmenge.
 
-    Spaltenweise heißt: die Zeile beschreibt keinen existierenden Warframe — ihre
+    Spaltenweise heißt: die Zeile beschreibt keinen existierenden Warframe - ihre
     EHP-Zahl lässt sich nicht aus ihrer Leben- und Rüstungszahl nachrechnen. Sie
     ist ein Vergleichsmaßstab, und die Oberfläche muss das auch so benennen.
 
@@ -184,7 +184,7 @@ def _inherit_helminth(items: list) -> None:
 
     Das Wiki führt `Subsumed` nur beim Grundframe; 42 der 51 Primes und Excalibur
     Umbra stünden sonst leer da, obwohl im Spiel dieselbe Fähigkeit abgelegt wird.
-    Verbunden wird über den Pfad, nicht über den Namen — „Ash" und „Ash Prime"
+    Verbunden wird über den Pfad, nicht über den Namen - „Ash" und „Ash Prime"
     teilen sich `/Lotus/Powersuits/Ninja/`.
     """
     known = {_family(r["unique_name"]): r["helminth"]

@@ -29,7 +29,7 @@ export type ChangeMetric = "pct" | "abs";
 const formatChange = (item: TopItem, metric: ChangeMetric): string => {
   if (metric === "abs") {
     const v = item.change_abs;
-    if (v == null) return "—";
+    if (v == null) return "-";
     // Nicht plat(): das hebt jeden Wert auf mindestens 1 an und machte aus
     // −0,01 ₱ ein „−1". Unter einem halben Platin steht schlicht „0".
     const r = Math.round(v);
@@ -41,7 +41,7 @@ const formatChange = (item: TopItem, metric: ChangeMetric): string => {
 
 /**
  * Farbe zur angezeigten Veränderung. Neutral, sobald der ANGEZEIGTE Wert null
- * ist — im Platin-Modus rundet alles unter einem halben Platin auf „0", und ein
+ * ist - im Platin-Modus rundet alles unter einem halben Platin auf „0", und ein
  * rotes „0 ₱ über 24H" behauptet einen Rückgang, den die Zahl nicht zeigt.
  */
 const changeColor = (item: TopItem, metric: ChangeMetric): string => {
@@ -54,7 +54,7 @@ const changeColor = (item: TopItem, metric: ChangeMetric): string => {
 
 /**
  * Angezeigter Preis eines Items: der letzte Punkt der Zeitreihe, nicht das Mittel
- * über den Zeitraum. Sonst widerspricht die Zeile sich selbst — „998 (+524)" bei
+ * über den Zeitraum. Sonst widerspricht die Zeile sich selbst - „998 (+524)" bei
  * einem Verlauf von 501 auf 1025 ließ sich nicht zusammenrechnen, weil die 998 das
  * Fenstermittel waren und die 524 die Differenz der Ränder.
  * Fallback auf avg_price, falls die API das Feld (noch) nicht liefert.
@@ -62,7 +62,7 @@ const changeColor = (item: TopItem, metric: ChangeMetric): string => {
 const price = (item: TopItem): number | null | undefined =>
   item.current_price ?? item.avg_price;
 
-/** Veränderung samt Einheit — im Platin-Modus mit Platin-Zeichen. */
+/** Veränderung samt Einheit - im Platin-Modus mit Platin-Zeichen. */
 const ChangeValue = ({ item, metric }: { item: TopItem; metric: ChangeMetric }) => (
   <>{formatChange(item, metric)}{metric === "abs" && item.change_abs != null && <SmallPlatIcon />}</>
 );
@@ -72,7 +72,7 @@ const ChangeValue = ({ item, metric }: { item: TopItem; metric: ChangeMetric }) 
  * „Meistgehandelt" ersetzt sie die Preisveränderung, denn dort ist die
  * Handelsaktivität die Messgröße.
  *
- * Folgt dem Einheiten-Umschalter wie die Preisansichten — vorher stand hier
+ * Folgt dem Einheiten-Umschalter wie die Preisansichten - vorher stand hier
  * beides gleichzeitig („+14 (+1400 %)"), was die Zeile überlud und dem Schalter
  * in dieser Ansicht jede Wirkung nahm. „Absolut" heißt hier Anzahl Trades, nicht
  * Platin; der Umschalter zeigt deshalb „#" statt des Platin-Icons.
@@ -83,12 +83,12 @@ const ChangeValue = ({ item, metric }: { item: TopItem; metric: ChangeMetric }) 
 const formatVolumeChange = (item: TopItem, metric: ChangeMetric): string => {
   if (metric === "pct") {
     const p = item.volume_change_pct;
-    if (p == null) return "—";
+    if (p == null) return "-";
     const ps = Math.abs(p) >= 100 ? Math.round(Math.abs(p)).toLocaleString(locale()) : Math.abs(p).toFixed(1);
     return `${p >= 0 ? "+" : "−"}${ps} %`;
   }
   const v = item.volume_change_abs;
-  if (v == null) return "—";
+  if (v == null) return "-";
   const sign = v > 0 ? "+" : v < 0 ? "−" : "";
   return `${sign}${Math.abs(v).toLocaleString(locale())}`;
 };
@@ -178,7 +178,7 @@ const SwitcherCard = ({
 // Platzierung nach Warframes eigenen Stufen (Platin › Gold › Silber › Bronze,
 // wie bei Mod- und Arcane-Seltenheiten).
 //
-// Die Werte sind so gewählt, dass die Helligkeit DURCHGEHEND fällt — sonst wirkt
+// Die Werte sind so gewählt, dass die Helligkeit DURCHGEHEND fällt - sonst wirkt
 // ein schlechterer Rang heller als ein besserer. Die erste Fassung hatte genau
 // dieses Problem gleich doppelt: Silber (9,90:1) war heller als Gold (8,22:1),
 // und Bronze (4,97:1) dunkler als die Ränge 4–10 (8,08:1).
@@ -234,19 +234,19 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
           {/* Mit Einheit statt „Vol 860": das Kürzel nennt nicht, was gezählt wird.
               Tausendertrennung wie an jeder anderen Volumen-Stelle der App.
 
-              Bei „Meistgehandelt" stehen hier stattdessen die Platin — dort ist
+              Bei „Meistgehandelt" stehen hier stattdessen die Platin - dort ist
               die Handelsaktivität die Leitgröße und gehört nach rechts, damit die
               Veränderung darunter sich auf sie bezieht und nicht auf den Preis. */}
           {item.max_rank != null && item.max_rank > 0 ? `R${item.max_rank} · ` : ""}
           {showVolumeChange
             ? <>{plat(price(item))}<SmallPlatIcon /></>
             : <>{item.volume.toLocaleString(locale())} {t("Trades")}</>}
-          {/* Der angezeigte Wert bleibt immer der echte — hier steht nur, worauf
+          {/* Der angezeigte Wert bleibt immer der echte - hier steht nur, worauf
               er beruht. Schwelle 0,25 entspricht bei m = 30 rund zehn Trades.
               (Mit dem früheren m = 10 stand hier 0,5 für dieselben zehn Trades;
               unverändert übernommen hätte sie jetzt bei dreißig gegriffen.) */}
           {item.confidence != null && item.confidence < 0.25 && (
-            <span title={t("Only %d trades — figure is not very reliable", item.volume)}
+            <span title={t("Only %d trades - figure is not very reliable", item.volume)}
               style={{ color: C.t3, fontStyle: "italic" }}>
               {" · " + t("thin data")}
             </span>
@@ -254,7 +254,7 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
         </div>
       </div>
       {/* Zweizeilig wie die linke Spalte: Preis oben, Veränderung darunter.
-          Zuvor waren es zwei Layouts für dieselbe Sache — „Meistgehandelt" schon
+          Zuvor waren es zwei Layouts für dieselbe Sache - „Meistgehandelt" schon
           zweizeilig, alle anderen Ansichten einzeilig mit Klammerwert.
 
           Genau EIN Platin-Icon je Zeile. Zeile 2 ruft deshalb formatChange roh
@@ -263,7 +263,7 @@ const ListItem = ({ item, rank, active, metric, showVolumeChange, onClick }: {
       <div style={{ textAlign: "right", flexShrink: 0 }}>
         {/* Leitgröße der Ansicht: bei „Meistgehandelt" die Trades in C.cy (die
             Akzentfarbe dieser Ansicht), sonst der Preis in Gold. Gold bleibt so
-            durchgehend dem Platinwert vorbehalten — und es steht weiterhin genau
+            durchgehend dem Platinwert vorbehalten - und es steht weiterhin genau
             EIN Platin-Icon je Zeile, hier nur links.
 
             Die Akzentfarbe trägt nur die Zahl, nicht die Einheit: „Trades" ist
@@ -334,7 +334,7 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
           {/* Bild führt wie der Titel auf die Item-Seite */}
           {item.slug ? (
             <A href={itemPath(item.slug)} style={{ display: "block", cursor: "pointer", flexShrink: 0 }}
-              title={t("%s — open detail page", itemName(item))}>
+              title={t("%s - open detail page", itemName(item))}>
               <ItemIcon item={item} size={52} />
             </A>
           ) : (
@@ -351,14 +351,14 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
                 </span>
               )}
             </div>
-            {/* Stand der Daten stand hier vorher als Datum — das war MAX(ts), der
+            {/* Stand der Daten stand hier vorher als Datum - das war MAX(ts), der
                 jüngste Datenpunkt im Fenster, und nicht der Sync-Zeitpunkt, als
                 den man es las. Die Angabe steht als „Last Update" im Seitenkopf.
                 An dieser Stelle ist die Herkunft der Daten das Nützlichere. */}
             <div style={{ ...T.meta, marginTop: 2 }}>
               {item.slug && (
                 <TextLink href={marketUrl(item.slug)} target="_blank" rel="noopener noreferrer"
-                  title={t("View on warframe.market — opens a new tab")}>
+                  title={t("View on warframe.market - opens a new tab")}>
                   warframe.market<ExternalLinkIcon />
                 </TextLink>
               )}
@@ -368,7 +368,7 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           {/* Als einziger Wert der Seite stand die Leitkennzahl bisher ohne Label
               da, während jede Kachel darunter eines trägt. „AKTUELLER PREIS" wie
-              in der KPI-Leiste der Item-Seite — und trennscharf gegen
+              in der KPI-Leiste der Item-Seite - und trennscharf gegen
               „ERÖFFNUNG" in der Kachelzeile direkt darunter. */}
           <div style={{ ...T.label, marginBottom: 6 }}>{t("CURRENT PRICE")}</div>
           {/* Ohne Veränderungszeile: die stand hier wortgleich und in derselben
@@ -384,14 +384,14 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
         {([
           // Median statt Eröffnung: der Startwert des Fensters trug nichts bei,
           // den Ausgangspunkt zeigt die Kurve. Der Median dagegen sagt, was ein
-          // Item üblicherweise kostet, und ist gegen Ausreißer unempfindlich —
+          // Item üblicherweise kostet, und ist gegen Ausreißer unempfindlich -
           // bei Nutzerangaben ohne Trade-Zwang die belastbarere Größe.
           // „typischer Preis", nicht „Hälfte der Trades darunter": der Wert ist
           // ein volumengewichtetes Mittel der Bucket-Mediane (siehe _vw_avg in
           // api/db.py), kein Quantil über alle Einzeltrades.
           { label: t("MEDIAN"),          value: <>{plat(item.median)}<SmallPlatIcon /></>, sub: t("Typical price"), color: C.t2 },
           // Der Durchschnitt zieht als Unterzeile hierher. Die frühere Unterzeile
-          // nannte die Differenz samt Prozentzahl (spread/avg) — eine Größe ohne
+          // nannte die Differenz samt Prozentzahl (spread/avg) - eine Größe ohne
           // Namen, aus der sich nichts ablesen ließ: „111 %" bei 3–9 ₱.
           { label: t("PRICE RANGE"),     value: <>{plat(item.min_price)} – {plat(item.max_price)}<SmallPlatIcon /></>, sub: <>{t("Average price")} {plat(item.avg_price)}<SmallPlatIcon /></>, color: C.t },
           { label: t("TRADES"),          value: item.volume.toLocaleString(locale()), sub: t(HOURS_PHRASE[hours]), color: C.cy },
@@ -407,11 +407,11 @@ const DetailPanel = ({ item, hours, metric }: { item: TopItem; hours: number; me
         ))}
       </div>
 
-      {/* Chart-Kopf — nur noch die Überschrift, ohne Unterkante und ohne eigene
+      {/* Chart-Kopf - nur noch die Überschrift, ohne Unterkante und ohne eigene
           Tönung. Der Zusatz „48H · stündlich" ist entfallen: den Zeitraum nennen
           der ZEITRAUM-Umschalter, die Zeile unter dem Preis („über 48H") und die
           Kachel „PREISVERÄNDERUNG"; die Auflösung liest man an der Zeitachse ab.
-          (Der Listenkopf zählte hier früher mit — dort steht der Zeitraum
+          (Der Listenkopf zählte hier früher mit - dort steht der Zeitraum
           inzwischen ebenfalls nicht mehr.) */}
       <div style={{ padding: "14px 22px 0", flexShrink: 0 }}>
         <span style={{ fontSize: 12, letterSpacing: "0.12em", color: C.t2, fontWeight: 600 }}>
@@ -457,7 +457,7 @@ const isView = oneOf<ViewKey>(VIEW_ORDER);
 
 /**
  * Ansichtsumschalter im Listenkopf. Steuert denselben view-State wie die großen
- * Karten darüber — kein zweiter Zustand, beide Richtungen bleiben automatisch
+ * Karten darüber - kein zweiter Zustand, beide Richtungen bleiben automatisch
  * synchron. Ersetzt die frühere Zierlinie, die keine Information trug.
  */
 const ViewIconSwitch = ({
@@ -491,7 +491,7 @@ const ViewIconSwitch = ({
 
 /**
  * Einheit der Veränderung. Prozent zeigt relative Bewegung, Platin die
- * tatsächliche Differenz — bei günstigen Items laufen die beiden weit
+ * tatsächliche Differenz - bei günstigen Items laufen die beiden weit
  * auseinander (+203 % sind dort keine halbe Platin). Nur bei den beiden
  * Veränderungs-Ansichten sichtbar, sonst hätte der Schalter keine Wirkung.
  */
@@ -499,7 +499,7 @@ const MetricToggle = ({ metric, view, onChange }: {
   metric: ChangeMetric; view: ViewKey; onChange: (m: ChangeMetric) => void;
 }) => {
   // Die absolute Seite zeigt die Einheit, auf die sie umstellt. Bei
-  // „Meistgehandelt" sind das Trades, nicht Platin — ein Platin-Icon wäre dort
+  // „Meistgehandelt" sind das Trades, nicht Platin - ein Platin-Icon wäre dort
   // schlicht falsch.
   const absIsTrades = view === "traded";
   return (
@@ -521,8 +521,8 @@ const MetricToggle = ({ metric, view, onChange }: {
 };
 
 // /api/top liefert echte Verlierer inzwischen als eigene Liste (top_loser, nach
-// volumengewichtetem Verlust sortiert). Nur falls die leer ist — kein einziges Item
-// im Minus — fällt die Karte auf den schwächsten Anstieg zurück und benennt sich
+// volumengewichtetem Verlust sortiert). Nur falls die leer ist - kein einziges Item
+// im Minus - fällt die Karte auf den schwächsten Anstieg zurück und benennt sich
 // entsprechend, statt einen Preisrückgang zu behaupten, den es nicht gibt.
 const loserLabels = (v?: number | null) =>
   (v ?? 0) < 0
@@ -545,11 +545,11 @@ export const DashboardPage = ({ data, hours, metric, onMetricChange }: Dashboard
       // Reihenfolge kommt unverändert von /api/top: dort wird nach
       // Veränderung × Glaubwürdigkeit sortiert. Eine clientseitige
       // Nachsortierung nach rohem Prozentwert hatte die Gewichtung zuvor
-      // wirkungslos gemacht — ein Ausschlag mit 8 Trades stand vor einem
+      // wirkungslos gemacht - ein Ausschlag mit 8 Trades stand vor einem
       // mit 42.
       case "gainers": return data.top_performer ?? [];
       // Fallback auf den schwächsten Anstieg, falls kein einziges Item im Minus
-      // steht — dann heißt die Karte auch so (siehe loserLabels).
+      // steht - dann heißt die Karte auch so (siehe loserLabels).
       case "losers":  return (data.top_loser ?? []).length
         ? data.top_loser
         : [...(data.top_performer ?? [])].reverse();
@@ -570,10 +570,10 @@ export const DashboardPage = ({ data, hours, metric, onMetricChange }: Dashboard
   const topValue   = (data?.top_seller ?? [])[0];
 
   const switchers: { key: ViewKey; value: React.ReactNode; sub: React.ReactNode; valueColor?: string }[] = [
-    { key: "gainers", value: topGainer ? <ChangeValue item={topGainer} metric={metric} /> : "—", sub: topGainer ? <>{topGainer.item_name} · {plat(price(topGainer))}<SmallPlatIcon /></> : "Keine Daten", valueColor: topGainer && changeColor(topGainer, metric) === C.t2 ? C.t2 : undefined },
-    { key: "losers",  value: topLoser ? <ChangeValue item={topLoser} metric={metric} /> : "—",  sub: topLoser  ? <>{topLoser.item_name} · {plat(price(topLoser))}<SmallPlatIcon /></>   : "Keine Daten", valueColor: topLoser && changeColor(topLoser, metric) === C.t2 ? C.t2 : undefined },
-    { key: "traded",  value: topTraded ? topTraded.volume.toLocaleString(locale()) : "—", sub: topTraded ? <>{topTraded.item_name} · {plat(price(topTraded))}<SmallPlatIcon /></> : "Keine Daten" },
-    { key: "value",   value: topValue  ? <>{plat(price(topValue))}<SmallPlatIcon /></> : "—", sub: topValue ? itemName(topValue) : t("No data") },
+    { key: "gainers", value: topGainer ? <ChangeValue item={topGainer} metric={metric} /> : "-", sub: topGainer ? <>{topGainer.item_name} · {plat(price(topGainer))}<SmallPlatIcon /></> : "Keine Daten", valueColor: topGainer && changeColor(topGainer, metric) === C.t2 ? C.t2 : undefined },
+    { key: "losers",  value: topLoser ? <ChangeValue item={topLoser} metric={metric} /> : "-",  sub: topLoser  ? <>{topLoser.item_name} · {plat(price(topLoser))}<SmallPlatIcon /></>   : "Keine Daten", valueColor: topLoser && changeColor(topLoser, metric) === C.t2 ? C.t2 : undefined },
+    { key: "traded",  value: topTraded ? topTraded.volume.toLocaleString(locale()) : "-", sub: topTraded ? <>{topTraded.item_name} · {plat(price(topTraded))}<SmallPlatIcon /></> : "Keine Daten" },
+    { key: "value",   value: topValue  ? <>{plat(price(topValue))}<SmallPlatIcon /></> : "-", sub: topValue ? itemName(topValue) : t("No data") },
   ];
 
   return (
@@ -612,7 +612,7 @@ export const DashboardPage = ({ data, hours, metric, onMetricChange }: Dashboard
               </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               {/* Ohne Ansichtsbedingung: der Schalter wirkt jetzt in allen vier
-                  Ansichten — bei „Meistgehandelt" zwischen Prozent und Anzahl
+                  Ansichten - bei „Meistgehandelt" zwischen Prozent und Anzahl
                   Trades, sonst zwischen Prozent und Platin. */}
               <MetricToggle metric={metric} view={view} onChange={onMetricChange} />
               <span style={{ width: 1, height: 18, background: C.b }} />

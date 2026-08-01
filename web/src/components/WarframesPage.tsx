@@ -9,7 +9,7 @@ import type { WarframeStat, WarframesResponse, WfMedians, WfNumKey } from "../ty
 
 // ─── Typografie dieser Seite ──────────────────────────────────────────────────
 // Dokumentierte Ausnahme von der Skala `T`: die Seite fährt eine Stufe höher.
-// Grund ist der Zweck — es ist eine Vergleichstabelle, die beim Videoschnitt und
+// Grund ist der Zweck - es ist eine Vergleichstabelle, die beim Videoschnitt und
 // im Stream gelesen wird, nicht am Schreibtisch mit 40 cm Abstand.
 //
 // Angehoben wird GESCHLOSSEN, wie es die Typo-Regeln verlangen: verschiebt man
@@ -30,7 +30,7 @@ const wfBtn = (active: boolean): React.CSSProperties =>
   ({ ...segBtn(active), fontSize: 14, padding: "6px 14px" });
 
 // ─── Spalten ──────────────────────────────────────────────────────────────────
-// Einzige Quelle für Beschriftung, Breite, Nachkommastellen und Erläuterung —
+// Einzige Quelle für Beschriftung, Breite, Nachkommastellen und Erläuterung -
 // dasselbe Muster wie SERIES in ItemChart.tsx. Wer eine Spalte ergänzt, ergänzt
 // sie hier und nirgends sonst.
 //
@@ -40,7 +40,7 @@ const wfBtn = (active: boolean): React.CSSProperties =>
 //
 // `invert` gibt es noch nicht: in allen elf Spalten gilt „mehr ist mehr", und
 // genau darauf beruht die Einfärbung. Käme eine Spalte dazu, bei der weniger
-// besser ist (etwa eine Meisterschaftsanforderung), braucht sie ein Flag —
+// besser ist (etwa eine Meisterschaftsanforderung), braucht sie ein Flag -
 // sonst behauptet die Farbe das Gegenteil.
 
 interface WfColumn {
@@ -49,18 +49,18 @@ interface WfColumn {
   w:      number;
   digits: 0 | 1 | 2;
   title:  string;
-  /** Einheit hinter dem Wert. Nur im Werte-Modus — pctChange bringt sein eigenes %. */
+  /** Einheit hinter dem Wert. Nur im Werte-Modus - pctChange bringt sein eigenes %. */
   unit?:  string;
 }
 
 const WF_COLUMNS: WfColumn[] = [
   { key: "health",           label: "HEALTH",                 w: 86,  digits: 0, title: "Health at rank 30" },
   { key: "armor",            label: "ARMOR",               w: 105, digits: 0, title: "Armor at rank 30" },
-  { key: "dr_pct",           label: "DAMAGE\nREDUCTION",  w: 121, digits: 1, unit: "%", title: "Armor ÷ (armor + 300) — share of damage the armor absorbs" },
+  { key: "dr_pct",           label: "DAMAGE\nREDUCTION",  w: 121, digits: 1, unit: "%", title: "Armor ÷ (armor + 300) - share of damage the armor absorbs" },
   { key: "effective_health", label: "EHP",                   w: 86,  digits: 0, title: "Effective hit points: health × (1 + armor ÷ 300). Shields and overshields not included" },
   { key: "shield",           label: "SHIELDS",               w: 96,  digits: 0, title: "Shields at rank 30" },
   { key: "energy",           label: "ENERGY",               w: 97,  digits: 0, title: "Energy capacity at rank 30" },
-  { key: "start_energy",     label: "STARTING\nENERGY",       w: 97,  digits: 0, title: "Energy at mission start — a separate value per Warframe, not half the capacity" },
+  { key: "start_energy",     label: "STARTING\nENERGY",       w: 97,  digits: 0, title: "Energy at mission start - a separate value per Warframe, not half the capacity" },
   { key: "sprint",           label: "SPRINT",                w: 87,  digits: 2, title: "Sprint speed" },
   { key: "max_overshield",   label: "MAXIMUM\nOVERSHIELDS", w: 138, digits: 0, title: "1200 for everyone, 2400 for Harrow. No shields means no overshields" },
   { key: "ehp_shield",       label: "EHP +\nSHIELDS",        w: 96,  digits: 0, title: "Effective hit points + shields. Armor does not apply to shields, they are added raw" },
@@ -74,7 +74,7 @@ const SPAN = 1 + WF_COLUMNS.length;
 // Polsterung und Versal-Sperrung der Köpfe sind gerechnet, nicht geschätzt:
 // zwölf Spalten müssen in die 1348 px passen, die eine 1400er Seite innen
 // hergibt. Mit der üblichen Polsterung (15) und Sperrung (0.1em) bräuchten die
-// Köpfe 1542 px und liefen sichtbar ineinander — tableLayout: fixed schneidet
+// Köpfe 1542 px und liefen sichtbar ineinander - tableLayout: fixed schneidet
 // Kopftexte nicht ab, es lässt sie überlaufen.
 //
 // Maßstab für die Zellbreite ist NICHT der größte Absolutwert (1.733 misst
@@ -84,13 +84,13 @@ const CELL_PAD = "10px 9px";
 const HEAD_TRACKING = "0.04em";
 
 // ─── Flächen und Fadenkreuz ───────────────────────────────────────────────────
-// Zeile UND Spalte hervorheben, die Schnittzelle gerahmt — damit sich ein Wert
+// Zeile UND Spalte hervorheben, die Schnittzelle gerahmt - damit sich ein Wert
 // ohne Fingerzeigen der Zeile und der Spalte zuordnen lässt.
 //
 // Das läuft NICHT über React-State: bei 117 × 12 Zellen würde jede Mausbewegung
 // über eine Spaltengrenze die ganze Tabelle neu rendern. Stattdessen setzt ein
 // delegierter Handler `data-col` am <table>, und ein erzeugtes Stylesheet macht
-// den Rest (Vorbild: .ticker-track in index.css — auch dort reichen
+// den Rest (Vorbild: .ticker-track in index.css - auch dort reichen
 // Inline-Styles nicht).
 //
 // Klebende Zellen (Namensspalte, Kopf- und Medianzeile) liegen über
@@ -122,7 +122,7 @@ const COPY_FLASH_MS = 700;
 const buildTableCss = (): string => {
   const cols = Array.from({ length: WF_COLUMNS.length + 1 }, (_, i) => i + 1);
   const lines = [
-    // Grundflächen der klebenden Zellen — im Stylesheet, nicht inline: ein
+    // Grundflächen der klebenden Zellen - im Stylesheet, nicht inline: ein
     // Inline-Hintergrund schlüge jede Regel und das Fadenkreuz bliebe dort aus.
     `.${TBL} thead th, .${TBL} thead td, .${TBL} tbody th { background: ${SURFACE}; }`,
     // Senkrechte Kante der klebenden Namensspalte, sichtbar beim Querscrollen.
@@ -132,7 +132,7 @@ const buildTableCss = (): string => {
     ...cols.map(n => `.${TBL}[data-col="${n}"] thead th:nth-child(${n}),`
                    + `.${TBL}[data-col="${n}"] thead td:nth-child(${n}),`
                    + `.${TBL}[data-col="${n}"] tbody th:nth-child(${n}) { background: ${SURFACE_COL}; }`),
-    // Klick kopiert den Wert — der Zeiger sagt es vorher. Nur Datenzellen und
+    // Klick kopiert den Wert - der Zeiger sagt es vorher. Nur Datenzellen und
     // die Medianzeile; die Kopfzeile sortiert und behält ihren Zeiger.
     `.${TBL} tbody td, .${TBL} tbody th, .${TBL} thead tr + tr td, .${TBL} thead tr + tr th { cursor: copy; }`,
     // Zeile
@@ -144,7 +144,7 @@ const buildTableCss = (): string => {
     ...cols.map(n => `.${TBL}[data-col="${n}"] tbody tr:hover th:nth-child(${n}) {`
                    + ` background: ${SURFACE_CROSS}; box-shadow: inset 0 0 0 1px ${C.b2}, 1px 0 0 ${C.b}; }`),
     // Kopier-Rückmeldung. !important, weil die Regeln oben nach Bauart
-    // spezifischer sind (Attribut + nth-child) — ohne es bliebe der Blitz
+    // spezifischer sind (Attribut + nth-child) - ohne es bliebe der Blitz
     // ausgerechnet unter dem Mauszeiger unsichtbar, wo er gebraucht wird.
     `.${TBL} .${COPIED} { background: rgba(77,186,127,0.22) !important;`
       + ` box-shadow: inset 0 0 0 1px ${C.up} !important; }`,
@@ -170,7 +170,7 @@ const GROUPS: { value: WfGroup; label: string }[] = [
 ];
 
 // ─── Vergleich mit dem Median ─────────────────────────────────────────────────
-// Grün über 110 %, rot unter 90 %, dazwischen neutral — dasselbe Band wie in der
+// Grün über 110 %, rot unter 90 %, dazwischen neutral - dasselbe Band wie in der
 // abgelösten Tabelle. Neutral ist ausdrücklich C.t2 und nicht „keine Farbe":
 // eine geerbte Farbe driftet beim nächsten Umbau mit.
 
@@ -201,8 +201,8 @@ const StatCells = ({ item, med, mode }: { item: WarframeStat; med: WfMedians; mo
           borderBottom: `1px solid ${C.b}`,
         }}>
           {mode === "dev"
-            ? (dev == null ? "—" : pctChange(dev))
-            : v == null ? "—" : `${num(v, col.digits)}${col.unit ?? ""}`}
+            ? (dev == null ? "-" : pctChange(dev))
+            : v == null ? "-" : `${num(v, col.digits)}${col.unit ?? ""}`}
         </td>
       );
     })}
@@ -211,19 +211,19 @@ const StatCells = ({ item, med, mode }: { item: WarframeStat; med: WfMedians; mo
 // ─── Daten holen, aber nur einmal ─────────────────────────────────────────────
 // Die Warframe-Basiswerte ändern sich mit einem Spiel-Update, also grob einmal
 // im Monat. Sie bei jedem Betreten des Reiters neu zu holen kostete gemessen
-// 384–498 ms bis zur ersten Zeile — und zwar JEDES Mal, weil die Seite bei jedem
+// 384–498 ms bis zur ersten Zeile - und zwar JEDES Mal, weil die Seite bei jedem
 // Mounten neu lud.
 //
 // Deshalb ein Modul-Cache: er überlebt das Aus- und Wiedereinhängen der
 // Komponente und wird nur beim Neuladen der Seite verworfen. Serverseitig hängt
 // derselbe Datenstand an `metadata.last_updated` (siehe api/main.py), der
-// HTTP-Cache trägt ETag und max-age — drei Schichten, die sich ergänzen.
+// HTTP-Cache trägt ETag und max-age - drei Schichten, die sich ergänzen.
 
 let wfCache: WarframesResponse | null = null;
 let wfInFlight: Promise<WarframesResponse> | null = null;
 
 /**
- * Holt die Daten, wenn sie noch nicht da sind — sonst gar nichts.
+ * Holt die Daten, wenn sie noch nicht da sind - sonst gar nichts.
  *
  * Wird auch beim Überfahren des Reiters aufgerufen (App.tsx). Mehrfachaufrufe
  * bündeln sich über `wfInFlight`: Hover, Hover, Klick lösen zusammen eine
@@ -262,13 +262,13 @@ export const WarframesPage = () => {
 
   // Der Cache wird im Initializer gelesen, nicht in einem Effekt: sonst rendert
   // die Seite einen Durchgang lang den Ladezustand, obwohl die Daten längst da
-  // sind — genau das Aufblitzen, um das es hier geht.
+  // sind - genau das Aufblitzen, um das es hier geht.
   const [data, setData]       = useState<WarframesResponse | null>(wfCache);
   const [loading, setLoading] = useState(wfCache === null);
   const [failed, setFailed]   = useState(false);
   const [reload, setReload]   = useState(0);
 
-  // Die Medianzeile klebt unter der Kopfzeile — dafür muss deren Höhe bekannt
+  // Die Medianzeile klebt unter der Kopfzeile - dafür muss deren Höhe bekannt
   // sein. Gemessen statt gesetzt: die Spaltenköpfe brechen je nach Text auf zwei
   // oder drei Zeilen um, und eine geratene Konstante schob die Medianzeile
   // prompt unter den Kopf.
@@ -316,7 +316,7 @@ export const WarframesPage = () => {
       if (av == null) return 1;               // Leerwerte immer ans Ende
       if (bv == null) return -1;
       // Gleichstand bricht über den Namen. Ohne Tiebreaker springt die
-      // Reihenfolge beim Gruppenwechsel — dieselbe Begründung wie i.slug in den
+      // Reihenfolge beim Gruppenwechsel - dieselbe Begründung wie i.slug in den
       // Ranglisten der API.
       return av === bv ? byName(a, b) : (sortDir === "desc" ? bv - av : av - bv);
     });
@@ -338,7 +338,7 @@ export const WarframesPage = () => {
   };
 
   /**
-   * Klick kopiert den Zellinhalt — so, wie er dasteht („1.200", „38,1%",
+   * Klick kopiert den Zellinhalt - so, wie er dasteht („1.200", „38,1%",
    * „Ash Prime"). Nicht der Rohwert: kopiert wird, was man gerade abliest.
    *
    * Ebenfalls delegiert und ohne State: die Rückmeldung ist eine Klasse am
@@ -352,15 +352,15 @@ export const WarframesPage = () => {
     const cell = (e.target as HTMLElement).closest("td,th") as HTMLTableCellElement | null;
     if (!cell) return;
     // Die Kopfzeile sortiert, sie kopiert nicht. Die Medianzeile steht ebenfalls
-    // im thead, ist aber Inhalt — deshalb die Prüfung auf die Kopfzeile selbst.
+    // im thead, ist aber Inhalt - deshalb die Prüfung auf die Kopfzeile selbst.
     if (cell.parentElement === headRef.current) return;
 
     // currentTarget JETZT festhalten: React setzt es zurück, sobald der Handler
-    // synchron zurückkehrt — nach dem await unten wäre es null.
+    // synchron zurückkehrt - nach dem await unten wäre es null.
     const table = e.currentTarget;
 
     const text = cell.innerText.trim();
-    if (!text || text === "—") return;
+    if (!text || text === "-") return;
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -383,7 +383,7 @@ export const WarframesPage = () => {
         display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
       }}>
         {/* Derselbe Schalter wie im Dashboard, nur eine Stufe größer. Ohne
-            Beschriftung wie dort auch — die Erklärung steht im Tooltip. */}
+            Beschriftung wie dort auch - die Erklärung steht im Tooltip. */}
         <SlideToggle<WfMode>
           ariaLabel={t("Number display")}
           value={mode}
@@ -412,7 +412,7 @@ export const WarframesPage = () => {
           })}
         </div>
 
-        {/* marginLeft: auto statt Trennstrich — der Abstand trennt schon. */}
+        {/* marginLeft: auto statt Trennstrich - der Abstand trennt schon. */}
         <div style={{ position: "relative", width: 300, maxWidth: "100%", marginLeft: "auto" }}>
           <svg width="14" height="14" viewBox="0 0 13 13" fill="none"
             style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
@@ -484,7 +484,7 @@ export const WarframesPage = () => {
           }}>
             {/* borderCollapse: separate überschreibt das globale collapse aus
                 index.css. Bei collapse gehören die Rahmen der Tabelle statt den
-                Zellen — die klebende Kopf- und Medianzeile verlöre ihre Kante. */}
+                Zellen - die klebende Kopf- und Medianzeile verlöre ihre Kante. */}
             <table
               className={TBL}
               onMouseOver={onCellOver}
@@ -508,7 +508,7 @@ export const WarframesPage = () => {
               <thead>
                 <tr ref={headRef}>
                   {/* color: C.t2 überall, auch für die aktive Spalte. SortableTH
-                      würde sie golden setzen — weil die Vorgabesortierung der
+                      würde sie golden setzen - weil die Vorgabesortierung der
                       Name ist, stünde dieser Kopf dann dauerhaft anders da als
                       seine Nachbarn. Welche Spalte sortiert, sagt hier allein
                       das Sortiersymbol (volle Deckkraft, goldener Pfeilarm). */}
@@ -535,7 +535,7 @@ export const WarframesPage = () => {
                   ))}
                 </tr>
 
-                {/* Medianzeile — der Bezugspunkt, deshalb nie eingefärbt und
+                {/* Medianzeile - der Bezugspunkt, deshalb nie eingefärbt und
                     auch im Abweichungsmodus absolut. Aus „+12,3 %" und dem
                     Median darüber lässt sich der echte Wert zurückrechnen, aus
                     „+12,3 %" und „±0 %" nicht. */}
@@ -553,7 +553,7 @@ export const WarframesPage = () => {
                       textAlign: "right", padding: CELL_PAD,
                       borderBottom: `1px solid ${C.b2}`, ...TW.num, color: C.t,
                     }}>
-                      {med[col.key] == null ? "—" : `${num(med[col.key], col.digits)}${col.unit ?? ""}`}
+                      {med[col.key] == null ? "-" : `${num(med[col.key], col.digits)}${col.unit ?? ""}`}
                     </td>
                   ))}
                 </tr>
@@ -595,7 +595,7 @@ export const WarframesPage = () => {
         )}
       </div>
 
-      {/* Legende — Farbe darf nicht die einzige Auskunft sein. Im Werte-Modus
+      {/* Legende - Farbe darf nicht die einzige Auskunft sein. Im Werte-Modus
           steht der Median direkt darüber, im Abweichungsmodus sagt das
           Vorzeichen dasselbe wie die Farbe.
 

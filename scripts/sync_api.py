@@ -194,7 +194,7 @@ def apply_field_allowlist(item: dict, export_type: str) -> dict:
 # -------------------------
 def create_schema(conn):
     with conn.cursor() as cur:
-        # items — normalized market data with JSONB raw copy
+        # items - normalized market data with JSONB raw copy
         cur.execute("""
             CREATE TABLE IF NOT EXISTS market_items (
                 id         TEXT PRIMARY KEY,
@@ -228,7 +228,7 @@ def create_schema(conn):
         # Namen, damit „Einkerbung" dasselbe findet wie „Serration".
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_items_i18n_de_name ON market_items ((raw->'i18n'->'de'->>'name'));")
 
-        # Vorberechnete Ranglisten — siehe migrations/008_precomputed_tops.sql.
+        # Vorberechnete Ranglisten - siehe migrations/008_precomputed_tops.sql.
         # payload als JSONB, damit ein neues Feld in der Rangliste keine Migration
         # erzwingt; source_updated ist der Frischeschutz gegen veraltete Stände.
         cur.execute("""
@@ -268,7 +268,7 @@ def create_schema(conn):
         # Einzelspalte: SELECT MAX(ts) verankert jedes Fenster und lief ohne
         # diesen Index als voller Seq Scan, zweimal je Abfrage.
         cur.execute("CREATE INDEX IF NOT EXISTS idx_market_stats_48h_ts ON market_stats_48h (ts);")
-        # Kein PK auf (item_id, ts): die API liefert je Zeitpunkt mehrere Zeilen —
+        # Kein PK auf (item_id, ts): die API liefert je Zeitpunkt mehrere Zeilen -
         # eine pro mod_rank (Mods) bzw. subtype (z.B. Fischgrößen). Beide sind für
         # die meisten Items NULL und können deshalb nicht in einen PK → Unique-Index
         # über COALESCE. Siehe migrations/004 und 005.
@@ -328,7 +328,7 @@ def create_schema(conn):
         # Export nicht hat: das Wachstum bis Rang 30 (33 der 117 Frames weichen
         # von der Standardregel ab), die Startenergie und die Textfelder für die
         # aufklappbare Detailzeile. Die Zeilen der Übersicht kommen aus
-        # wfpe_items — ein Frame ohne Eintrag hier fällt auf das
+        # wfpe_items - ein Frame ohne Eintrag hier fällt auf das
         # Standardwachstum zurück, fehlt aber nie.
         cur.execute("""
             CREATE TABLE IF NOT EXISTS wiki_warframes (
@@ -385,7 +385,7 @@ def fetch_wfpe_file(filename: str, timeout: int = 30, max_retries: int = 4) -> l
             # Log any unexpected HTTP status so we can diagnose issues
             if not r.ok:
                 logging.warning(
-                    f"{filename}: HTTP {r.status_code} — "
+                    f"{filename}: HTTP {r.status_code} - "
                     f"preview: {r.text[:120]!r}"
                 )
                 r.raise_for_status()
@@ -393,7 +393,7 @@ def fetch_wfpe_file(filename: str, timeout: int = 30, max_retries: int = 4) -> l
             # Sanity-check: warn if a file came back empty so we can spot issues fast
             if (isinstance(data, list) and len(data) == 0) or \
                (isinstance(data, dict) and len(data) == 0):
-                logging.warning(f"{filename}: parsed as empty {type(data).__name__} — URL: {url}")
+                logging.warning(f"{filename}: parsed as empty {type(data).__name__} - URL: {url}")
             return data
         except Exception as e:
             # Catch-all: covers RequestException, JSONDecodeError, etc.
@@ -406,7 +406,7 @@ def fetch_wfpe_file(filename: str, timeout: int = 30, max_retries: int = 4) -> l
                     pass
                 return None
             wait = 2 ** attempt
-            logging.warning(f"Error fetching {filename} (attempt {attempt}/{max_retries}): {e} — retrying in {wait}s")
+            logging.warning(f"Error fetching {filename} (attempt {attempt}/{max_retries}): {e} - retrying in {wait}s")
             time.sleep(wait)
     return None
 
@@ -414,11 +414,11 @@ def fetch_wfpe_file(filename: str, timeout: int = 30, max_retries: int = 4) -> l
 def fetch_wfpe_dicts() -> tuple[dict, dict]:
     """
     Fetch EN and DE localisation dicts.
-    Returns (dict_en, dict_de) — both map loc-key → translated string.
+    Returns (dict_en, dict_de) - both map loc-key → translated string.
     """
     dict_en = fetch_wfpe_file("dict.en") or {}
     dict_de = fetch_wfpe_file("dict.de") or {}
-    logging.info(f"Localisation dicts loaded — EN: {len(dict_en)}, DE: {len(dict_de)}")
+    logging.info(f"Localisation dicts loaded - EN: {len(dict_en)}, DE: {len(dict_de)}")
     return dict_en, dict_de
 
 
@@ -460,7 +460,7 @@ def fetch_all_wfpe(max_workers: int = 3) -> dict[str, list]:
         first_val = next(iter(data.values()), None)
 
         if isinstance(first_val, dict):
-            # PRIMARY FORMAT — used by almost all exports:
+            # PRIMARY FORMAT - used by almost all exports:
             # { "/Lotus/Weapons/...": { <item fields> }, ... }
             # The dict KEY is the uniqueName. Inject it into each item.
             items = []
@@ -471,7 +471,7 @@ def fetch_all_wfpe(max_workers: int = 3) -> dict[str, list]:
                 items.append(item)
             return name, items
 
-        # REWARD FORMAT — ExportRewards:
+        # REWARD FORMAT - ExportRewards:
         # { "/Lotus/.../TableName": [ [rewardDict, ...], ... ], ... }
         # No canonical uniqueName per reward; use "tableKey::idx" as surrogate.
         combined = []
@@ -699,7 +699,7 @@ def fetch_single_statistics(slug, max_retries=3, delay=2):
 
     Zur v2-URL wird nur bei 404 auf v1 gewechselt, also wenn der Endpunkt dort
     wirklich nicht existiert. Früher lief jeder Slug nach drei erschöpften
-    Versuchen komplett neu auf v2 — sechs Anfragen pro Item, bei einer Störung
+    Versuchen komplett neu auf v2 - sechs Anfragen pro Item, bei einer Störung
     rund 22.800 statt 3.800. Gegen ein überlastetes Backend hilft dieselbe
     Anfrage unter anderer Versionsnummer ohnehin nicht.
 
@@ -787,7 +787,7 @@ def _dedupe(rows: list, key_len: int) -> list:
 
     ON CONFLICT DO UPDATE bricht ab, wenn ein einzelnes INSERT dieselbe Zielzeile
     zweimal trifft ("command cannot affect row a second time"). Die API liefert
-    das gelegentlich — deshalb hier absichern, statt auf Wohlverhalten zu hoffen.
+    das gelegentlich - deshalb hier absichern, statt auf Wohlverhalten zu hoffen.
     """
     seen = {}
     for r in rows:
@@ -969,7 +969,7 @@ def refresh_sell_offers(conn, workers: int = 6):
     Niedrigstes Verkaufsangebot für Items OHNE frische Handelsdaten.
 
     Rund 1190 von 3825 Items haben keine Handelsdaten der letzten 48 Stunden und
-    zeigten deshalb überall „—", obwohl Angebote existieren — für „Warm Coat"
+    zeigten deshalb überall „-", obwohl Angebote existieren - für „Warm Coat"
     sind es 107. Etwa zwei Drittel davon liefern tatsächlich ein Angebot; der
     Rest hat schlicht keinen Verkäufer.
 
@@ -1129,7 +1129,7 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
         else:
             logging.info("Skipping stats fetch/store (dry-run or skip-market).")
 
-        # Referenzpreise immer aktualisieren — sie hängen an den gerade
+        # Referenzpreise immer aktualisieren - sie hängen an den gerade
         # geschriebenen Statistiken, nicht am Housekeeping.
         if not dry_run and not skip_market:
             try:
@@ -1160,7 +1160,7 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
                 logging.error(f"precompute_drops fehlgeschlagen: {e}", exc_info=True)
         if not skip_wfpe and not dry_run and not slugs:
             # Ergänzt die Warframe-Übersicht um das, was der Export nicht kennt:
-            # Rang-30-Wachstum und Startenergie. Fehlschlag ist nicht fatal — die
+            # Rang-30-Wachstum und Startenergie. Fehlschlag ist nicht fatal - die
             # Seite rechnet dann mit dem alten Stand aus wiki_warframes weiter.
             try:
                 import sync_warframes
@@ -1176,7 +1176,7 @@ def main(dry_run=False, workers=6, wfpe_workers=8, skip_wfpe=False, skip_market=
             except Exception as e:
                 logging.error(f"sync_images fehlgeschlagen: {e}", exc_info=True)
 
-        # Bei --slug lief kein vollständiger Sync — der Zeitstempel im Footer
+        # Bei --slug lief kein vollständiger Sync - der Zeitstempel im Footer
         # würde sonst eine Aktualität vortäuschen, die es nicht gibt.
         if not slugs:
             try:

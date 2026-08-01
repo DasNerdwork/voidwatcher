@@ -10,11 +10,11 @@ interface TickerBannerProps {
 }
 
 // memo: verhindert Re-Render solange sich die items-Referenz nicht ändert.
-// App.tsx re-rendert jede Sekunde (Uhr) — ohne memo würde der Ticker jedes
+// App.tsx re-rendert jede Sekunde (Uhr) - ohne memo würde der Ticker jedes
 // Mal mitrendern. Der Neustart der Scroll-Animation passiert damit nur noch,
 // wenn sich der Ticker-Inhalt tatsächlich ändert.
 export const TickerBanner = memo(({ items }: TickerBannerProps) => {
-  // memo() hält den Ticker aus dem Rendern von App heraus — ein Sprachwechsel
+  // memo() hält den Ticker aus dem Rendern von App heraus - ein Sprachwechsel
   // erreicht ihn deshalb nur über den Context. Vor dem Early Return, sonst
   // hinge die Hook-Zahl an der Datenlage (React #300).
   useI18n();
@@ -89,7 +89,7 @@ export const TickerBanner = memo(({ items }: TickerBannerProps) => {
                     {pctChange(chg)}
                   </span>
                 ) : (
-                  <span style={{ ...T.num, color: C.t2 }}>—</span>
+                  <span style={{ ...T.num, color: C.t2 }}>-</span>
                 )}
               </>,
               {

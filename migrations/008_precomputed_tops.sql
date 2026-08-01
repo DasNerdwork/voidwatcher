@@ -27,7 +27,7 @@
 -- `source_updated` ist der Frischeschutz: weicht der Wert von metadata.last_updated
 -- ab, gilt die Vorberechnung als veraltet und die API rechnet live. Ein
 -- fehlgeschlagener Precompute-Lauf führt damit zu langsamen, aber KORREKTEN
--- Antworten — nie zu schnellen falschen.
+-- Antworten - nie zu schnellen falschen.
 
 BEGIN;
 
@@ -56,9 +56,9 @@ CREATE INDEX IF NOT EXISTS top_lists_lookup
 -- Angebotspreise für Items ohne Handelsdaten.
 --
 -- 1290 von 3825 Items (33,7 %) haben kein 48h-Fenster und zeigen deshalb überall
--- „—". Für „Warm Coat" existieren gleichzeitig 107 sichtbare Verkaufsangebote.
+-- „-". Für „Warm Coat" existieren gleichzeitig 107 sichtbare Verkaufsangebote.
 --
--- Ein Angebot ist KEIN Handelspreis — die Oberfläche muss das getrennt
+-- Ein Angebot ist KEIN Handelspreis - die Oberfläche muss das getrennt
 -- ausweisen. Deshalb eigene Spalten statt einer stillen Ergänzung von price_median
 -- oder avg_price.
 --
@@ -77,7 +77,7 @@ ALTER TABLE market_items ADD COLUMN IF NOT EXISTS sell_orders_at    TIMESTAMPTZ;
 --
 -- `SELECT MAX(ts)` bzw. `MAX(day)` verankert jedes Fenster und läuft zweimal je
 -- Abfrage. Ohne diese Indizes ist das jedes Mal ein voller Seq Scan (48.670 bzw.
--- 286.819 Zeilen). Der Gewinn liegt bei wenigen Prozent der Gesamtlaufzeit — er
+-- 286.819 Zeilen). Der Gewinn liegt bei wenigen Prozent der Gesamtlaufzeit - er
 -- zählt für den Live-Rückfall und den Precompute-Lauf, nicht für den Normalfall.
 -- ------------------------------------------------------------------
 

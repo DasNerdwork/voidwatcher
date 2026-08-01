@@ -127,12 +127,12 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, [hours, activeTag, metric]);
 
-  // Ticker: eigene, ungefilterte Datenquelle (fest 24H) — bewusst entkoppelt
+  // Ticker: eigene, ungefilterte Datenquelle (fest 24H) - bewusst entkoppelt
   // von hours/activeTag, damit Dashboard-Filter den Ticker nicht neu starten.
   // State wird nur ersetzt wenn sich der Inhalt wirklich ändert, damit die
   // CSS-Animation auch beim 60s-Refresh nicht springt.
   //
-  // Gewinner und Verlierer im Wechsel, je 5 — ein Laufband, das nur steigende
+  // Gewinner und Verlierer im Wechsel, je 5 - ein Laufband, das nur steigende
   // Werte zeigt, beschreibt den Markt nicht. Die Zahl 10 ist keine Willkür:
   // .ticker-track läuft mit fester Dauer über translateX(-50%), mehr Einträge
   // bedeuten also proportional schnelleres Scrollen.
@@ -244,7 +244,7 @@ const App: React.FC = () => {
           {NAV.map(tab => {
             const active = isTabActive(tab);
             // hoverSurface statt handgeschriebener Handler: dieselbe Wirkung,
-            // aber im Hausmuster — restColor C.t2 ist genau die Ruhefarbe von
+            // aber im Hausmuster - restColor C.t2 ist genau die Ruhefarbe von
             // navBtnStyle(false).
             const shared = {
               style: navBtnStyle(active),

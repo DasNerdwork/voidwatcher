@@ -1,5 +1,5 @@
 # Laufzeitabhängigkeiten, gepinnt auf die Versionen des Produktivhosts
-# (Python 3.13.4). Bis hierhin gab es gar keine Liste — die Versionen waren nur
+# (Python 3.13.4). Bis hierhin gab es gar keine Liste - die Versionen waren nur
 # aus dem installierten System ablesbar.
 #
 # Installation auf Debian/Ubuntu ggf. mit --break-system-packages, siehe README.

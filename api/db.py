@@ -19,7 +19,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 # ──────────────────────────────────────────────
 # VERBINDUNGEN
 # ──────────────────────────────────────────────
-# Vorher öffnete jede query() eine eigene Verbindung und schloss sie wieder —
+# Vorher öffnete jede query() eine eigene Verbindung und schloss sie wieder -
 # gemessen 8,5 ms je Verbindungsaufbau, bei fünf Abfragen pro /api/top also rund
 # 43 ms allein für Handshakes. Schlimmer als die Latenz ist die Obergrenze: der
 # Server erlaubt 100 gleichzeitige Verbindungen, und uvicorn bedient synchrone
@@ -45,7 +45,7 @@ def _pool():
 
 
 def get_conn():
-    """Einzelverbindung ohne Pool — für Skripte, die den Prozess ohnehin beenden."""
+    """Einzelverbindung ohne Pool - für Skripte, die den Prozess ohnehin beenden."""
     return psycopg2.connect(
         host=os.getenv("VW_HOST"),
         port=os.getenv("VW_PORT"),
@@ -64,7 +64,7 @@ def query(sql, params=None):
             return cur.fetchall()
     except Exception:
         # Eine Verbindung mit abgebrochener Transaktion darf nicht in den Pool
-        # zurück — der nächste Nutzer bekäme sonst "current transaction is
+        # zurück - der nächste Nutzer bekäme sonst "current transaction is
         # aborted" für eine völlig andere Abfrage.
         conn.rollback()
         raise
@@ -112,7 +112,7 @@ def get_last_updated():
 #   • 'weapon'   enthält zu 471/769 Prime-Teile. Für die Kategorie WEAPONS sind
 #                nur die Nicht-Prime-Waffen gemeint → braucht eine Negation.
 #
-# Abgefragt wird die Spalte i.tags statt (i.raw->>'tags')::jsonb — inhaltlich
+# Abgefragt wird die Spalte i.tags statt (i.raw->>'tags')::jsonb - inhaltlich
 # identisch (geprüft: 0 Abweichungen), aber nur die Spalte nutzt den GIN-Index
 # idx_market_items_tags.
 _CATEGORY_FILTERS: dict[str, str] = {
@@ -128,7 +128,7 @@ def _tag_filter(tag: str | None) -> tuple[str, list]:
     """
     SQL-Bedingung für eine Kategorie. Unbekannte Werte (z.B. 'warframe' oder
     'resource' aus einem alten Lesezeichen) filtern bewusst NICHT, statt eine
-    leere Liste zu liefern — eine unbekannte Kategorie soll nicht wie
+    leere Liste zu liefern - eine unbekannte Kategorie soll nicht wie
     "nichts gefunden" aussehen.
     """
     if not tag:
@@ -152,20 +152,20 @@ def _rank_clause(rank_mode: str) -> str:
 # warframe.market-Daten sind Nutzerangaben, keine Ingame-Trades. Zwei getrennte
 # Probleme, deshalb zwei Verfahren:
 #
-#   1. UNMÖGLICHE PREISE — "Warm Coat" für 500.067 ₱ bei einem Median von 10 ₱.
+#   1. UNMÖGLICHE PREISE - "Warm Coat" für 500.067 ₱ bei einem Median von 10 ₱.
 #      Lässt sich nicht über das Volumen abfangen (dieser Eintrag hatte Volumen 35),
 #      wohl aber über den Abstand zum eigenen Median des Items.
-#   2. ZU DÜNNE DATENLAGE — drei Trades von 5 auf 85 ₱ sind kein Markttrend.
+#   2. ZU DÜNNE DATENLAGE - drei Trades von 5 auf 85 ₱ sind kein Markttrend.
 #      Lässt sich nicht über Preisgrenzen abfangen, wohl aber über eine
 #      Glaubwürdigkeitsgewichtung.
 
 # 99 % aller Beobachtungen liegen unter dem 4,8-fachen ihres Item-Medians,
-# 99,9 % unter dem 15-fachen. Bei 20× bleiben 81 von 285.461 Zeilen übrig —
+# 99,9 % unter dem 15-fachen. Bei 20× bleiben 81 von 285.461 Zeilen übrig -
 # darunter alle zwölf Einträge über 5.000 ₱. Echte Ereignisse wie ein
 # Prime-Unvaulting bewegen sich im einstelligen Faktor und bleiben unberührt.
 PLAUSIBILITY_FACTOR = 20
 
-# Glaubwürdigkeit v/(v+m). Wirkt NUR auf die Sortierung — angezeigt wird immer
+# Glaubwürdigkeit v/(v+m). Wirkt NUR auf die Sortierung - angezeigt wird immer
 # der echte Wert.
 #
 #   Trades      m=10 (alt)   m=30 (jetzt)
@@ -194,7 +194,7 @@ MIN_VOLUME = 5
 EDGE_MIN_VOLUME = 5
 
 # Untergrenze NUR für den Prozent-Modus. Bei Cent-Items ist die prozentuale
-# Veränderung reines Rauschen: "Requiem I Relic" ging von 0,22 auf 0,67 ₱ —
+# Veränderung reines Rauschen: "Requiem I Relic" ging von 0,22 auf 0,67 ₱ -
 # rechnerisch +203 %, tatsächlich 0,45 Platin. 79 von 2346 gehandelten Items
 # liegen unter 2 ₱ und erzeugen systematisch solche Ausschläge.
 # Im absoluten Modus braucht es die Grenze nicht: dort fällt ein Cent-Item
@@ -207,7 +207,7 @@ def _metric_parts(metric: str) -> tuple[str, str]:
     (Sortier-Ausdruck, Zusatzbedingung fürs HAVING) je nach Metrik.
 
     "pct" ordnet nach prozentualer Veränderung und blendet Cent-Items aus,
-    "abs" nach der Platin-Differenz — dort ist die Untergrenze überflüssig,
+    "abs" nach der Platin-Differenz - dort ist die Untergrenze überflüssig,
     weil ein 1-₱-Item ohnehin keine nennenswerte Differenz erzeugt.
     """
     change_pct = "ROUND(((c.price - p.price) / NULLIF(p.price, 0) * 100)::numeric, 1)"
@@ -215,7 +215,7 @@ def _metric_parts(metric: str) -> tuple[str, str]:
     if metric == "abs":
         return change_abs, ""
     # Die Grenze gehört auf den NENNER, nicht auf den Fenster-Durchschnitt.
-    # Vorher stand hier AVG(s.avg_price) — daran scheiterte der Zweck: "Adarza
+    # Vorher stand hier AVG(s.avg_price) - daran scheiterte der Zweck: "Adarza
     # Kavat Imprint" hat 9,4 ₱ Durchschnitt und passierte die Grenze mühelos,
     # geteilt wurde aber durch 1,00 ₱. Genau diese Division erzeugt die
     # dreistelligen Prozentwerte, also muss sie geprüft werden.
@@ -234,7 +234,7 @@ def _window_48h(hours: float) -> str:
     Fenster der Stunden-Tabelle, verankert am jüngsten Datenpunkt statt an NOW().
 
     Der Anker ist nicht kosmetisch. Er stand zwar in _edge_cte schon richtig, das
-    äußere SELECT derselben Abfragen rechnete aber mit NOW() — Kachel und
+    äußere SELECT derselben Abfragen rechnete aber mit NOW() - Kachel und
     Prozentwert beschrieben damit verschiedene Zeiträume. Sichtbar wurde das als
     „Adarza Kavat Imprint: +900 %" neben „Preisspanne 8–13 ₱": der 1-₱-Bucket,
     der den Prozentwert erzeugte, lag im Fenster der Kennzahl und außerhalb dem
@@ -254,7 +254,7 @@ def _plausible_clause() -> str:
     """
     Schließt Preise aus, die zu weit vom Median des Items entfernt liegen.
 
-    price_median IS NULL bedeutet "keine Referenz" (neues Item ohne Historie) —
+    price_median IS NULL bedeutet "keine Referenz" (neues Item ohne Historie) -
     dann greift der Filter bewusst nicht: unbekannt ist nicht manipuliert.
     """
     return f"""AND (i.price_median IS NULL
@@ -267,7 +267,7 @@ def _credibility(volume_expr: str = "SUM(s.volume)") -> str:
 
 
 # Ab diesem Handelsvolumen gilt eine Platin-Differenz als voll belastbar.
-# Siehe _sort_weight — bewusst niedrig, weil im Platin-Modus die Differenz selbst
+# Siehe _sort_weight - bewusst niedrig, weil im Platin-Modus die Differenz selbst
 # schon aussagt, worum es geht.
 ABS_FULL_TRUST_VOLUME = 20
 
@@ -280,18 +280,18 @@ def _sort_weight(metric: str) -> str:
     anfällig sind:
 
     "pct" behält die volle Shrinkage v/(v+30). Ein Prozentwert entsteht aus einer
-    Division und explodiert bei kleinem Nenner — dort ist die Dämpfung über den
+    Division und explodiert bei kleinem Nenner - dort ist die Dämpfung über den
     gesamten Volumenbereich sinnvoll.
 
     "abs" wird dagegen primär nach der Differenz selbst sortiert. Eine
     Platin-Differenz von 23 ₱ ist eine Aussage über den Markt, egal ob sie auf 33
-    oder auf 175 Trades beruht — die volle Shrinkage drehte genau das um und
+    oder auf 175 Trades beruht - die volle Shrinkage drehte genau das um und
     schob 23,41 ₱ (33 Trades) hinter 14,93 ₱ (171 Trades). Eine Liste, deren
     sichtbare Zahlen nicht fallen, liest sich als kaputt.
 
     Bleibt der Schutz gegen das, was die Glaubwürdigkeit eigentlich abwehren
     soll: eine Handvoll Fantasiepreise. Dafür genügt ein Gewicht, das bei
-    ABS_FULL_TRUST_VOLUME sättigt — darüber ordnet es nichts mehr um, darunter
+    ABS_FULL_TRUST_VOLUME sättigt - darüber ordnet es nichts mehr um, darunter
     dämpft es (10 Trades → 0,5). Zusammen mit MIN_VOLUME und EDGE_MIN_VOLUME
     schafft es ein einzelner Trade ohnehin nicht in die Liste.
     """
@@ -312,7 +312,7 @@ def _sort_weight(metric: str) -> str:
 # vorberechneten Ranglisten in `top_lists` brauchen keine zweite Fassung je
 # Sprache, und ein Sprachwechsel kann keine halb gefüllten Caches erzeugen.
 #
-# Der deutsche Zweig fehlt, solange ein Item noch nicht neu gesynct wurde —
+# Der deutsche Zweig fehlt, solange ein Item noch nicht neu gesynct wurde -
 # deshalb überall NULLIF/COALESCE, damit ein leerer Name auf Englisch zurückfällt
 # statt eine leere Zelle zu erzeugen.
 
@@ -332,7 +332,7 @@ def _vw_avg(col: str) -> str:
     Ein Bucket kann mehrere Zeilen enthalten (eine je mod_rank). Gewichtet wird
     mit GREATEST(volume, 1), damit Buckets mit volume=0 nicht rausfallen.
     Die CASE-Konstruktion im Nenner zählt nur Zeilen mit, in denen die Spalte
-    auch gefüllt ist — sonst würde ein einzelnes NULL das Mittel nach unten ziehen.
+    auch gefüllt ist - sonst würde ein einzelnes NULL das Mittel nach unten ziehen.
     """
     return f"""ROUND(
                 (SUM({col} * GREATEST(s.volume, 1))
@@ -340,36 +340,36 @@ def _vw_avg(col: str) -> str:
                 )::numeric, 2)"""
 
 
-# Was `median` in den Ranglisten genau ist — die Unterscheidung ist wichtig, bevor
+# Was `median` in den Ranglisten genau ist - die Unterscheidung ist wichtig, bevor
 # jemand die Zahl anders beschriftet:
 #
 # warframe.market liefert je Bucket den Median der TATSÄCHLICHEN Trades dieses
 # Buckets. `_vw_avg('s.median')` mittelt diese Bucket-Mediane volumengewichtet über
 # das Fenster. Das ist ein Mittel von Medianen, KEIN Quantil über alle Einzeltrades
-# — die Oberfläche darf deshalb nicht „Hälfte der Trades darunter" behaupten. Sie
+# - die Oberfläche darf deshalb nicht „Hälfte der Trades darunter" behaupten. Sie
 # sagt „typischer Preis", und das trifft zu.
 #
 # Warum trotzdem so: dieselbe Aggregation nutzt get_item_history (siehe unten), die
 # Kachel zeigt damit exakt die Größe, die der Graph als Median-Linie zeichnet. Ein
 # eigenes percentile_disc über die Buckets wäre zwar ein echter Median, ergäbe aber
-# eine andere Zahl als die Linie daneben — genau der Widerspruch, den die
+# eine andere Zahl als die Linie daneben - genau der Widerspruch, den die
 # Datenqualitäts-Regeln oben vermeiden wollen.
 
 
 def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
     """
-    Erster und letzter Punkt eines Items im Zeitfenster — genau die beiden Enden
+    Erster und letzter Punkt eines Items im Zeitfenster - genau die beiden Enden
     der Linie, die ItemChart zeichnet.
 
     Vorgänger war ein Hälften-Vergleich (zweite Hälfte des Zeitraums gegen die
     erste, beide volumengewichtet). Rechnerisch robuster, aber im Bild nirgends
     nachvollziehbar: Meso E1 Relic lief über 7 Tage von 20 auf 70 ₱ und die
     Kennzahl meldete +33, weil sie 68,75 (2. Hälfte) gegen 36 (1. Hälfte) stellte.
-    Daneben stand zugleich „Eröffnung 20 ₱" — Eröffnung 20, aktuell 70,
+    Daneben stand zugleich „Eröffnung 20 ₱" - Eröffnung 20, aktuell 70,
     Veränderung +33 ergibt zusammen keinen Sinn.
 
     Ein Rand ist deshalb NICHT ein einzelner Bucket, sondern so viele Buckets,
-    bis EDGE_MIN_VOLUME Trades zusammenkommen — volumengewichtet gemittelt. Der
+    bis EDGE_MIN_VOLUME Trades zusammenkommen - volumengewichtet gemittelt. Der
     frühere Einzel-Bucket war im Median ein einziger Trade; „Adarza Kavat
     Imprint" meldete +900 %, weil ein 1-₱-Eintrag mit 2 Trades den Nenner
     stellte (Item-Median 9,5 ₱). Mit fünf Trades je Rand ergibt derselbe Fall
@@ -381,7 +381,7 @@ def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
     der zwei Fensterhälften gegeneinander stellte.
 
     Reicht das Fenster nicht für zwei GETRENNTE Ränder, überdeckt derselbe
-    Bucket beide Seiten. Dann bleibt die Vorperiode NULL — der Vergleich stellte
+    Bucket beide Seiten. Dann bleibt die Vorperiode NULL - der Vergleich stellte
     die Daten sonst sich selbst gegenüber und meldete „0 %", also eine Aussage,
     wo keine ist. Ebenso bei nur einem Bucket im Fenster: „keine
     Vergleichsbasis" ist etwas anderes als „unverändert".
@@ -397,7 +397,7 @@ def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
     rank_clause = _rank_clause(rank_mode)
     # „cum - vol < EDGE_MIN_VOLUME" heißt: alles, was VOR diesem Bucket lag, hat
     # die Schwelle noch nicht erreicht. Der Bucket, der sie überschreitet, ist
-    # damit gerade noch enthalten — sonst bliebe der Rand unter der Schwelle.
+    # damit gerade noch enthalten - sonst bliebe der Rand unter der Schwelle.
     lead = f"cum_a - vol < {EDGE_MIN_VOLUME}"
     tail = f"cum_z - vol < {EDGE_MIN_VOLUME}"
     return f"""
@@ -441,7 +441,7 @@ def _edge_cte(table: str, bucket: str, window: str, rank_mode: str) -> str:
 
 
 def _change_pct_cte(hours: float, rank_mode: str = "max") -> str:
-    """Stündliche Variante. Fenster ab dem jüngsten Datenpunkt, nicht ab NOW() —
+    """Stündliche Variante. Fenster ab dem jüngsten Datenpunkt, nicht ab NOW() -
     sonst wandert bei stehendem Sync das Fenster von den Daten weg. Dasselbe
     _window_48h nutzt das äußere SELECT, damit Kennzahl und Kacheln denselben
     Zeitraum beschreiben."""
@@ -468,7 +468,7 @@ def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
                    having: str = f"HAVING SUM(s.volume) >= {MIN_VOLUME}",
                    rank_mode: str = "max", metric: str = "pct") -> list:
     # Sortier-Basis ist der glaubwürdigkeitsgewichtete Score. Die Kennzahlen selbst
-    # werden unverändert zurückgegeben — nur die Reihenfolge ändert sich.
+    # werden unverändert zurückgegeben - nur die Reihenfolge ändert sich.
     # Shrinkage v/(v+m) statt LN(volume+1): auf 0…1 begrenzt, schwächt dünne
     # Einträge ab, statt sie zusätzlich zu verstärken.
     metric_expr, metric_having = _metric_parts(metric)
@@ -510,10 +510,10 @@ def _top_query_90d(days: int, tag_clause: str, rank_clause: str,
           {_plausible_clause()}
         GROUP BY i.id, i.slug, i.thumb_path, i.image_path, c.price, p.price, c.vol, p.vol, i.max_rank
         {having}
-        -- i.slug als Tiebreaker: bei Gleichstand (haeufig, etwa zwei Items mit
+        -- i.slug als Tiebreaker: bei Gleichstand (häufig, etwa zwei Items mit
         -- identischem Volumen) gibt Postgres sonst keine feste Reihenfolge. Live-
         -- Abfrage und Vorberechnung sortierten dadurch unterschiedlich, und die
-        -- Liste sprang zwischen zwei Aufrufen ohne jede Datenaenderung.
+        -- Liste sprang zwischen zwei Aufrufen ohne jede Datenänderung.
         ORDER BY {effective_order}, i.slug
         LIMIT %s
     """, tag_params + [limit])
@@ -578,7 +578,7 @@ def get_top_losers(hours, limit, tag: str | None = None, rank_mode: str = "max",
     Spiegelbild zu get_top_performers: Items mit dem stärksten Preisverfall.
 
     Die Dashboard-Karte "Verlierer" zog ihre Daten bisher aus top_performer und
-    nahm daraus den schwächsten Eintrag — bei steigendem Markt also einen Gewinner.
+    nahm daraus den schwächsten Eintrag - bei steigendem Markt also einen Gewinner.
     Echte Verlierer gibt es reichlich (792 Items im Minus über 24h), sie wurden
     nur nie abgefragt.
 
@@ -733,14 +733,14 @@ def get_most_traded(hours, limit, tag: str | None = None, rank_mode: str = "max"
 # VORBERECHNETE RANGLISTEN
 # ──────────────────────────────────────────────
 
-# Tiefe der Vorberechnung. Das Frontend fragt 10 an, die API erlaubt bis 200 —
+# Tiefe der Vorberechnung. Das Frontend fragt 10 an, die API erlaubt bis 200 -
 # alles über dieser Grenze fällt auf die Live-Berechnung zurück. 50 deckt jede
 # realistische Anfrage ab und kostet 72 Kombinationen × 4 Listen × 50 = 14.400
 # Zeilen, also nichts.
 PRECOMPUTE_DEPTH = 50
 
 # Welche Funktion welche Liste berechnet. Der Precompute-Lauf und der
-# Live-Rückfall greifen auf dieselbe Abbildung zu — dadurch KANN sich die
+# Live-Rückfall greifen auf dieselbe Abbildung zu - dadurch KANN sich die
 # vorberechnete Liste nicht von der berechneten unterscheiden.
 TOP_LIST_KINDS = {
     "performer": lambda h, lim, tag, rm, m: get_top_performers(h, lim, tag=tag, rank_mode=rm, metric=m),
@@ -1115,13 +1115,13 @@ def _like_escape(term: str) -> str:
     Ohne das ist `q=%` kein Suchbegriff, sondern ein Platzhalter für alles: die
     Suche lieferte dann die zehn meistgehandelten Items statt „nichts gefunden",
     und `q=_____` traf jedes Wort ab fünf Zeichen. Ein Sicherheitsproblem ist es
-    nicht — gemessen dauert `q=%%%%%` 46 ms, genauso lange wie `q=ember` —,
+    nicht - gemessen dauert `q=%%%%%` 46 ms, genauso lange wie `q=ember` -,
     aber die Antwort war schlicht falsch.
 
     Absichtlich KEINE Zeichen-Whitelist auf q: echte Itemnamen enthalten
     Apostrophe („Warrior's Rest"), Klammern („Melee Riven Mod (Veiled)") und
     Umlaute („Höllvanian Old Town in Fall"). Ein Filter darauf würde die Suche
-    beschädigen, ohne ein Risiko abzuwehren — q ist an jeder Stelle als
+    beschädigen, ohne ein Risiko abzuwehren - q ist an jeder Stelle als
     %s-Parameter gebunden.
     """
     return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -1139,18 +1139,18 @@ def search_items(search_term: str, limit: int = 8):
     Ranking: exakter Treffer → Präfix-Treffer → Teiltreffer, dann Volumen.
     Preisdaten per LEFT JOIN, damit Items ohne Trades trotzdem erscheinen.
 
-    Preisquelle in drei Stufen, damit moeglichst jede Zeile eine Zahl traegt:
+    Preisquelle in drei Stufen, damit möglichst jede Zeile eine Zahl trägt:
     aktueller 48h-Schnitt → letzter Tag mit Handel aus market_stats_90d
     (`price_day` nennt ihn) → niedrigstes Verkaufsangebot (`is_offer`).
     Von 3825 Items bleiben damit 90 ohne Preis statt 844: 2421 haben frische
-    Handelsdaten, 1292 einen aelteren Handelstag, 22 nur ein Angebot.
+    Handelsdaten, 1292 einen älteren Handelstag, 22 nur ein Angebot.
 
     Die verbleibenden 90 zerfallen in 38 ohne jede Statistikzeile und 52, deren
-    Zeilen an _rank_clause("max") scheitern — Mods, die nur ungerankt gehandelt
-    wurden. Deren Preis waere eine andere Ware als die angezeigte Rangstufe
+    Zeilen an _rank_clause("max") scheitern - Mods, die nur ungerankt gehandelt
+    wurden. Deren Preis wäre eine andere Ware als die angezeigte Rangstufe
     ("Ward Recovery" Rang 0 statt Rang 3); lieber keine Zahl als die falsche.
 
-    Die Sortierung bleibt am 48h-Handelsvolumen — ein Ersatzpreis aendert die
+    Die Sortierung bleibt am 48h-Handelsvolumen - ein Ersatzpreis ändert die
     Anzeige, nicht die Rangfolge.
     """
     term = search_term.strip()
@@ -1164,13 +1164,13 @@ def search_items(search_term: str, limit: int = 8):
                 SUM(s.volume)                       AS volume
             FROM market_stats_48h s
             JOIN market_items i ON i.id = s.item_id
-            -- Anker am juengsten Datenpunkt wie ueberall sonst, nicht NOW():
+            -- Anker am jüngsten Datenpunkt wie überall sonst, nicht NOW():
             -- mit NOW() verlor ein Item seinen Preis, sobald sein letzter
-            -- Bucket aelter als 48h wurde — der Sync laeuft aber nur einmal
-            -- taeglich, und refresh_sell_offers hatte es zu seiner Laufzeit
+            -- Bucket älter als 48h wurde - der Sync läuft aber nur einmal
+            -- täglich, und refresh_sell_offers hatte es zu seiner Laufzeit
             -- noch als "hat Daten" eingestuft. 59 Items fielen so durch.
-            -- Der Plausibilitaetsfilter kostet hier nichts (kein Item verliert
-            -- dadurch alle Zeilen), haelt aber Ausreisser aus dem Schnitt.
+            -- Der Plausibilitätsfilter kostet hier nichts (kein Item verliert
+            -- dadurch alle Zeilen), hält aber Ausreißer aus dem Schnitt.
             WHERE {_window_48h(48)}
               {_rank_clause("max")}
               {_plausible_clause()}
@@ -1192,9 +1192,9 @@ def search_items(search_term: str, limit: int = 8):
         FROM market_items i
         LEFT JOIN prices p ON p.item_id = i.id
         -- Letzter Tag MIT Handel. Die Bedingung auf p.avg_price steht INNEN,
-        -- damit der Zweig fuer Items mit frischem Preis gar nicht erst laeuft.
-        -- Gewichtung und Plausibilitaetsfilter wie in get_item_history bzw. den
-        -- Ranglisten — ohne den Filter meldete "Warm Coat" hier 500.067 ₱.
+        -- damit der Zweig für Items mit frischem Preis gar nicht erst läuft.
+        -- Gewichtung und Plausibilitätsfilter wie in get_item_history bzw. den
+        -- Ranglisten - ohne den Filter meldete "Warm Coat" hier 500.067 ₱.
         LEFT JOIN LATERAL (
             SELECT s.day, {_vw_avg('s.avg_price')} AS avg_price
             FROM market_stats_90d s
@@ -1212,7 +1212,7 @@ def search_items(search_term: str, limit: int = 8):
         -- „Serration", sonst läuft die Suche im Deutsch-Modus ins Leere und im
         -- Englisch-Modus findet niemand ein Item, dessen deutschen Namen er aus
         -- dem Spiel kennt. Beide Namen liegen in derselben Zeile, es kommt kein
-        -- JOIN dazu — und beide Pfade sind indiziert (migrations/010).
+        -- JOIN dazu - und beide Pfade sind indiziert (migrations/010).
         WHERE (i.raw->'i18n'->'en'->>'name') ILIKE %s ESCAPE '\\'
            OR (i.raw->'i18n'->'de'->>'name') ILIKE %s ESCAPE '\\'
            OR REPLACE(i.slug, '_', ' ') ILIKE %s ESCAPE '\\'
@@ -1317,7 +1317,7 @@ def get_item_detail(slug: str):
             ranks.mod_ranks,
             -- Niedrigstes Verkaufsangebot. Nur gefüllt, wenn das Item keine
             -- Handelsdaten hat (siehe refresh_sell_offers). Ein Angebot ist KEIN
-            -- Handelspreis — die Oberfläche weist es getrennt aus.
+            -- Handelspreis - die Oberfläche weist es getrennt aus.
             i.sell_price_min, i.sell_price_rank, i.sell_price_status, i.sell_orders_at
         FROM target i, w24, w48, prev24, ranks
     """, (slug,))
@@ -1343,7 +1343,7 @@ def get_item_history(slug: str, hours: int = 48, mod_rank: int | None = None):
     bucket = "s.ts" if hours <= 48 else "s.day"
     table  = "market_stats_48h" if hours <= 48 else "market_stats_90d"
     # Anker ist der jüngste Datenpunkt, nicht NOW(): steht der Sync, wäre der
-    # 24H-Graph sonst leer, während die Ranglisten weiter rechnen — und bei den
+    # 24H-Graph sonst leer, während die Ranglisten weiter rechnen - und bei den
     # Tagesdaten liefen Graph und Kennzahl um die Verzögerung auseinander.
     if hours <= 48:
         window = f"AND s.ts >= (SELECT MAX(ts) FROM market_stats_48h) - INTERVAL '{hours} hours'"
@@ -1379,7 +1379,7 @@ def get_drop_sources_for_slug(slug: str):
     Drop-Quellen für ein Item, per Slug und dedupliziert.
 
     item_drop_sources hält pro Relic vier Zeilen (eine je relic_quality) mit
-    identischen Chancen — DISTINCT ON wirft die Duplikate raus. Enthält alle
+    identischen Chancen - DISTINCT ON wirft die Duplikate raus. Enthält alle
     drei source_types (relic / enemy / mission).
     """
     return query("""
@@ -1401,7 +1401,7 @@ def get_relic_contents(item_name: str):
     """
     Reverse-Lookup für Relic-Items: was steckt in diesem Relic?
 
-    Relics selbst haben keine Einträge in item_drop_sources — wohl aber alle
+    Relics selbst haben keine Einträge in item_drop_sources - wohl aber alle
     Items, die aus ihnen droppen. Der Relic-Name im Item-Namen ("Axi E1 Relic")
     entspricht dabei item_drop_sources.relic_name ("Axi E1").
     """
@@ -1438,7 +1438,7 @@ def get_set_parts(slug: str):
     """
     Set und zugehörige Einzelteile.
 
-    Zuordnung über das Slug-Präfix — alle 230 Set-Slugs enden auf '_set'.
+    Zuordnung über das Slug-Präfix - alle 230 Set-Slugs enden auf '_set'.
     Wichtig: das LÄNGSTE passende Präfix gewinnt, sonst würde z.B.
     'velox_prime_barrel' (Präfix 'velox') fälschlich dem 'velox_set'
     zugeschlagen statt dem 'velox_prime_set'.
@@ -1620,7 +1620,7 @@ def classify_item_by_tags(tags: str) -> tuple[str, str | None]:
     Die Namen sind **englische Kanonwerte**, keine Anzeigetexte: sie sind
     gleichzeitig Filterwert im Frontend und Schlüssel in den Farbtabellen. Die
     Übersetzung passiert dort über t(). Vorher standen hier gemischte deutsche
-    und englische Begriffe („Waffen", „Misc", „Sonstiges") — die ließen sich
+    und englische Begriffe („Waffen", „Misc", „Sonstiges") - die ließen sich
     nicht übersetzen, ohne den Filterzustand mitzuübersetzen.
 
     Die REIHENFOLGE ist die Klassifikation: Items tragen mehrere Tags, der erste
@@ -1676,7 +1676,7 @@ def classify_item_by_tags(tags: str) -> tuple[str, str | None]:
 
 def get_warframe_rows():
     """
-    Rohzeilen der Warframe-Übersicht — Basiswerte, Wiki-Ergänzung, Marktbezug.
+    Rohzeilen der Warframe-Übersicht - Basiswerte, Wiki-Ergänzung, Marktbezug.
 
     Die ZEILEN kommen aus wfpe_items, nicht aus wiki_warframes: das Wiki-Modul
     wird von Hand gepflegt, und ein Aussetzer dort darf keine Frames kosten.
@@ -1691,7 +1691,7 @@ def get_warframe_rows():
     Er folgt derselben Stufung wie die Suche: 48h-Handelsschnitt, sonst
     niedrigstes Verkaufsangebot.
 
-    DIE ABFRAGE GEHT VON DEN 117 FRAMES AUS, nicht von den Markt-Items — und das
+    DIE ABFRAGE GEHT VON DEN 117 FRAMES AUS, nicht von den Markt-Items - und das
     ist der ganze Unterschied zwischen 36 ms und 240 ms. In der ersten Fassung
     stand `LEFT JOIN market_items i ON i.game_ref = w.unique_name` frei im
     SELECT; `game_ref` hat keinen Index, und der Planer schätzte die Trefferzahl
@@ -1701,7 +1701,7 @@ def get_warframe_rows():
     Mit der `frames`-CTE als Ausgangspunkt fällt der Marktbezug auf ~50 Zeilen
     zusammen, und die Preis-CTE muss nur noch deren Statistiken mitteln statt
     die der ganzen Tabelle. Wer hier umbaut, prüft den Plan mit EXPLAIN ANALYZE
-    nach — die Zeile „Rows Removed by Join Filter" verrät den Rückfall sofort.
+    nach - die Zeile „Rows Removed by Join Filter" verrät den Rückfall sofort.
     """
     return query(f"""
         WITH frames AS (

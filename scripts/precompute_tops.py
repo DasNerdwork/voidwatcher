@@ -15,7 +15,7 @@ Die Matrix:
                                         → 72 Kombinationen à 4 Listen
 
 `rank_mode` wird bewusst NICHT variiert: das Frontend sendet ausschließlich die
-Vorgabe "max". Andere Werte fallen in der API auf die Live-Berechnung zurück —
+Vorgabe "max". Andere Werte fallen in der API auf die Live-Berechnung zurück -
 72 Kombinationen zu verdreifachen, um einen Pfad abzudecken, den niemand aufruft,
 wäre die falsche Rechnung.
 
@@ -58,7 +58,7 @@ def run(conn=None):
             cur.execute("SELECT value::timestamptz FROM metadata WHERE key = 'last_updated'")
             row = cur.fetchone()
             if not row or row[0] is None:
-                log.warning("Kein last_updated in metadata — Vorberechnung übersprungen.")
+                log.warning("Kein last_updated in metadata - Vorberechnung übersprungen.")
                 return 0
             source_updated = row[0]
 

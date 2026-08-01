@@ -7,7 +7,7 @@ ab, die der Warframe Public Export NICHT enthält.
 Zwei davon sind für die Übersicht unverzichtbar:
 
   1. DAS WACHSTUM BIS RANG 30. Der Export liefert Rang-0-Werte. Die Regel lautet
-     „+100 Leben, +100 Schilde, ±0 Rüstung, +50 Energie" — aber 33 der 117 Frames
+     „+100 Leben, +100 Schilde, ±0 Rüstung, +50 Energie" - aber 33 der 117 Frames
      weichen davon ab (Inaros +200 Leben, Hildryn +500 Schilde, Nidus +100
      Rüstung, Grendel gar keine Schilde …). Das Wachstum steckt im Spielclient;
      öffentlich nachgezeichnet ist es nur im Wiki, dort als `HealthRank30`,
@@ -21,7 +21,7 @@ Polaritäten, Aura, Helminth-Fähigkeit, Progenitor-Element, Einführung).
 WARUM EIN KLAMMERZÄHLER UND KEIN ZEILEN-REGEX
 Das Modul wird von Hand gepflegt und schreibt seine Schlüssel in drei Varianten:
 `["Ash Prime"] = {`, `["Wisp Prime"]= {` und `['Gauss Prime'] = {`. Ein Regex auf
-das Schlüsselmuster verlor daran im Test stumm drei Frames — darunter Grendel
+das Schlüsselmuster verlor daran im Test stumm drei Frames - darunter Grendel
 Prime, der eine Sonderregel braucht. Der Scanner unten interessiert sich nur für
 Klammertiefen und ist gegen Anführungszeichen und Leerraum immun.
 
@@ -29,7 +29,7 @@ WÄCHTER
 Unter MIN_ENTRIES geparsten Einträgen wird NICHT geschrieben. Ein halber Stand
 wäre schlimmer als ein alter: die Übersicht zeigt dann Standardwachstum für
 Frames, die längst eine Sonderregel haben, und niemand sieht es. Dieselbe Haltung
-wie bei den vorberechneten Ranglisten — lieber alt und richtig als frisch und
+wie bei den vorberechneten Ranglisten - lieber alt und richtig als frisch und
 halb.
 """
 
@@ -92,8 +92,8 @@ def _group_body(text: str, group: str) -> str:
     # weitergereicht, der Entry-Scanner nimmt daraus nur vollständig geklammerte
     # Blöcke, und über das Schreiben entscheidet dann der Zähler unten. So endet
     # ein halber Download in einer verständlichen Meldung statt in einem
-    # Stacktrace — und in beiden Fällen bleibt der alte Stand stehen.
-    log.warning("Gruppe %r wird im Modultext nicht geschlossen — Antwort vermutlich "
+    # Stacktrace - und in beiden Fällen bleibt der alte Stand stehen.
+    log.warning("Gruppe %r wird im Modultext nicht geschlossen - Antwort vermutlich "
                 "abgeschnitten (%d Zeichen).", group, len(text))
     return text[start:]
 
@@ -147,7 +147,7 @@ def parse_module(text: str) -> dict:
     """
     {internal_name: payload} für alle Warframes des Moduls.
 
-    Einträge ohne InternalName (Drifter, Operator, Platzhalter) fallen raus — sie
+    Einträge ohne InternalName (Drifter, Operator, Platzhalter) fallen raus - sie
     lassen sich ohnehin nicht mit dem Export verbinden.
     """
     out = {}
@@ -179,7 +179,7 @@ def run(conn=None):
 
         if len(entries) < MIN_ENTRIES:
             # Kein Schreibvorgang: der vorhandene Stand bleibt stehen.
-            log.error("Wiki-Modul lieferte nur %d Einträge (erwartet ≥ %d) — "
+            log.error("Wiki-Modul lieferte nur %d Einträge (erwartet ≥ %d) - "
                       "wiki_warframes bleibt unverändert.", len(entries), MIN_ENTRIES)
             return 0
 
@@ -200,7 +200,7 @@ def run(conn=None):
 
             # Zweiter Wächter: jeder Warframe des Exports OHNE Wiki-Gegenstück
             # wird namentlich genannt. Er verschwindet nicht aus der Übersicht,
-            # rechnet dort aber mit Standardwachstum und ohne Startenergie —
+            # rechnet dort aber mit Standardwachstum und ohne Startenergie -
             # das gehört ins Protokoll, nicht ins Schweigen.
             cur.execute("""
                 SELECT w.name_en
