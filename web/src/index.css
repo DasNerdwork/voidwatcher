@@ -20,6 +20,14 @@ html { scrollbar-gutter: stable; }
   html { overflow-y: scroll; }
 }
 
+/* Der reservierte Streifen braucht eine eigene Farbe. Ohne sie erbt die
+   Zeichenfläche den Hintergrund des BODY - also das helle Vitruvian-Bild -,
+   während die Abdunklung darüber (body::before) fixiert positioniert ist und
+   nur den Inhaltsbereich abdeckt, nicht die Rinne. Genau daher kam der blaue
+   Streifen am rechten Rand. Mit einem Hintergrund am HTML wird dieser zur
+   Zeichenfläche, und das Bild bleibt auf den BODY beschränkt. */
+html { background-color: #0d1022; }
+
 body {
   /* Fallback color while image loads */
   background-color:      #0d1022;
