@@ -39,7 +39,8 @@ images/
 export_database_summary.json
 changes.md
 
-# Agents directory
+# Agents & docs
+docs/
 .agents/
 .claude/
 AGENTS.md
